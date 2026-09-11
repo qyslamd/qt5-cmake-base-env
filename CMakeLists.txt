@@ -1,26 +1,48 @@
 cmake_minimum_required(VERSION 3.19)
+
+#===============================================================================
+#
+#   项目定制区 —— 基于本模板新建项目时，只需修改这一段
+#
+#   其余构建设施（版本管理、部署、打包、符号归档、代码统计、单元测试）
+#   会自动跟随，无需改动其它文件。详细说明见 docs/guide/模板使用指南.md
+#
+#-------------------------------------------------------------------------------
+
+# 项目名。同时作为 CMake 工程名与默认的应用名。
+# 未修改时 configure 阶段会输出 WARNING 提醒。
 set(PROJECT_NAME_STR "QtCMakeAppDemo")
+
+# 组织名。决定 %LOCALAPPDATA% 下的数据目录层级（配置/日志/崩溃），
+# 以及安装包的发行者与安装目录层级 {autopf}\<组织名>\<应用名>。
+set(APP_ORG_NAME "Enpht")
+
+# 应用名。默认跟随项目名。与组织名共同决定数据目录、单实例键、窗口标题、
+# 单实例互斥体名；改名后旧数据目录不会自动迁移。
+set(APP_APP_NAME "${PROJECT_NAME_STR}")
+
+# 项目主页 / 支持地址，写入安装包的发行者链接；留空则不显示链接。
+set(APP_URL "")
+
+# 各 CMake 目标名的前缀。core / libui / app 子目录的 TARGET_NAME 均由此
+# 拼出，得到 <前缀>_core / <前缀>_libui / <前缀>_app，同时决定 exe 文件名、
+# 运行脚本名与打包脚本中的目标名。
+set(APP_TARGET_PREFIX "demo")
+
+#===============================================================================
+#   项目定制区结束。以下内容通常无需修改。
+#===============================================================================
+
 project(${PROJECT_NAME_STR}
     VERSION 1.0.0
     DESCRIPTION "a complete qt cmake basic demo."
     LANGUAGES CXX C)
 
-#=======================================
-# 组织名与应用名
-# 单实例键、%LOCALAPPDATA% 下的数据目录（配置/日志/崩溃）、日志文件名、
-# 窗口标题以及安装包的卸载数据目录均由这两项决定，故集中定义，供
-# C++（cmake/app_info.h.in）与安装脚本（make_install_package.iss.in）
-# 共用，避免卸载时删不到运行时的真实数据目录
-set(APP_ORG_NAME "Enpht")
-set(APP_APP_NAME "${PROJECT_NAME_STR}")
+#-------------------------------------------------------------------------------
+# 由定制区变量派生，请勿手工修改
+#-------------------------------------------------------------------------------
 
-# 各 CMake 目标名的前缀：core / app / libui 等子目录的 TARGET_NAME 均由此
-# 拼出（如 demo_core、demo_app、demo_libui）。新建项目改这一处即可，
-# 无需逐个文件改名
-set(APP_TARGET_PREFIX "demo")
-
-# 目标架构后缀（x64 / x86）。互斥体名与安装包文件名都要带它，
-# 故统一在此推导，供 C++、安装脚本共用
+# 目标架构后缀（x64 / x86）。互斥体名与安装包文件名都要带它
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
     set(APP_ARCH_SUFFIX "x64")
 else()
@@ -30,7 +52,7 @@ endif()
 # 单实例互斥体名。运行时由 SingleInstance 创建并持有，安装/卸载脚本据
 # 此判断程序是否在运行；两处必须同名，故只在此定义一处。
 # 必须带架构后缀：否则同机的 x86 与 x64 版本会共用同一互斥体，互相判定
-# 为"已在运行"，安装/卸载也会互相阻塞
+# 为"已在运行"，安装/卸载也会互相阻塞。
 set(APP_MUTEX_NAME "${APP_APP_NAME}Mutex_${APP_ARCH_SUFFIX}")
 
 # 模板防呆：项目名未改说明尚未改名，应用名、数据目录与单实例键都会
@@ -41,6 +63,9 @@ if(PROJECT_NAME_STR STREQUAL "QtCMakeAppDemo")
         " APP_ORG_NAME / APP_APP_NAME 会随之决定数据目录与单实例键。")
 endif()
 
+#-------------------------------------------------------------------------------
+# Qt 安装路径
+#-------------------------------------------------------------------------------
 
 # local.cmake 为 Windows 路径语义，仅 Windows 读取；
 # Linux 使用系统 Qt，必要时通过 -DCMAKE_PREFIX_PATH / -DQt5_DIR 指定
@@ -58,37 +83,43 @@ if(WIN32)
     endif()
 endif()
 
-#=======================================
+#-------------------------------------------------------------------------------
+# 构建脚本模块
+#-------------------------------------------------------------------------------
+
 # 自动解压第三方依赖库
 if (EXISTS "cmake/extract_dependencies.cmake")
     include(cmake/extract_dependencies.cmake)
 endif()
 
-#=======================================
 # 运行脚本生成宏（configure_run_script），供 app 与 tests 使用
 include(cmake/run_app.cmake)
 
-#=======================================
-# CMake全局变量
-set(CMAKE_C_STANDARD 11)    # C 标准，影响全局
-set(CMAKE_CXX_STANDARD 17)  # C++ 标准，影响全局
+#-------------------------------------------------------------------------------
+# CMake 全局配置
+#-------------------------------------------------------------------------------
+
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
-# 设置输出目录,所有target的输出目录都统一到bin和lib下
+
+# 所有 target 的输出统一到 bin 和 lib 下
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-# MSVC
 if(MSVC)
     add_compile_options("/utf-8")
     add_compile_definitions(WIN32_LEAN_AND_MEAN NOMINMAX)
 endif()
 
-#=======================================
-# 查找Qt库
-find_package(Qt5 COMPONENTS 
-    Core Gui Widgets PrintSupport Test Xml Svg network Concurrent Sql SerialPort Network OpenGL
+#-------------------------------------------------------------------------------
+# Qt
+#-------------------------------------------------------------------------------
+
+find_package(Qt5 COMPONENTS
+    Core Gui Widgets PrintSupport Test Xml Svg Network Concurrent Sql SerialPort OpenGL
     CONFIG REQUIRED)
 
 # Qt 运行时目录推导仅服务 Windows 消费方（run_app.bat、测试环境变量）
@@ -98,6 +129,10 @@ if(Qt5_FOUND AND WIN32)
     get_filename_component(QT_BIN_DIR "${QT_LIB_DIR}/../bin" ABSOLUTE)
     get_filename_component(QT_PLUGINS_DIR "${QT_BIN_DIR}/../plugins" ABSOLUTE)
 endif()
+
+#-------------------------------------------------------------------------------
+# 第三方库
+#-------------------------------------------------------------------------------
 
 # spdlog 日志库
 set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "Do not build spdlog examples" FORCE)
@@ -113,19 +148,29 @@ add_subdirectory(3rdparty/QCustomPlot)
 # QXlsx Excel读写库
 add_subdirectory(3rdparty/QXlsx-1.5.0/QXlsx)
 
+#-------------------------------------------------------------------------------
+# 本仓库模块
+#-------------------------------------------------------------------------------
 
-# =======================================
-# 包含demoes
+# 可选 demo（子目录未入库，克隆后为空，可整体删除）
 if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/demoes)
     add_subdirectory(demoes)
 endif()
 
-# =======================================
-# 包含src目录下的CMakeLists.txt，编译应用程序
+# src 下的各模块（core / libui / app）
 add_subdirectory(src)
 
-#=======================================
-# 生成 Windows 下的代码统计脚本（cloc）
+# 单元测试（仅在配置了 BUILD_TESTS 时启用）
+option(BUILD_TESTS "Build unit tests" ON)
+if(BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
+
+#-------------------------------------------------------------------------------
+# 代码统计脚本（cloc）
+#-------------------------------------------------------------------------------
+
 if(WIN32)
     find_program(CLOC_EXECUTABLE
         NAMES cloc cloc-2.06
@@ -145,11 +190,4 @@ if(WIN32)
             @ONLY
         )
     endif()
-endif()
-
-# 单元测试（仅在配置了 BUILD_TESTS 时启用）
-option(BUILD_TESTS "Build unit tests" ON)
-if(BUILD_TESTS)
-    enable_testing()
-    add_subdirectory(tests)
 endif()

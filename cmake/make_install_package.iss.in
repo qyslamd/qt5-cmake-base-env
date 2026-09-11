@@ -3,10 +3,13 @@
 
 #define WhereAreFiles "@ISCC_WHERE_ARE_FILES@"
 
-#define MyAppName "测试程序"
-#define MyCompanyName ""
-#define MyAppPublisher ""
-#define MyAppURL ""
+; 应用标识：全部由顶层 CMakeLists.txt 注入，此处无需修改。
+; 如需与程序名不同的安装包显示名，或与组织名不同的发行者，
+; 把对应项改成字面量即可。
+#define MyAppName "@APP_APP_NAME@"
+#define MyCompanyName "@APP_ORG_NAME@"
+#define MyAppPublisher "@APP_ORG_NAME@"
+#define MyAppURL "@APP_URL@"
 ; 与运行时 SingleInstance 创建的命名互斥体同名（见顶层 CMakeLists.txt）
 #define MyAppMutex "@APP_MUTEX_NAME@"
 #define MyInstallerIcon "@APP_ICON_ICO@"
@@ -16,8 +19,12 @@ AppId=@ISCC_APP_ID@
 AppName={#MyAppName}
 AppVersion=@APP_VERSION@
 AppPublisher={#MyAppPublisher}
-DefaultDirName=@ISCC_APP_PF@\{#MyCompanyName}@PROJECT_NAME@
-DefaultGroupName=@PROJECT_NAME@
+AppPublisherURL={#MyAppURL}
+AppSupportURL={#MyAppURL}
+; 安装目录 {autopf}\<组织名>\<应用名>，与 %LOCALAPPDATA% 下的数据目录同构
+; MyCompanyName 为空时 Windows 会归一化掉多余的分隔符
+DefaultDirName=@ISCC_APP_PF@\{#MyCompanyName}\{#MyAppName}
+DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 #if "@ISCC_USE_64BIT@" == "YES"
