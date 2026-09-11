@@ -76,6 +76,11 @@ set_target_properties(${TARGET_NAME} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
+# 编译选项与 core / libui 保持一致：MSVC 默认只有 /W3，界面层同样需要 /W4
+if(MSVC)
+    target_compile_options(${TARGET_NAME} PRIVATE /W4 /WX- /EHsc)
+endif()
+
 # 生成运行脚本（Windows 为 .bat，Linux 为 .sh），输出到可执行文件所在目录
 configure_run_script("run_${TARGET_NAME}")
 

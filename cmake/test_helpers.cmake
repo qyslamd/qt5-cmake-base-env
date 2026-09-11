@@ -69,9 +69,9 @@ macro(add_unit_test)
     target_link_libraries(${ETEST_NAME} PRIVATE
         ${_TEST_GTEST_LIBS} ${ETEST_LIBS})
 
-    # 6. MSVC 编译选项，与生产代码一致
+    # 6. MSVC 编译选项，与生产代码一致（告警级别同样对齐到 /W4）
     if(MSVC)
-        target_compile_options(${ETEST_NAME} PRIVATE /utf-8)
+        target_compile_options(${ETEST_NAME} PRIVATE /W4 /WX- /EHsc /utf-8)
         target_compile_definitions(${ETEST_NAME} PRIVATE
             UNICODE _UNICODE _CRT_SECURE_NO_WARNINGS)
     endif()
