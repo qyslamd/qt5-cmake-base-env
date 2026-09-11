@@ -14,6 +14,7 @@
 #include "config/config_defs.h"
 #include "config/config_manager.h"
 #include "log_history_buffer.h"
+#include "log_pattern_builder.h"
 #include "qt_console_sink.h"
 
 namespace {
@@ -41,6 +42,26 @@ QMutex Logger::s_mutex_;
 QtConsoleSink* Logger::s_qt_sink_ = nullptr;
 LogHistoryBuffer* Logger::s_history_buffer_ = nullptr;
 std::unordered_map<std::string, spdlog::logger*> Logger::s_module_loggers_;
+spdlog::sink_ptr Logger::s_console_sink_ = nullptr;
+spdlog::sink_ptr Logger::s_file_sink_ = nullptr;
+
+void Logger::ApplyPatternToSinks() {
+  // 控制台与界面窗口用彩色级别，文件用非彩色，其余开关一致
+  const std::string console_pattern =
+      BuildLogPattern(LoadLogPatternOptionsFromConfig(true)).toStdString();
+  const std::string file_pattern =
+      BuildLogPattern(LoadLogPatternOptionsFromConfig(false)).toStdString();
+
+  if (s_console_sink_) {
+    s_console_sink_->set_pattern(console_pattern);
+  }
+  if (s_qt_sink_) {
+    s_qt_sink_->set_pattern(console_pattern);
+  }
+  if (s_file_sink_) {
+    s_file_sink_->set_pattern(file_pattern);
+  }
+}
 
 void Logger::init() {
   if (s_initialized_) {
@@ -84,8 +105,8 @@ void Logger::init() {
   auto console_sink =
       std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
   console_sink->set_level(spdlog::level::debug);
-  console_sink->set_pattern(
-      "[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [%t] [%n] [%s:%#] %v");
+  // pattern 统一在 sink 建齐后由 ApplyPatternToSinks 按配置设置
+  s_console_sink_ = console_sink;
 #endif
 
   // 滚动文件 sink；文件名随 applicationName 走，避免模板产物互相覆盖
@@ -97,7 +118,7 @@ void Logger::init() {
   auto file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
       log_path.toStdString(), max_file_size, max_file_count, true);
   file_sink->set_level(spdlog::level::debug);
-  file_sink->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] [%t] [%n] [%s:%#] %v");
+  s_file_sink_ = file_sink;
 
   // 启动期历史日志缓冲（环形 5000 条）。UI 日志面板出现后回放。
   // 必须先于 QtConsoleSink 创建，让首条日志即能 push 到 history。
@@ -107,6 +128,9 @@ void Logger::init() {
   auto qt_sink = std::make_shared<QtConsoleSink>(s_history_buffer_);
   qt_sink->set_level(spdlog::level::debug);
   s_qt_sink_ = qt_sink.get();
+
+  // 三个 sink 已建齐，按配置统一设置 pattern
+  ApplyPatternToSinks();
 
   // 注册默认 logger，所有模块共用
 #ifndef NDEBUG
@@ -151,6 +175,13 @@ void Logger::init() {
                            kConfigLogDefaultLevel);
                        spdlog::set_level(LevelFromConfig(level));
                        LOG_INFO("LOGGER", "日志级别已更新为: {}", level);
+                     }
+                     // 格式开关变更即重建全部 sink 的 pattern
+                     if (key.startsWith(
+                             QString::fromLatin1(kConfigLogFmtPrefix))) {
+                       ApplyPatternToSinks();
+                       LOG_INFO("LOGGER", "日志格式已更新 [key={}]",
+                                key.toStdString());
                      }
                    });
 

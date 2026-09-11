@@ -8,6 +8,7 @@ set(ALL_HEADERS_SOURCES
     logger/log_filter.cpp
     logger/logger.cpp
     logger/log_history_buffer.cpp
+    logger/log_pattern_builder.cpp
     logger/qt_console_sink.cpp
     auth/auth_service.h
     auth/auth_types.h
@@ -18,6 +19,7 @@ set(ALL_HEADERS_SOURCES
     logger/log_filter.h
     logger/logger.h
     logger/log_history_buffer.h
+    logger/log_pattern_builder.h
     logger/qt_console_sink.h
     crashhandler/CrashHandler.cpp
     common/FileException.cpp

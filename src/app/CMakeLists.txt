@@ -27,6 +27,8 @@ set(TARGET_SRCS
     splash_screen.h
     log_window.cpp
     log_window.h
+    switch_button.cpp
+    switch_button.h
     dialogs/about_dialog.cpp
     dialogs/about_dialog.h
     dialogs/add_edit_user_dialog.cpp

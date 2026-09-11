@@ -48,11 +48,17 @@ class Logger {
   static spdlog::logger* getOrCreateModuleLogger(
       const std::string& module_name);
 
+  // 按当前配置重建全部 sink 的 pattern（格式开关变更时调用）
+  static void ApplyPatternToSinks();
+
   static bool s_initialized_;
   static QMutex s_mutex_;
   static QtConsoleSink* s_qt_sink_;
   static LogHistoryBuffer* s_history_buffer_;
   static std::unordered_map<std::string, spdlog::logger*> s_module_loggers_;
+  // 保留控制台/文件 sink 句柄，供格式开关变更后重建 pattern
+  static spdlog::sink_ptr s_console_sink_;
+  static spdlog::sink_ptr s_file_sink_;
 };
 
 // 全局日志调用宏，使用 fmt 格式化语法 ({})

@@ -16,6 +16,26 @@ constexpr int kConfigLogDefaultMaxFileSize = 10 * 1024 * 1024;  // 10MB
 constexpr int kConfigLogDefaultMaxFileCount = 20;               // 保留20份
 constexpr int kConfigLogDefaultKeepDays = 7;                    // 保留7天
 
+// ===== 日志格式开关 =====
+// 每项独立控制 pattern 中的一段是否输出，全部变更即时生效
+constexpr const char* kConfigLogFmtPrefix = "log/format/";
+constexpr const char* kConfigLogFmtTime = "log/format/time";
+constexpr const char* kConfigLogFmtLevel = "log/format/level";
+constexpr const char* kConfigLogFmtThread = "log/format/thread";
+constexpr const char* kConfigLogFmtModule = "log/format/module";
+constexpr const char* kConfigLogFmtSource = "log/format/source";
+constexpr const char* kConfigLogFmtFunc = "log/format/func";
+constexpr const char* kConfigLogFmtMessage = "log/format/message";
+
+// 日志格式默认开关
+constexpr bool kConfigLogFmtDefaultTime = true;
+constexpr bool kConfigLogFmtDefaultLevel = true;
+constexpr bool kConfigLogFmtDefaultThread = false;
+constexpr bool kConfigLogFmtDefaultModule = true;
+constexpr bool kConfigLogFmtDefaultSource = false;
+constexpr bool kConfigLogFmtDefaultFunc = false;
+constexpr bool kConfigLogFmtDefaultMessage = true;
+
 // ===== 窗口配置组 =====
 constexpr const char* kConfigWindowWidth = "window/width";
 constexpr const char* kConfigWindowHeight = "window/height";
