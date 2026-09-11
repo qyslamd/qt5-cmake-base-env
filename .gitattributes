@@ -1,0 +1,39 @@
+# 行尾与二进制文件约定
+#
+# 为什么要入库而不是依赖本机设置：git 的 core.autocrlf / core.eol 是
+# 开发者本地配置，不入库且默认值因平台而异。仅靠它就意味着同一份仓库在
+# 不同机器上检出的行尾可能不同。
+#
+# 这一点对本仓库尤其要紧：scripts/ 下有批处理脚本，而 cmd.exe 是按 CRLF
+# 分行解析 .bat 的，拿到 LF 版本的 .bat 会导致命令行被切错、脚本无法执行。
+
+# 默认：由 git 判断是否为文本，是则入库存 LF
+* text=auto
+
+# 行尾敏感的文件：显式指定检出时使用的行尾
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+*.sh   text eol=lf
+
+# 模板文件同样要钉死行尾：configure_file 生成的脚本会继承模板的行尾。
+# 若在 WSL 等环境下配置（.in 被检出为 LF），生成的 .bat 会是 LF，
+# 在 Windows 上无法执行。
+*.bat.in text eol=crlf
+*.sh.in  text eol=lf
+
+# 二进制文件：禁用行尾转换与差异比较（转换会破坏内容）
+*.ico      binary
+*.png      binary
+*.jpg      binary
+*.jpeg     binary
+*.gif      binary
+*.qm       binary
+*.dll      binary
+*.lib      binary
+*.exe      binary
+*.pdb      binary
+*.tar.gz   binary
+*.zip      binary
+
+# SVG 是文本格式，保留行尾归一化与可读的 diff
+*.svg text
