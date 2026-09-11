@@ -1,0 +1,64 @@
+---
+# .clang-tidy —— 静态分析规则
+#
+# 与 .clangd 配合：clangd 会读取本文件，在编辑器内实时提示；
+# 命令行用法：
+#     clang-tidy -p build/ninja-debug-x64 <file>
+#
+# 规则集以「能发现真实缺陷、又不在常规 Qt 代码里产生大量误报」为准。
+#
+# 注意：下方的排除项必须写在 Checks 的块标量之内，且不能在其中夹杂 #
+# 注释——YAML 块标量里的 # 是字面内容而非注释，会把相邻的排除项粘成一条
+# 无效条目，导致该检查静默失效。
+
+# 被排除的检查及其原因（仅为注解，实际排除见下）：
+#   readability-implicit-bool-conversion
+#       要求 if (ptr) 写成 if (ptr != nullptr)，属风格偏好而非缺陷
+#   readability-static-accessed-through-instance
+#       Qt 的 QCoreApplication::setApplicationName 等本就是静态成员，
+#       用实例调用是官方最常见的写法
+#   readability-redundant-access-specifiers
+#   readability-magic-numbers / identifier-length / function-cognitive-complexity
+#   readability-convert-member-functions-to-static / avoid-const-params-in-decls
+#   modernize-use-trailing-return-type / avoid-c-arrays / use-nodiscard
+#   modernize-pass-by-value
+#       要求 sink 形参改为按值传递 + move，改动面大且收益有限
+#   performance-enum-size
+#       要求枚举指定底层类型，对小型枚举收益有限
+#   performance-no-int-to-ptr
+#       句柄（如 WId）转指针是常规做法
+#   bugprone-easily-swappable-parameters / narrowing-conversions
+#   bugprone-implicit-widening-of-multiplication-result
+#   bugprone-unchecked-optional-access
+
+Checks: >
+  bugprone-*,
+  performance-*,
+  modernize-*,
+  readability-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-unchecked-optional-access,
+  -performance-enum-size,
+  -performance-no-int-to-ptr,
+  -modernize-use-trailing-return-type,
+  -modernize-avoid-c-arrays,
+  -modernize-use-nodiscard,
+  -modernize-pass-by-value,
+  -readability-magic-numbers,
+  -readability-identifier-length,
+  -readability-function-cognitive-complexity,
+  -readability-convert-member-functions-to-static,
+  -readability-avoid-const-params-in-decls,
+  -readability-implicit-bool-conversion,
+  -readability-redundant-access-specifiers,
+  -readability-static-accessed-through-instance,
+
+WarningsAsErrors: ''
+
+# 只报告项目自身代码的问题，Qt 与三方库的头文件不参与
+HeaderFilterRegex: '(src|tests)[/\\]'
+
+# 按仓库根目录的 .clang-format 给出修复建议
+FormatStyle: file
