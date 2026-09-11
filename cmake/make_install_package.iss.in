@@ -8,6 +8,7 @@
 #define MyAppPublisher ""
 #define MyAppURL ""
 #define MyAppMutex "@PROJECT_NAME@Mutex"
+#define MyInstallerIcon "@APP_ICON_ICO@"
 
 [Setup]
 AppId=@ISCC_APP_ID@
@@ -26,7 +27,7 @@ OutputBaseFilename={#MyAppName}-setup-@ISCC_APP_ARCH_SUFFIX@-@APP_VERSION@
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
-SetupIconFile=@CMAKE_CURRENT_SOURCE_DIR@/resources/icons/ico/icons8_engine.ico
+SetupIconFile={#MyInstallerIcon}
 Uninstallable=yes
 UninstallDisplayName={#MyAppName}
 
@@ -44,17 +45,19 @@ Source: "{#WhereAreFiles}\Qt5*.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#WhereAreFiles}\@ISCC_VC_REDIST@"; DestDir: "{app}"; Flags: ignoreversion
 
 ; Qt 运行时插件目录
-;Source: "{#WhereAreFiles}\bearer\*.dll"; DestDir: "{app}\bearer"; Flags: ignoreversion
+; windeployqt 只部署程序实际用到的插件目录，故按依赖 Qt 模块而存在的
+; 目录（sqldrivers 等）必须带 skipifsourcedoesntexist，否则打包直接报错
+;Source: "{#WhereAreFiles}\bearer\*.dll"; DestDir: "{app}\bearer"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#WhereAreFiles}\iconengines\*.dll"; DestDir: "{app}\iconengines"; Flags: ignoreversion
 Source: "{#WhereAreFiles}\imageformats\*.dll"; DestDir: "{app}\imageformats"; Flags: ignoreversion
 Source: "{#WhereAreFiles}\platforms\*.dll"; DestDir: "{app}\platforms"; Flags: ignoreversion
 Source: "{#WhereAreFiles}\styles\*.dll"; DestDir: "{app}\styles"; Flags: ignoreversion
-Source: "{#WhereAreFiles}\sqldrivers\*.dll"; DestDir: "{app}\sqldrivers"; Flags: ignoreversion
-Source: "{#WhereAreFiles}\translations\*.qm"; DestDir: "{app}\translations"; Flags: ignoreversion
+Source: "{#WhereAreFiles}\sqldrivers\*.dll"; DestDir: "{app}\sqldrivers"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "{#WhereAreFiles}\translations\*.qm"; DestDir: "{app}\translations"; Flags: ignoreversion skipifsourcedoesntexist
 
-; 配置 + 数据
-Source: "{#WhereAreFiles}\config\*"; DestDir: "{app}\config"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#WhereAreFiles}\calibration\*"; DestDir: "{app}\calibration"; Flags: ignoreversion recursesubdirs createallsubdirs
+; 配置 + 数据（模板示例，项目未必有这些目录）
+Source: "{#WhereAreFiles}\config\*"; DestDir: "{app}\config"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+Source: "{#WhereAreFiles}\calibration\*"; DestDir: "{app}\calibration"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\@TARGET_NAME@.exe"

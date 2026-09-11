@@ -143,25 +143,26 @@ if(WIN32)
     # 架构变量（供 configure_file 注入到 .iss.in / .bat.in）
     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
         set(APP_ARCH "x64")
-        set(ISCC_APP_ID "{{AE71EE76-9DCC-4903-A9DF-4B60548D7448}}")
+        set(ISCC_APP_ID "{{028a3caf-84f9-43a5-818f-af4237aac3d6}}")
         set(ISCC_APP_PF "{autopf64}")
         set(ISCC_VC_REDIST "vc_redist.x64.exe")
         set(ISCC_APP_ARCH_SUFFIX "x64")
         set(ISCC_USE_64BIT "YES")
     else()
         set(APP_ARCH "x86")
-        set(ISCC_APP_ID "{{CF6691A8-E2B3-48AD-9013-E088001F7966}}")
+        set(ISCC_APP_ID "{{c11fe96c-bb38-42e2-87ab-bd9d72fb4644}}")
         set(ISCC_APP_PF "{autopf}")
         set(ISCC_VC_REDIST "vc_redist.x86.exe")
         set(ISCC_APP_ARCH_SUFFIX "x86")
         set(ISCC_USE_64BIT "NO")
     endif()
+    set(APP_ICON_ICO "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/icon.ico")
 
     #=======================================
     # 模板防呆：AppId 仍是模板默认值时提醒更换
     # Inno Setup 以 AppId 识别产品，沿用模板默认 GUID 会让基于本模板的
     # 不同项目被系统视为同一程序，安装新项目时直接覆盖卸载旧项目
-    if(ISCC_APP_ID MATCHES "(AE71EE76-9DCC-4903-A9DF-4B60548D7448|CF6691A8-E2B3-48AD-9013-E088001F7966)")
+    if(ISCC_APP_ID MATCHES "(028a3caf-84f9-43a5-818f-af4237aac3d6|c11fe96c-bb38-42e2-87ab-bd9d72fb4644)")
         message(WARNING
             "ISCC_APP_ID 仍是模板默认 GUID！基于本模板新建项目时，"
             "请在 src/app/CMakeLists.txt 中为 x64/x86 各换一个新 GUID"
@@ -184,14 +185,21 @@ if(WIN32)
         @ONLY
     )
 
-    # make_package target — 调用生成的 .bat 完成 windeployqt + ISCC
+    # make_package target — 调用生成的 .bat 完成 ISCC 打包。
+    # 该 .bat 只负责 ISCC，windeployqt 必须先行，否则 .iss 引用的
+    # Qt5*.dll 等运行时文件不存在会导致打包失败，故通过目标依赖串起来
+    # （而非依赖调用方先手动跑 make_deploy）。
     if(WIN32 AND EXISTS ${ISCC_EXECUTABLE})
         add_custom_target(make_package
-            COMMAND "${CMAKE_BINARY_DIR}/scripts/make_installer.bat"
+            COMMAND "${CMAKE_SOURCE_DIR}/scripts/make_installer.bat"
                 "$<TARGET_FILE_DIR:${TARGET_NAME}>"
             WORKING_DIRECTORY "$<TARGET_FILE_DIR:${TARGET_NAME}>"
             COMMENT "Building installer package with Inno Setup (${APP_ARCH})..."
         )
         add_dependencies(make_package ${TARGET_NAME})
+        # windeployqt 未找到时 make_deploy 不存在，此时保持原有行为
+        if(TARGET make_deploy)
+            add_dependencies(make_package make_deploy)
+        endif()
     endif()
 endif() # if(WIN32)
