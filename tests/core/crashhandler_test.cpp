@@ -1,5 +1,3 @@
-#include "crashhandler/CrashHandler.h"
-
 #include <cstdlib>
 #include <gtest/gtest.h>
 
@@ -9,6 +7,8 @@
 #include <QProcess>
 #include <QStandardPaths>
 #include <QTemporaryDir>
+
+#include "crashhandler/crash_handler.h"
 
 #ifdef Q_OS_WIN
 #include <windows.h>

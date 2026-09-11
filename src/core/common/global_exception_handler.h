@@ -1,5 +1,5 @@
-#ifndef ETEST_CORE_COMMON_GLOBAL_EXCEPTION_HANDLER_H_
-#define ETEST_CORE_COMMON_GLOBAL_EXCEPTION_HANDLER_H_
+#ifndef FILE_CORE_COMMON_GLOBAL_EXCEPTION_HANDLER_H_
+#define FILE_CORE_COMMON_GLOBAL_EXCEPTION_HANDLER_H_
 
 #include <QObject>
 #include <QString>
@@ -33,4 +33,4 @@ class GlobalExceptionHandler : public QObject {
   bool initialized_ = false;
 };
 
-#endif  // ETEST_CORE_COMMON_GLOBAL_EXCEPTION_HANDLER_H_
+#endif  // FILE_CORE_COMMON_GLOBAL_EXCEPTION_HANDLER_H_

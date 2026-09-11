@@ -7,7 +7,7 @@
 #include <QFile>
 #include <QStandardPaths>
 
-#include "WindowsCrashHandler.h"
+#include "windows_crash_handler.h"
 
 #pragma comment(lib, "dbghelp.lib")
 

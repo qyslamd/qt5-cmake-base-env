@@ -1,14 +1,14 @@
 #include <QtGlobal>
 #ifndef Q_OS_WIN
 
-#ifndef ETEST_CORE_CRASHHANDLER_LINUXCRASHHANDLER_H_
-#define ETEST_CORE_CRASHHANDLER_LINUXCRASHHANDLER_H_
+#ifndef FILE_CORE_CRASHHANDLER_LINUX_CRASH_HANDLER_H_
+#define FILE_CORE_CRASHHANDLER_LINUX_CRASH_HANDLER_H_
 
 #include <csignal>
 #include <cstddef>
 #include <functional>
 
-#include "CrashHandler.h"
+#include "crash_handler.h"
 
 /// Linux 平台崩溃处理器
 ///
@@ -66,6 +66,6 @@ class LinuxCrashHandler : public CrashHandler {
   static constexpr int kNumCrashSignals = 5;
 };
 
-#endif  // ETEST_CORE_CRASHHANDLER_LINUXCRASHHANDLER_H_
+#endif  // FILE_CORE_CRASHHANDLER_LINUX_CRASH_HANDLER_H_
 
 #endif  // !Q_OS_WIN

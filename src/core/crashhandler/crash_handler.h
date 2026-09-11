@@ -1,5 +1,5 @@
-#ifndef ETEST_CORE_CRASHHANDLER_CRASHHANDLER_H_
-#define ETEST_CORE_CRASHHANDLER_CRASHHANDLER_H_
+#ifndef FILE_CORE_CRASHHANDLER_CRASH_HANDLER_H_
+#define FILE_CORE_CRASHHANDLER_CRASH_HANDLER_H_
 
 #include <functional>
 #include <memory>
@@ -24,4 +24,4 @@ class CrashHandler {
   CrashHandler() = default;
 };
 
-#endif  // ETEST_CORE_CRASHHANDLER_CRASHHANDLER_H_
+#endif  // FILE_CORE_CRASHHANDLER_CRASH_HANDLER_H_

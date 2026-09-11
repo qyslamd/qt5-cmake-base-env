@@ -15,7 +15,7 @@
 #include <QDir>
 #include <QStandardPaths>
 
-#include "LinuxCrashHandler.h"
+#include "linux_crash_handler.h"
 // dlfcn.h 预留：未来 V2 版本用 dladdr() 解析符号名
 
 #include "logger/logger.h"

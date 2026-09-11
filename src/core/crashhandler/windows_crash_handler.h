@@ -1,15 +1,15 @@
 #include <QtGlobal>
 #ifdef Q_OS_WIN
 
-#ifndef ETEST_CORE_CRASHHANDLER_WINDOWSCRASHHANDLER_H_
-#define ETEST_CORE_CRASHHANDLER_WINDOWSCRASHHANDLER_H_
+#ifndef FILE_CORE_CRASHHANDLER_WINDOWS_CRASH_HANDLER_H_
+#define FILE_CORE_CRASHHANDLER_WINDOWS_CRASH_HANDLER_H_
 
 // clang-format off
 // windows.h 必须先于 dbghelp.h，禁止 clang-format 重排
 #include <windows.h>
 #include <dbghelp.h>
 // clang-format on
-#include "CrashHandler.h"
+#include "crash_handler.h"
 
 class WindowsCrashHandler : public CrashHandler {
  public:
@@ -42,6 +42,6 @@ class WindowsCrashHandler : public CrashHandler {
   PVOID m_vectoredHandler = nullptr;
 };
 
-#endif  // ETEST_CORE_CRASHHANDLER_WINDOWSCRASHHANDLER_H_
+#endif  // FILE_CORE_CRASHHANDLER_WINDOWS_CRASH_HANDLER_H_
 
 #endif  // Q_OS_WIN

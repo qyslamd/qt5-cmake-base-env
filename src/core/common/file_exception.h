@@ -1,5 +1,5 @@
-#ifndef ETEST_CORE_COMMON_FILE_EXCEPTION_H_
-#define ETEST_CORE_COMMON_FILE_EXCEPTION_H_
+#ifndef FILE_CORE_COMMON_FILE_EXCEPTION_H_
+#define FILE_CORE_COMMON_FILE_EXCEPTION_H_
 
 #include <stdexcept>
 
@@ -33,4 +33,4 @@ class FileException : public std::runtime_error {
   QString message_;
 };
 
-#endif  // ETEST_CORE_COMMON_FILE_EXCEPTION_H_
+#endif  // FILE_CORE_COMMON_FILE_EXCEPTION_H_

@@ -1,4 +1,4 @@
-#include "common/StringException.h"
+#include "common/string_exception.h"
 
 #include <QString>
 

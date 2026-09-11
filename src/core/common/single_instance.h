@@ -1,5 +1,5 @@
-#ifndef ETEST_CORE_COMMON_SINGLE_INSTANCE_H_
-#define ETEST_CORE_COMMON_SINGLE_INSTANCE_H_
+#ifndef FILE_CORE_COMMON_SINGLE_INSTANCE_H_
+#define FILE_CORE_COMMON_SINGLE_INSTANCE_H_
 
 #include <QDataStream>
 #include <QLocalServer>
@@ -61,4 +61,4 @@ class SingleInstance : public QObject {
   static const int CONNECTION_TIMEOUT = 1000;
 };
 
-#endif  // ETEST_CORE_COMMON_SINGLE_INSTANCE_H_
+#endif  // FILE_CORE_COMMON_SINGLE_INSTANCE_H_

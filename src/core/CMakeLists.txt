@@ -21,31 +21,31 @@ set(ALL_HEADERS_SOURCES
     logger/log_history_buffer.h
     logger/log_pattern_builder.h
     logger/qt_console_sink.h
-    crashhandler/CrashHandler.cpp
-    common/FileException.cpp
-    common/TimeException.cpp
-    common/StringException.cpp
-    common/ByteException.cpp
-    common/GlobalExceptionHandler.cpp
-    common/SingleInstance.cpp
-    common/FileException.h
-    common/TimeException.h
-    common/StringException.h
-    common/ByteException.h
-    common/GlobalExceptionHandler.h
-    common/SingleInstance.h
+    crashhandler/crash_handler.cpp
+    common/file_exception.cpp
+    common/time_exception.cpp
+    common/string_exception.cpp
+    common/byte_exception.cpp
+    common/global_exception_handler.cpp
+    common/single_instance.cpp
+    common/file_exception.h
+    common/time_exception.h
+    common/string_exception.h
+    common/byte_exception.h
+    common/global_exception_handler.h
+    common/single_instance.h
 )
 
 # 平台崩溃捕获实现按平台加入（源文件自身亦有平台守卫，此处为防御性组织）
 if(WIN32)
     list(APPEND ALL_HEADERS_SOURCES
-        crashhandler/WindowsCrashHandler.cpp
-        crashhandler/WindowsCrashHandler.h
+        crashhandler/windows_crash_handler.cpp
+        crashhandler/windows_crash_handler.h
     )
 else()
     list(APPEND ALL_HEADERS_SOURCES
-        crashhandler/LinuxCrashHandler.cpp
-        crashhandler/LinuxCrashHandler.h
+        crashhandler/linux_crash_handler.cpp
+        crashhandler/linux_crash_handler.h
     )
 endif()
 

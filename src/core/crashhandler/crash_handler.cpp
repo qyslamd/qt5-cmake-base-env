@@ -1,4 +1,4 @@
-#include "CrashHandler.h"
+#include "crash_handler.h"
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -6,9 +6,9 @@
 #include <QSysInfo>
 
 #ifdef Q_OS_WIN
-#include "WindowsCrashHandler.h"
+#include "windows_crash_handler.h"
 #else
-#include "LinuxCrashHandler.h"
+#include "linux_crash_handler.h"
 #endif
 
 std::unique_ptr<CrashHandler> CrashHandler::create() {

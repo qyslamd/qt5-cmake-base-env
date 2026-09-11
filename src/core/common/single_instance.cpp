@@ -6,7 +6,7 @@
 #pragma comment(lib, "user32.lib")
 #endif
 // clang-format on
-#include "SingleInstance.h"
+#include "single_instance.h"
 
 #include <QByteArray>
 #include <QCoreApplication>

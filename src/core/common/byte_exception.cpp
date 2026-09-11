@@ -1,4 +1,4 @@
-#include "common/ByteException.h"
+#include "common/byte_exception.h"
 
 #include <QString>
 
