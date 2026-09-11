@@ -135,6 +135,22 @@ if(MSVC)
 endif()
 
 #-------------------------------------------------------------------------------
+# clangd / clang-tidy 支持
+#-------------------------------------------------------------------------------
+
+# 导出 compile_commands.json
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# 生成 .clangd，把 clangd 指向本次配置的构建目录（该文件不入库）
+set(CLANGD_COMPILE_COMMANDS_DIR "${CMAKE_BINARY_DIR}")
+file(TO_CMAKE_PATH "${CLANGD_COMPILE_COMMANDS_DIR}" CLANGD_COMPILE_COMMANDS_DIR)
+configure_file(
+    "${CMAKE_SOURCE_DIR}/cmake/.clangd.in"
+    "${CMAKE_SOURCE_DIR}/.clangd"
+    @ONLY
+)
+
+#-------------------------------------------------------------------------------
 # Qt
 #-------------------------------------------------------------------------------
 

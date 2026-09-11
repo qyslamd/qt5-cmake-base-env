@@ -1,0 +1,11 @@
+# 由 cmake/.clangd.in 生成，请勿手工修改（每次 configure 都会覆盖）。
+#
+# CompilationDatabase 指向本次配置的构建目录：本项目的构建目录按 preset
+# 分开（build/ninja-<配置>-<架构>），不在源码树的祖先路径上，clangd 无法
+# 自动找到 compile_commands.json，必须显式指定，否则会把 Qt 头全判为
+# 「file not found」（实测同一文件由 28 个错误降为 0）。
+#
+# 无需在此额外定义 signals / slots / emit：Qt 的 qobjectdefs.h 已定义这些
+# 宏，只要 Qt 头能正常解析就不成问题（实测增删这几项对诊断数无影响）。
+CompileFlags:
+  CompilationDatabase: "@CLANGD_COMPILE_COMMANDS_DIR@"

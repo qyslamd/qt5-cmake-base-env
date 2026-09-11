@@ -1,0 +1,54 @@
+{
+    // 使用 IntelliSense 了解相关属性。
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    //
+    // Qt 路径取自 settings.json 的 qtcmake.qtDir，无需在此重复填写。
+    // 下列 program 路径中的 demo_app 随顶层 CMakeLists 的 APP_TARGET_PREFIX
+    // 变化（<前缀>_app）。
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "demo_app (x64 Debug)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/ninja-debug-x64/bin/demo_app.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/ninja-debug-x64/bin",
+            "environment": [
+                {
+                    "name": "PATH",
+                    "value": "${config:qtcmake.qtDir}/bin;${env:PATH}"
+                },
+                {
+                    "name": "QT_PLUGIN_PATH",
+                    "value": "${config:qtcmake.qtDir}/plugins"
+                }
+            ],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "openOnFirstSessionStart"
+        },
+        {
+            "name": "test_core_crashhandler (x64 Debug)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/ninja-debug-x64/bin/tests/test_core_crashhandler.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/ninja-debug-x64/bin",
+            "environment": [
+                {
+                    "name": "PATH",
+                    "value": "${config:qtcmake.qtDir}/bin;${env:PATH}"
+                },
+                {
+                    "name": "QT_PLUGIN_PATH",
+                    "value": "${config:qtcmake.qtDir}/plugins"
+                }
+            ],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "openOnFirstSessionStart"
+        }
+    ]
+}

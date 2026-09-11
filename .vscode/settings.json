@@ -1,0 +1,24 @@
+{
+    // ==================== 本机配置（克隆后按需修改）====================
+
+    // 本机 Qt 安装路径：调试时用于定位 Qt 的 DLL 与插件。
+    // 需与 local.cmake 中的 Qt5_12_x_Path_x64 保持一致；
+    // launch.json 通过 ${config:qtcmake.qtDir} 引用此处，避免多处重复。
+    "qtcmake.qtDir": "D:/Qt22/5.15.2/msvc2019_64",
+
+    // clang-format 可执行文件路径。留空则从 PATH 查找；
+    // 本机未把 Qt Creator 自带的 clang-format 加入 PATH 时需要填绝对路径。
+    "clang-format.executable": "D:/Qt/Tools/QtCreator/bin/clang/bin/clang-format.exe",
+
+    // ==================== 项目约定（一般无需修改）====================
+
+    // 项目遵循 Google C++ Style Guide（见 CLAUDE.md）。
+    // 仓库内暂无 .clang-format，故以 fallbackStyle 生效。
+    "editor.formatOnSave": true,
+    "clang-format.fallbackStyle": "Google",
+
+    // ==================== 个人偏好 ====================
+    "editor.fontSize": 14,
+    "editor.fontFamily": "Cascadia Mono Light, Microsoft YaHei, monospace",
+    "terminal.integrated.fontFamily": "Cascadia Code, Microsoft YaHei, monospace"
+}

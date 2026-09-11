@@ -18,10 +18,14 @@ ehthumbs.db
 $RECYCLE.BIN/
 
 # 编辑器/IDE 通用
-.vscode/
+# .vscode/ 已纳入仓库：其中的配置作为模板的一部分，供克隆后直接使用。
+# 若需放本机私有配置，改用 .vscode/settings.local.json 之类的个人文件。
 .idea/
 *.iml
 .cache/
+
+# clangd：由 cmake/.clangd.in 生成，内含本机构建路径，不入库
+.clangd
 
 # ============================================================
 # C/C++ 编译产物

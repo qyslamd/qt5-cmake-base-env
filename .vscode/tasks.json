@@ -1,0 +1,47 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			// preset 名见根目录 CMakePresets.json
+			"type": "cmake",
+			"label": "CMake: 配置 (x64 Debug)",
+			"command": "configure",
+			"preset": "ninja-debug-x64",
+			"problemMatcher": [],
+			"detail": "CMake 配置任务"
+		},
+		{
+			"type": "cmake",
+			"label": "CMake: 构建 (x64 Debug)",
+			"command": "build",
+			"preset": "ninja-debug-x64-build",
+			"problemMatcher": [],
+			"detail": "CMake 构建任务"
+		},
+		{
+			"type": "cmake",
+			"label": "CMake: 测试 (x64 Debug)",
+			"command": "test",
+			"preset": "ninja-debug-x64-test",
+			"problemMatcher": [],
+			"detail": "CMake 测试任务"
+		},
+		{
+			// 发布打包：构建 + 归档符号 + windeployqt + Inno Setup
+			// 详见 docs/guide/发布指南.md。Debug 配置会被拒绝。
+			"type": "shell",
+			"label": "发布: 打包 (x64 relwithdebinfo)",
+			"command": "scripts\\build_ninja.bat",
+			"args": ["-t", "relwithdebinfo", "-p"],
+			"options": {
+				"cwd": "${workspaceFolder}",
+				"shell": {
+					"executable": "cmd.exe",
+					"args": ["/d", "/c"]
+				}
+			},
+			"problemMatcher": [],
+			"detail": "发布打包任务"
+		}
+	]
+}

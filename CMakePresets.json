@@ -12,8 +12,7 @@
                 "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/${presetName}",
                 "CMAKE_CXX_STANDARD": "17",
                 "CMAKE_C_STANDARD": "11",
-                "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreadedDebugDLL",
-                "CMAKE_EXPORT_COMPILE_COMMANDS": true
+                "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreadedDebugDLL"
             }
         },
         {
@@ -27,8 +26,7 @@
                 "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/${presetName}",
                 "CMAKE_CXX_STANDARD": "17",
                 "CMAKE_C_STANDARD": "11",
-                "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreadedDebugDLL",
-                "CMAKE_EXPORT_COMPILE_COMMANDS": true
+                "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreadedDebugDLL"
             }
         },
         {
