@@ -29,6 +29,12 @@ set(APP_URL "")
 # 运行脚本名与打包脚本中的目标名。
 set(APP_TARGET_PREFIX "demo")
 
+# 安装包产品标识（Inno Setup 的 AppId），x64 与 x86 各一个。
+# 每个项目必须换成新的 GUID —— 沿用模板默认值会让 Windows 把不同项目
+# 视为同一程序，安装时直接覆盖卸载。可用 pwsh 执行 [guid]::NewGuid() 生成。
+set(APP_INSTALLER_ID_X64 "{{028a3caf-84f9-43a5-818f-af4237aac3d6}}")
+set(APP_INSTALLER_ID_X86 "{{c11fe96c-bb38-42e2-87ab-bd9d72fb4644}}")
+
 #===============================================================================
 #   项目定制区结束。以下内容通常无需修改。
 #===============================================================================
@@ -45,8 +51,10 @@ project(${PROJECT_NAME_STR}
 # 目标架构后缀（x64 / x86）。互斥体名与安装包文件名都要带它
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
     set(APP_ARCH_SUFFIX "x64")
+    set(APP_INSTALLER_ID "${APP_INSTALLER_ID_X64}")
 else()
     set(APP_ARCH_SUFFIX "x86")
+    set(APP_INSTALLER_ID "${APP_INSTALLER_ID_X86}")
 endif()
 
 # 单实例互斥体名。运行时由 SingleInstance 创建并持有，安装/卸载脚本据
@@ -55,12 +63,24 @@ endif()
 # 为"已在运行"，安装/卸载也会互相阻塞。
 set(APP_MUTEX_NAME "${APP_APP_NAME}Mutex_${APP_ARCH_SUFFIX}")
 
-# 模板防呆：项目名未改说明尚未改名，应用名、数据目录与单实例键都会
-# 沿用模板取值，与其它模板产物冲突（思路同 ISCC_APP_ID 的 GUID 警告）
+# 模板防呆：下面两项未改说明尚未按定制区改名/换号，产出的程序与安装包
+# 会与其它模板产物互相冲突
+
+# 项目名未改：应用名、数据目录与单实例键都会沿用模板取值
 if(PROJECT_NAME_STR STREQUAL "QtCMakeAppDemo")
     message(WARNING
         "PROJECT_NAME_STR 仍是模板默认值！新建项目请先改名，"
         " APP_ORG_NAME / APP_APP_NAME 会随之决定数据目录与单实例键。")
+endif()
+
+# 安装包 GUID 未换：Inno Setup 以 AppId 识别产品，沿用模板默认值会让
+# 不同项目被系统视为同一程序，安装新项目时直接覆盖卸载旧项目
+if(APP_INSTALLER_ID_X64 MATCHES "028a3caf-84f9-43a5-818f-af4237aac3d6" OR
+   APP_INSTALLER_ID_X86 MATCHES "c11fe96c-bb38-42e2-87ab-bd9d72fb4644")
+    message(WARNING
+        "APP_INSTALLER_ID_X64 / APP_INSTALLER_ID_X86 仍是模板默认 GUID！"
+        "请为 x64/x86 各换一个新 GUID（pwsh 执行 [guid]::NewGuid() 可生成），"
+        "否则安装包会互相覆盖。")
 endif()
 
 #-------------------------------------------------------------------------------

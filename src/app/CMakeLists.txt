@@ -140,29 +140,18 @@ if(WIN32)
 
     #=======================================
     # 架构变量（供 configure_file 注入到 .iss.in / .bat.in）
+    # 产品标识取自顶层定制区的 APP_INSTALLER_ID（已按架构选好）
+    set(ISCC_APP_ID "${APP_INSTALLER_ID}")
     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        set(ISCC_APP_ID "{{028a3caf-84f9-43a5-818f-af4237aac3d6}}")
         set(ISCC_APP_PF "{autopf64}")
         set(ISCC_VC_REDIST "vc_redist.x64.exe")
         set(ISCC_USE_64BIT "YES")
     else()
-        set(ISCC_APP_ID "{{c11fe96c-bb38-42e2-87ab-bd9d72fb4644}}")
         set(ISCC_APP_PF "{autopf}")
         set(ISCC_VC_REDIST "vc_redist.x86.exe")
         set(ISCC_USE_64BIT "NO")
     endif()
     set(APP_ICON_ICO "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/icon.ico")
-
-    #=======================================
-    # 模板防呆：AppId 仍是模板默认值时提醒更换
-    # Inno Setup 以 AppId 识别产品，沿用模板默认 GUID 会让基于本模板的
-    # 不同项目被系统视为同一程序，安装新项目时直接覆盖卸载旧项目
-    if(ISCC_APP_ID MATCHES "(028a3caf-84f9-43a5-818f-af4237aac3d6|c11fe96c-bb38-42e2-87ab-bd9d72fb4644)")
-        message(WARNING
-            "ISCC_APP_ID 仍是模板默认 GUID！基于本模板新建项目时，"
-            "请在 src/app/CMakeLists.txt 中为 x64/x86 各换一个新 GUID"
-            "（pwsh 执行 [guid]::NewGuid() 可生成），否则安装包会互相覆盖。")
-    endif()
 
     set(PACKAGE_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/dist")
     set(ISCC_WHERE_ARE_FILES "${CMAKE_BINARY_DIR}/bin")
