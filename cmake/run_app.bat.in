@@ -6,8 +6,8 @@ set "QT_PLUGIN_PATH=@QT_PLUGINS_DIR@"
 
 chcp 65001 >nul
 
-pushd "@CMAKE_RUNTIME_OUTPUT_DIRECTORY@"
+cd /d "@RUN_DIR@"
 
-@TARGET_NAME@.exe
-
-popd
+rem 显式 .\ 前缀：NoDefaultCurrentDirectoryInExePath 生效时，
+rem 裸文件名不会从当前目录解析
+.\@TARGET_NAME@.exe @PROGRAM_ARGS@ %*

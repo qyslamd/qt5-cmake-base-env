@@ -40,7 +40,14 @@ bool WindowsCrashHandler::init() {
 }
 
 void WindowsCrashHandler::setDumpPath(const QString& path) {
+  // 统一补尾分隔符：崩溃处理里直接用 m_dumpPath + 文件名 拼接，
+  // 缺分隔符会把日志与 dump 写到目标目录的兄弟路径上（构造函数给出的
+  // 默认路径自带 '/'，掩盖了该问题，故必须在此规范化）
   m_dumpPath = path;
+  if (!m_dumpPath.endsWith(QLatin1Char('/')) &&
+      !m_dumpPath.endsWith(QLatin1Char('\\'))) {
+    m_dumpPath += QLatin1Char('/');
+  }
   QDir().mkpath(m_dumpPath);
 }
 

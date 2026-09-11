@@ -78,13 +78,8 @@ set_target_properties(${TARGET_NAME} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
-if(WIN32)
-    configure_file(
-        "${CMAKE_SOURCE_DIR}/cmake/run_app.bat.in"
-        "${CMAKE_BINARY_DIR}/bin/run_${TARGET_NAME}.bat"
-        @ONLY
-    )
-endif()
+# 生成运行脚本（Windows 为 .bat，Linux 为 .sh），输出到可执行文件所在目录
+configure_run_script("run_${TARGET_NAME}")
 
 #=======================================
 # 拷贝运行时目录到输出目录（每次构建后同步）

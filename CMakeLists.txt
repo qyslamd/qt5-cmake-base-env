@@ -65,6 +65,10 @@ if (EXISTS "cmake/extract_dependencies.cmake")
 endif()
 
 #=======================================
+# 运行脚本生成宏（configure_run_script），供 app 与 tests 使用
+include(cmake/run_app.cmake)
+
+#=======================================
 # CMake全局变量
 set(CMAKE_C_STANDARD 11)    # C 标准，影响全局
 set(CMAKE_CXX_STANDARD 17)  # C++ 标准，影响全局
