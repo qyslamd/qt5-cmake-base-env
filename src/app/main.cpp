@@ -13,6 +13,7 @@
 #include "dialogs/login_dialog.h"
 #include "logger/logger.h"
 #include "mainwindow.h"
+#include "splash_screen.h"
 
 int main(int argc, char* argv[]) {
   QApplication app(argc, argv);
@@ -60,16 +61,8 @@ int main(int argc, char* argv[]) {
     LOG_INFO("MAIN", "崩溃捕获模块初始化完成");
   }
 
-  MainWindow w;
-  // 钳制窗口尺寸，防止损坏的 INI 产生不可用窗口
-  const int saved_width = ConfigManager::instance().get<int>(
-      QString::fromLatin1(kConfigWindowWidth), kConfigWindowDefaultWidth);
-  const int saved_height = ConfigManager::instance().get<int>(
-      QString::fromLatin1(kConfigWindowHeight), kConfigWindowDefaultHeight);
-  w.resize(qBound(640, saved_width, 4096), qBound(480, saved_height, 2160));
-
-  // 登录成功后才显示主窗口
-  LoginDialog login(&w);
+  // 登录成功前不创建主窗口
+  LoginDialog login;
   if (login.exec() != QDialog::Accepted) {
     LOG_INFO("MAIN", "未登录，退出程序");
     GlobalExceptionHandler::instance().shutdown();
@@ -78,6 +71,42 @@ int main(int argc, char* argv[]) {
   }
   LOG_INFO("MAIN", "登录成功，当前用户: {}",
            AuthService::instance().currentUser().user_name_.toStdString());
+
+  // 启动阶段：Splash 覆盖主界面创建过程。各步骤之间插入
+  // processEvents 保证进度条实时刷新；模板使用者可在步骤之间加入
+  // 自己的耗时初始化逻辑，Splash 无需感知主窗口内部结构。
+  SplashScreen splash;
+  splash.show();
+  QCoreApplication::processEvents();
+
+  splash.setStatusText(QStringLiteral("初始化用户会话"));
+  splash.setProgress(25);
+  QCoreApplication::processEvents();
+  const User current_user = AuthService::instance().currentUser();
+  LOG_INFO("MAIN", "用户会话已建立: {}", current_user.user_name_.toStdString());
+
+  splash.setStatusText(QStringLiteral("加载用户配置"));
+  splash.setProgress(50);
+  QCoreApplication::processEvents();
+  // 钳制窗口尺寸，防止损坏的 INI 产生不可用窗口
+  const int saved_width = ConfigManager::instance().get<int>(
+      QString::fromLatin1(kConfigWindowWidth), kConfigWindowDefaultWidth);
+  const int saved_height = ConfigManager::instance().get<int>(
+      QString::fromLatin1(kConfigWindowHeight), kConfigWindowDefaultHeight);
+  const int window_width = qBound(640, saved_width, 4096);
+  const int window_height = qBound(480, saved_height, 2160);
+
+  splash.setStatusText(QStringLiteral("创建主界面"));
+  splash.setProgress(80);
+  QCoreApplication::processEvents();
+  MainWindow w;
+  w.resize(window_width, window_height);
+
+  splash.setStatusText(QStringLiteral("启动完成"));
+  splash.setProgress(100);
+  QCoreApplication::processEvents();
+  splash.finish();
+
   w.show();
 
   // 第二实例请求激活：Windows 在 SingleInstance 内走 HWND 置前，

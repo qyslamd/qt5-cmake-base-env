@@ -342,3 +342,80 @@ QTabBar::tab {
   padding: 0 6px;
   background: white;
 }
+
+/* ========== SplashScreen（启动画面） ========== */
+#splashContent {
+  background: white;
+  border: 1px solid #D0D0D0;
+  border-radius: 12px;
+}
+#splashLogo {
+  background: transparent;
+}
+#splashTitle {
+  background: transparent;
+  color: #1a237e;
+  font-size: 24px;
+  font-weight: 600;
+}
+#splashStatus {
+  background: transparent;
+  color: #666666;
+  font-size: 13px;
+}
+#splashProgressBar {
+  background-color: #E0E0E0;
+  border: none;
+  border-radius: 4px;
+  color: #666666;
+  font-size: 11px;
+  /* QSS 未声明 text-align 时默认左对齐，显式居中 */
+  text-align: center;
+}
+#splashProgressBar::chunk {
+  background-color: #1d8fe1;
+  border-radius: 4px;
+}
+
+/* ========== LogWindow（日志窗口） ========== */
+#logWindow {
+  background: white;
+}
+
+/* ========== AboutDialog（关于） ========== */
+#aboutDialog {
+  background: white;
+}
+#aboutAppName {
+  color: #1a237e;
+  font-size: 18px;
+  font-weight: 600;
+}
+#aboutInfo {
+  color: #333333;
+  font-size: 13px;
+}
+#aboutHint {
+  color: #999999;
+  font-size: 12px;
+}
+
+/* ========== SettingsDialog（设置） ========== */
+#settingsDialog {
+  background: #fafbfc;
+}
+#settingsDialog QLabel {
+  color: #333333;
+}
+#settingsDialog QComboBox,
+#settingsDialog QSpinBox {
+  min-height: 24px;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  padding: 0 6px;
+  background: white;
+}
+#settingsHint {
+  color: #999999;
+  font-size: 12px;
+}

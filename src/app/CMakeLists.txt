@@ -18,6 +18,12 @@ set(TARGET_SRCS
     res.qrc
     mainwindow.cpp
     mainwindow.h
+    splash_screen.cpp
+    splash_screen.h
+    log_window.cpp
+    log_window.h
+    dialogs/about_dialog.cpp
+    dialogs/about_dialog.h
     dialogs/add_edit_user_dialog.cpp
     dialogs/add_edit_user_dialog.h
     dialogs/change_password_dialog.cpp
