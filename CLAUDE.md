@@ -118,6 +118,7 @@ scripts/build_ninja.bat -t relwithdebinfo -m demo_app -p
    - 不使用默认的 Claude 署名
    - 提交信息的开始和结束不能有 @ 符号
 14. 头文件顺序有要求的，必须要在包含头文件的地方关掉clang-format，不然容易被clang-format自动调整头文件顺序导致出问题
+15. **发布一律用 `relwithdebinfo` 配置**（`scripts/build_ninja.bat -t relwithdebinfo -p`），不要用 `release`。Release 不带 `/Zi`、构建不产 PDB，崩溃日志的调用栈只能给出裸地址。每次发布的 exe 与对应 PDB 必须一并归档，否则 minidump 事后无法解析。详见 `docs/guide/构建配置与崩溃排查.md`
   
 ## 功能开发流程
 

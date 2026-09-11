@@ -180,10 +180,30 @@ if(WIN32)
         @ONLY
     )
 
+    #=======================================
+    # make_symbols target — 归档发布符号
+    # 崩溃转储与崩溃日志里只有地址，事后解析要拿崩溃那一刻那个二进制匹配的
+    # PDB。而 exe 内嵌的是构建机的绝对 PDB 路径（分析机上不存在），版本号又
+    # 每次 configure 自增，旧 PDB 一旦被新构建覆盖便再也拿不回来。
+    # 故按版本号归档 exe + PDB；release 不产 PDB，由脚本告警而非中断打包。
+    set(SYMBOLS_OUTPUT_DIR
+        "${PACKAGE_OUTPUT_DIR}/symbols/${APP_VERSION}-${APP_ARCH_SUFFIX}")
+    if(MSVC)
+        add_custom_target(make_symbols
+            COMMAND ${CMAKE_COMMAND}
+                -DSRC_EXE="$<TARGET_FILE:${TARGET_NAME}>"
+                -DSRC_PDB="$<TARGET_PDB_FILE:${TARGET_NAME}>"
+                -DDEST_DIR="${SYMBOLS_OUTPUT_DIR}"
+                -P "${CMAKE_SOURCE_DIR}/cmake/archive_symbols.cmake"
+            COMMENT "Archiving symbols to ${SYMBOLS_OUTPUT_DIR}..."
+        )
+        add_dependencies(make_symbols ${TARGET_NAME})
+    endif()
+
     # make_package target — 调用生成的 .bat 完成 ISCC 打包。
     # 该 .bat 只负责 ISCC，windeployqt 必须先行，否则 .iss 引用的
     # Qt5*.dll 等运行时文件不存在会导致打包失败，故通过目标依赖串起来
-    # （而非依赖调用方先手动跑 make_deploy）。
+    # （而非依赖调用方先手动跑 make_deploy）。符号归档同样是发布必经步骤。
     if(WIN32 AND EXISTS ${ISCC_EXECUTABLE})
         add_custom_target(make_package
             COMMAND "${CMAKE_SOURCE_DIR}/scripts/make_installer.bat"
@@ -195,6 +215,9 @@ if(WIN32)
         # windeployqt 未找到时 make_deploy 不存在，此时保持原有行为
         if(TARGET make_deploy)
             add_dependencies(make_package make_deploy)
+        endif()
+        if(TARGET make_symbols)
+            add_dependencies(make_package make_symbols)
         endif()
     endif()
 endif() # if(WIN32)
