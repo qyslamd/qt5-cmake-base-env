@@ -15,11 +15,9 @@ class UserManager {
   bool saveUsers();
   QList<User> allUsers() const;
   User authenticate(const QString& username, const QString& password) const;
-  bool addUser(const QString& username,
-               const QString& password,
+  bool addUser(const QString& username, const QString& password,
                UserRole role = UserRole::kUser);
-  bool updateUser(const QString& username,
-                  const QString& new_password,
+  bool updateUser(const QString& username, const QString& new_password,
                   UserRole new_role);
   bool deleteUser(const QString& username);
   QString lastError() const;

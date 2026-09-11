@@ -9,8 +9,7 @@
 #include "auth/auth_service.h"
 #include "auth/user_manager.h"
 
-ChangePasswordDialog::ChangePasswordDialog(QWidget* parent)
-    : QDialog(parent) {
+ChangePasswordDialog::ChangePasswordDialog(QWidget* parent) : QDialog(parent) {
   setObjectName(QStringLiteral("changePasswordDialog"));
   setWindowTitle(QStringLiteral("修改密码"));
   setFixedSize(360, 300);

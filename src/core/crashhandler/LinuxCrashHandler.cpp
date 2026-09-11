@@ -1,21 +1,21 @@
 #include <QtGlobal>
 #ifndef Q_OS_WIN
 
-#include "LinuxCrashHandler.h"
-
-#include <QCoreApplication>
-#include <QDir>
-#include <QStandardPaths>
-
-#include <cerrno>
-#include <cstring>
-#include <limits>
-
 #include <execinfo.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <time.h>
 #include <unistd.h>
+
+#include <cerrno>
+#include <cstring>
+#include <limits>
+
+#include <QCoreApplication>
+#include <QDir>
+#include <QStandardPaths>
+
+#include "LinuxCrashHandler.h"
 // dlfcn.h 预留：未来 V2 版本用 dladdr() 解析符号名
 
 #include "logger/logger.h"
@@ -35,9 +35,7 @@ constexpr char kTermCrashMid[] = ")\n崩溃日志已写入: ";
 constexpr char kTermCrashSuffix[] = "\n使用 addr2line 解析调用栈地址。\n";
 
 /// 用 write 输出 C 字符串字面量，自动推导长度
-inline void writeStr(int fd, const char* s) {
-  write(fd, s, strlen(s));
-}
+inline void writeStr(int fd, const char* s) { write(fd, s, strlen(s)); }
 }  // namespace
 
 // 静态成员定义
@@ -159,10 +157,8 @@ const char* LinuxCrashHandler::getSignalName(int signum) {
   }
 }
 
-size_t LinuxCrashHandler::formatSignalHeader(char* buf,
-                                             size_t bufSize,
-                                             int signum,
-                                             siginfo_t* info) {
+size_t LinuxCrashHandler::formatSignalHeader(char* buf, size_t bufSize,
+                                             int signum, siginfo_t* info) {
   if (!buf || bufSize == 0) {
     return 0;
   }
@@ -242,8 +238,7 @@ void LinuxCrashHandler::doCrashDump(int signum, siginfo_t* info) {
   writeStr(STDERR_FILENO, kTermCrashSuffix);
 }
 
-void LinuxCrashHandler::signalHandler(int signum,
-                                      siginfo_t* info,
+void LinuxCrashHandler::signalHandler(int signum, siginfo_t* info,
                                       void* /*context*/) {
   // s_inHandler 防 doCrashDump 返回后、_exit 之前被同一信号再次中断。
   // 注意：由于 SA_RESETHAND，doCrashDump 内部的嵌套崩溃不会回到此函数，

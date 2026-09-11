@@ -11,7 +11,6 @@
 // clang-format on
 #include "CrashHandler.h"
 
-
 class WindowsCrashHandler : public CrashHandler {
  public:
   WindowsCrashHandler();
@@ -32,11 +31,8 @@ class WindowsCrashHandler : public CrashHandler {
   // SEH-safe helpers — their local variables must be POD only (no C++ dtors).
   static void doCrashHandler(PEXCEPTION_POINTERS pExceptionInfo);
   static void doCrashFallback(PEXCEPTION_POINTERS pExceptionInfo);
-  static void appendStackWalk(QString& out,
-                              HANDLE process,
-                              HANDLE thread,
-                              CONTEXT* ctxCopy,
-                              STACKFRAME64& stackFrame,
+  static void appendStackWalk(QString& out, HANDLE process, HANDLE thread,
+                              CONTEXT* ctxCopy, STACKFRAME64& stackFrame,
                               DWORD machineType);
 
   static WindowsCrashHandler* s_instance;

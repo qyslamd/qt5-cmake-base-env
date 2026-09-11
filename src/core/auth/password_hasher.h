@@ -1,8 +1,9 @@
 #ifndef FILE_CORE_AUTH_PASSWORD_HASHER_H_
 #define FILE_CORE_AUTH_PASSWORD_HASHER_H_
 
-#include <QString>
 #include <memory>
+
+#include <QString>
 
 // 密码哈希抽象。当前仅 SHA-256，后续如需加盐/换算法在此扩展。
 class PasswordHasher {

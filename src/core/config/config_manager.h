@@ -1,11 +1,12 @@
 #ifndef FILE_CORE_CONFIG_CONFIG_MANAGER_H_
 #define FILE_CORE_CONFIG_CONFIG_MANAGER_H_
 
+#include <memory>
+
 #include <QMap>
 #include <QObject>
 #include <QSettings>
 #include <QVariant>
-#include <memory>
 
 // 全局配置管理：QSettings(INI) 后端 + 默认值映射 + 变更通知。
 // 单线程亲和（GUI 线程）；configChanged 在调用 set 的线程发射。

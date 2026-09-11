@@ -19,8 +19,7 @@ bool LogFilter::matches(int level, const QString& entry_text) const {
   return entry_text.contains(text, cs);
 }
 
-QList<QPair<int, int>> LogFilter::matchRanges(
-    const QString& entry_text) const {
+QList<QPair<int, int>> LogFilter::matchRanges(const QString& entry_text) const {
   QList<QPair<int, int>> ranges;
   if (text.isEmpty()) {
     return ranges;

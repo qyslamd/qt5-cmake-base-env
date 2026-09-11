@@ -1,8 +1,9 @@
 #ifndef ETEST_CORE_COMMON_FILE_EXCEPTION_H_
 #define ETEST_CORE_COMMON_FILE_EXCEPTION_H_
 
-#include <QString>
 #include <stdexcept>
+
+#include <QString>
 
 class FileException : public std::runtime_error {
  public:
@@ -17,8 +18,7 @@ class FileException : public std::runtime_error {
   };
 
   explicit FileException(Code code, const QString& message);
-  explicit FileException(Code code,
-                         const QString& message,
+  explicit FileException(Code code, const QString& message,
                          const QString& path);
 
   Code code() const;

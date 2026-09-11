@@ -2,10 +2,10 @@
 #define FILE_CORE_LOGGER_LOGGER_H_
 
 #include <spdlog/spdlog.h>
+#include <unordered_map>
+
 #include <QMutex>
 #include <QString>
-
-#include <unordered_map>
 
 class LogHistoryBuffer;
 class QtConsoleSink;

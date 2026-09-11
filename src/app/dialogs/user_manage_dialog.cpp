@@ -85,11 +85,10 @@ void UserManageDialog::refreshUsers() {
     table_->insertRow(row);
     table_->setItem(row, 0, new QTableWidgetItem(user.user_name_));
     table_->setItem(row, 1, new QTableWidgetItem(RoleText(user.role_)));
-    table_->setItem(
-        row, 2,
-        new QTableWidgetItem(user.must_change_password_
-                                 ? QStringLiteral("是")
-                                 : QStringLiteral("否")));
+    table_->setItem(row, 2,
+                    new QTableWidgetItem(user.must_change_password_
+                                             ? QStringLiteral("是")
+                                             : QStringLiteral("否")));
   }
 }
 

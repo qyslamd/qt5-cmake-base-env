@@ -28,9 +28,7 @@ QString AddEditUserDialog::UserName() const {
   return username_edit_->text().trimmed();
 }
 
-QString AddEditUserDialog::Password() const {
-  return password_edit_->text();
-}
+QString AddEditUserDialog::Password() const { return password_edit_->text(); }
 
 UserRole AddEditUserDialog::Role() const {
   return static_cast<UserRole>(role_combo_->currentData().toInt());
@@ -123,10 +121,10 @@ void AddEditUserDialog::onSaveClicked() {
     return;
   }
   UserRole role = Role();
-  bool ok = (mode_ == Mode::kAdd)
-                ? UserManager::instance().addUser(username, password, role)
-                : UserManager::instance().updateUser(editing_user_, password,
-                                                     role);
+  bool ok =
+      (mode_ == Mode::kAdd)
+          ? UserManager::instance().addUser(username, password, role)
+          : UserManager::instance().updateUser(editing_user_, password, role);
   if (!ok) {
     QMessageBox::warning(this, QStringLiteral("提示"),
                          UserManager::instance().lastError());

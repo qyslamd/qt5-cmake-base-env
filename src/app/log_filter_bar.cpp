@@ -1,11 +1,11 @@
 #include "log_filter_bar.h"
 
+#include <spdlog/spdlog.h>
+
 #include <QHBoxLayout>
 #include <QSignalBlocker>
 #include <QStyle>
 #include <QTimer>
-
-#include <spdlog/spdlog.h>
 
 LogFilterBar::LogFilterBar(QWidget* parent) : QWidget(parent) {
   // 级别定义（单字母按钮 + spdlog level + objectName 后缀）
@@ -18,8 +18,8 @@ LogFilterBar::LogFilterBar(QWidget* parent) : QWidget(parent) {
        QStringLiteral("WARN")},
       {QStringLiteral("E"), spdlog::level::err, QStringLiteral("Error"),
        QStringLiteral("ERROR")},
-      {QStringLiteral("F"), spdlog::level::critical,
-       QStringLiteral("Fatal"), QStringLiteral("FATAL")},
+      {QStringLiteral("F"), spdlog::level::critical, QStringLiteral("Fatal"),
+       QStringLiteral("FATAL")},
   };
   initUi();
   initSignals();
@@ -115,11 +115,10 @@ void LogFilterBar::initSignals() {
           [this]() { emit filterChanged(filter()); });
 
   // 滚动锁定
-  connect(lock_btn_, &QToolButton::toggled, this,
-          [this](bool checked) {
-            scroll_locked_ = checked;
-            emit scrollLockChanged(checked);
-          });
+  connect(lock_btn_, &QToolButton::toggled, this, [this](bool checked) {
+    scroll_locked_ = checked;
+    emit scrollLockChanged(checked);
+  });
 
   // 清空
   connect(clear_btn_, &QToolButton::clicked, this,
@@ -155,8 +154,8 @@ void LogFilterBar::setFilterInvalid(bool invalid, const QString& error) {
 void LogFilterBar::onLevelToggled(int level, bool checked) {
   if (!checked) {
     int checked_count = 0;
-    for (auto it = level_buttons_.constBegin();
-         it != level_buttons_.constEnd(); ++it) {
+    for (auto it = level_buttons_.constBegin(); it != level_buttons_.constEnd();
+         ++it) {
       if (it.value()->isChecked()) {
         ++checked_count;
       }

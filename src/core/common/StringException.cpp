@@ -8,25 +8,18 @@ StringException::StringException(Code code, const QString& message)
       input_(),
       message_(message) {}
 
-StringException::StringException(Code code,
-                                 const QString& message,
+StringException::StringException(Code code, const QString& message,
                                  const QString& input)
     : std::runtime_error(message.toStdString()),
       code_(code),
       input_(input),
       message_(message) {}
 
-StringException::Code StringException::code() const {
-  return code_;
-}
+StringException::Code StringException::code() const { return code_; }
 
-const QString& StringException::input() const {
-  return input_;
-}
+const QString& StringException::input() const { return input_; }
 
-const QString& StringException::message() const {
-  return message_;
-}
+const QString& StringException::message() const { return message_; }
 
 QString StringException::toString() const {
   QString result = QString("StringException[%1]: %2")

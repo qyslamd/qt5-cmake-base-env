@@ -108,18 +108,18 @@ QWidget* SettingsDialog::createLogPage() {
                     kConfigLogDefaultKeepDays);
   keep_days->setSuffix(QStringLiteral(" 天"));
 
-  auto* max_size =
-      addSpinBoxRow(card, QStringLiteral("单文件大小上限"),
-                    QStringLiteral("单个日志文件超过该大小即滚动，下次启动生效"),
-                    QString::fromLatin1(kConfigLogMaxFileSize), 1, 1024,
-                    kConfigLogDefaultMaxFileSize / kBytesPerMb, kBytesPerMb);
+  auto* max_size = addSpinBoxRow(
+      card, QStringLiteral("单文件大小上限"),
+      QStringLiteral("单个日志文件超过该大小即滚动，下次启动生效"),
+      QString::fromLatin1(kConfigLogMaxFileSize), 1, 1024,
+      kConfigLogDefaultMaxFileSize / kBytesPerMb, kBytesPerMb);
   max_size->setSuffix(QStringLiteral(" MB"));
 
-  auto* max_count = addSpinBoxRow(
-      card, QStringLiteral("文件数上限"),
-      QStringLiteral("滚动保留的日志文件数量，下次启动生效"),
-      QString::fromLatin1(kConfigLogMaxFileCount), 1, 200,
-      kConfigLogDefaultMaxFileCount);
+  auto* max_count =
+      addSpinBoxRow(card, QStringLiteral("文件数上限"),
+                    QStringLiteral("滚动保留的日志文件数量，下次启动生效"),
+                    QString::fromLatin1(kConfigLogMaxFileCount), 1, 200,
+                    kConfigLogDefaultMaxFileCount);
   max_count->setSuffix(QStringLiteral(" 个"));
 
   layout->addWidget(card);
@@ -137,18 +137,15 @@ QWidget* SettingsDialog::createLogFormatPage() {
                 QStringLiteral("按需增减每行日志携带的信息，修改后立即生效"));
 
   auto* card = createSettingsCard(page, QStringLiteral("字段开关"));
-  addCheckBoxRow(card, QStringLiteral("时间"),
-                 QStringLiteral("[%Y-%m-%d %H:%M:%S.%e]"),
-                 QString::fromLatin1(kConfigLogFmtTime),
-                 kConfigLogFmtDefaultTime);
-  addCheckBoxRow(card, QStringLiteral("级别"),
-                 QStringLiteral("[%l]，控制台以颜色区分"),
-                 QString::fromLatin1(kConfigLogFmtLevel),
-                 kConfigLogFmtDefaultLevel);
-  addCheckBoxRow(card, QStringLiteral("线程 ID"),
-                 QStringLiteral("[%t]，多线程排查时开启"),
-                 QString::fromLatin1(kConfigLogFmtThread),
-                 kConfigLogFmtDefaultThread);
+  addCheckBoxRow(
+      card, QStringLiteral("时间"), QStringLiteral("[%Y-%m-%d %H:%M:%S.%e]"),
+      QString::fromLatin1(kConfigLogFmtTime), kConfigLogFmtDefaultTime);
+  addCheckBoxRow(
+      card, QStringLiteral("级别"), QStringLiteral("[%l]，控制台以颜色区分"),
+      QString::fromLatin1(kConfigLogFmtLevel), kConfigLogFmtDefaultLevel);
+  addCheckBoxRow(
+      card, QStringLiteral("线程 ID"), QStringLiteral("[%t]，多线程排查时开启"),
+      QString::fromLatin1(kConfigLogFmtThread), kConfigLogFmtDefaultThread);
   addCheckBoxRow(card, QStringLiteral("模块"),
                  QStringLiteral("[%n]，LOG_INFO 宏的第一个参数"),
                  QString::fromLatin1(kConfigLogFmtModule),
@@ -157,14 +154,12 @@ QWidget* SettingsDialog::createLogFormatPage() {
                  QStringLiteral("[%s:%#]，定位调用点"),
                  QString::fromLatin1(kConfigLogFmtSource),
                  kConfigLogFmtDefaultSource);
-  addCheckBoxRow(card, QStringLiteral("函数名"),
-                 QStringLiteral("[%!]"),
+  addCheckBoxRow(card, QStringLiteral("函数名"), QStringLiteral("[%!]"),
                  QString::fromLatin1(kConfigLogFmtFunc),
                  kConfigLogFmtDefaultFunc);
-  addCheckBoxRow(card, QStringLiteral("消息"),
-                 QStringLiteral("%v，关闭后仅剩格式字段"),
-                 QString::fromLatin1(kConfigLogFmtMessage),
-                 kConfigLogFmtDefaultMessage);
+  addCheckBoxRow(
+      card, QStringLiteral("消息"), QStringLiteral("%v，关闭后仅剩格式字段"),
+      QString::fromLatin1(kConfigLogFmtMessage), kConfigLogFmtDefaultMessage);
 
   layout->addWidget(card);
   layout->addStretch();
@@ -172,7 +167,7 @@ QWidget* SettingsDialog::createLogFormatPage() {
 }
 
 void SettingsDialog::addPageHeader(QVBoxLayout* layout, const QString& title,
-                                  const QString& subtitle) {
+                                   const QString& subtitle) {
   auto* title_label = new QLabel(title, layout->parentWidget());
   title_label->setObjectName(QStringLiteral("settingsPageTitle"));
   auto* sub_label = new QLabel(subtitle, layout->parentWidget());
@@ -183,7 +178,7 @@ void SettingsDialog::addPageHeader(QVBoxLayout* layout, const QString& title,
 }
 
 QWidget* SettingsDialog::createSettingsCard(QWidget* parent,
-                                           const QString& title) {
+                                            const QString& title) {
   // 必须是 QFrame 而非 QWidget：QSS 的背景与边框对普通 QWidget 不生效
   auto* card = new QFrame(parent);
   card->setObjectName(QStringLiteral("settingsCard"));
@@ -199,8 +194,8 @@ QWidget* SettingsDialog::createSettingsCard(QWidget* parent,
 }
 
 QHBoxLayout* SettingsDialog::addSettingRow(QWidget* parent,
-                                          const QString& title,
-                                          const QString& description) {
+                                           const QString& title,
+                                           const QString& description) {
   auto* row = new QWidget(parent);
   row->setObjectName(QStringLiteral("settingsRow"));
 
@@ -234,17 +229,17 @@ QHBoxLayout* SettingsDialog::addSettingRow(QWidget* parent,
 }
 
 QSpinBox* SettingsDialog::addSpinBoxRow(QWidget* parent, const QString& title,
-                                       const QString& description,
-                                       const QString& config_key, int min,
-                                       int max, int default_value, int scale) {
+                                        const QString& description,
+                                        const QString& config_key, int min,
+                                        int max, int default_value, int scale) {
   auto* right = addSettingRow(parent, title, description);
 
   auto* spin = new QSpinBox(parent);
   spin->setRange(min, max);
   spin->setFixedWidth(120);
-  spin->setValue(ConfigManager::instance().get<int>(
-                     config_key, default_value * scale) /
-                 scale);
+  spin->setValue(
+      ConfigManager::instance().get<int>(config_key, default_value * scale) /
+      scale);
   right->addWidget(spin);
 
   connect(spin, QOverload<int>::of(&QSpinBox::valueChanged), this,
@@ -255,10 +250,10 @@ QSpinBox* SettingsDialog::addSpinBoxRow(QWidget* parent, const QString& title,
 }
 
 QComboBox* SettingsDialog::addComboBoxRow(QWidget* parent, const QString& title,
-                                         const QString& description,
-                                         const QString& config_key,
-                                         const QStringList& items,
-                                         int default_index) {
+                                          const QString& description,
+                                          const QString& config_key,
+                                          const QStringList& items,
+                                          int default_index) {
   auto* right = addSettingRow(parent, title, description);
 
   auto* combo = new QComboBox(parent);

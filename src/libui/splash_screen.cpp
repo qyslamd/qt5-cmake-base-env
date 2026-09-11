@@ -65,7 +65,9 @@ void SplashScreen::setStatusText(const QString& text) {
   status_label_->setText(text);
 }
 
-void SplashScreen::setProgress(int percent) { progress_bar_->setValue(percent); }
+void SplashScreen::setProgress(int percent) {
+  progress_bar_->setValue(percent);
+}
 
 void SplashScreen::finish() { hide(); }
 

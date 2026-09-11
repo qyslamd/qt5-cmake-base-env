@@ -8,25 +8,18 @@ FileException::FileException(Code code, const QString& message)
       path_(),
       message_(message) {}
 
-FileException::FileException(Code code,
-                             const QString& message,
+FileException::FileException(Code code, const QString& message,
                              const QString& path)
     : std::runtime_error(message.toStdString()),
       code_(code),
       path_(path),
       message_(message) {}
 
-FileException::Code FileException::code() const {
-  return code_;
-}
+FileException::Code FileException::code() const { return code_; }
 
-const QString& FileException::path() const {
-  return path_;
-}
+const QString& FileException::path() const { return path_; }
 
-const QString& FileException::message() const {
-  return message_;
-}
+const QString& FileException::message() const { return message_; }
 
 QString FileException::toString() const {
   QString result = QString("FileException[%1]: %2")

@@ -1,10 +1,10 @@
 #ifndef ETEST_CORE_CRASHHANDLER_CRASHHANDLER_H_
 #define ETEST_CORE_CRASHHANDLER_CRASHHANDLER_H_
 
-#include <QString>
 #include <functional>
 #include <memory>
 
+#include <QString>
 
 class CrashHandler {
  public:

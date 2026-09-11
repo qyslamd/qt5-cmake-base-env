@@ -8,25 +8,18 @@ TimeException::TimeException(Code code, const QString& message)
       input_(),
       message_(message) {}
 
-TimeException::TimeException(Code code,
-                             const QString& message,
+TimeException::TimeException(Code code, const QString& message,
                              const QString& input)
     : std::runtime_error(message.toStdString()),
       code_(code),
       input_(input),
       message_(message) {}
 
-TimeException::Code TimeException::code() const {
-  return code_;
-}
+TimeException::Code TimeException::code() const { return code_; }
 
-const QString& TimeException::input() const {
-  return input_;
-}
+const QString& TimeException::input() const { return input_; }
 
-const QString& TimeException::message() const {
-  return message_;
-}
+const QString& TimeException::message() const { return message_; }
 
 QString TimeException::toString() const {
   QString result = QString("TimeException[%1]: %2")

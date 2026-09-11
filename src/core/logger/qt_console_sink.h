@@ -1,10 +1,10 @@
 #ifndef FILE_CORE_LOGGER_QT_CONSOLE_SINK_H_
 #define FILE_CORE_LOGGER_QT_CONSOLE_SINK_H_
 
-#include <spdlog/sinks/base_sink.h>
-#include <QObject>
-
 #include <mutex>
+#include <spdlog/sinks/base_sink.h>
+
+#include <QObject>
 
 class LogHistoryBuffer;
 

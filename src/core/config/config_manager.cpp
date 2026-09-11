@@ -23,8 +23,8 @@ ConfigManager::ConfigManager() {
   if (app_name.isEmpty()) {
     app_name = QStringLiteral("app");
   }
-  settings_ = std::make_unique<QSettings>(
-      config_path + "/" + app_name + ".ini", QSettings::IniFormat);
+  settings_ = std::make_unique<QSettings>(config_path + "/" + app_name + ".ini",
+                                          QSettings::IniFormat);
   settings_->setIniCodec("UTF-8");
   initDefaultValues();
 }
@@ -76,9 +76,7 @@ void ConfigManager::set<QVariant>(const QString& key, const QVariant& value) {
   emit configChanged(key);
 }
 
-void ConfigManager::sync() {
-  settings_->sync();
-}
+void ConfigManager::sync() { settings_->sync(); }
 
 bool ConfigManager::exportToJson(const QString& file_path) const {
   QFile file(file_path);

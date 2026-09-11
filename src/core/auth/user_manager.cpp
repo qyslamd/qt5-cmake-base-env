@@ -25,8 +25,7 @@ UserManager& UserManager::instance() {
 }
 
 QString UserManager::dataFilePath() const {
-  return QDir(QStandardPaths::writableLocation(
-      QStandardPaths::AppDataLocation))
+  return QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation))
       .absoluteFilePath("users.json");
 }
 
@@ -35,10 +34,10 @@ bool UserManager::loadUsers() {
   QString path = dataFilePath();
   if (!QFile::exists(path)) {
     // 首次运行：创建默认管理员，需强制改密
-    User admin{QString::fromLatin1(kDefaultAdmin),
-               HasherFactory::create()->hash(
-                   QString::fromLatin1(kDefaultPassword)),
-               UserRole::kAdmin};
+    User admin{
+        QString::fromLatin1(kDefaultAdmin),
+        HasherFactory::create()->hash(QString::fromLatin1(kDefaultPassword)),
+        UserRole::kAdmin};
     admin.must_change_password_ = true;
     users_.append(admin);
     LOG_INFO("AUTH", "首次运行，创建默认管理员 admin");
@@ -62,18 +61,17 @@ bool UserManager::loadUsers() {
     QJsonObject obj = val.toObject();
     User u{obj.value(QStringLiteral("UserName")).toString(),
            obj.value(QStringLiteral("Password")).toString(),
-           static_cast<UserRole>(
-               obj.value(QStringLiteral("Role")).toInt())};
+           static_cast<UserRole>(obj.value(QStringLiteral("Role")).toInt())};
     u.must_change_password_ =
         obj.value(QStringLiteral("MustChangePassword")).toBool();
     users_.append(u);
   }
   if (users_.isEmpty()) {
     // 兜底：文件存在但无任何账号，重建默认 admin，避免系统锁死
-    User admin{QString::fromLatin1(kDefaultAdmin),
-               HasherFactory::create()->hash(
-                   QString::fromLatin1(kDefaultPassword)),
-               UserRole::kAdmin};
+    User admin{
+        QString::fromLatin1(kDefaultAdmin),
+        HasherFactory::create()->hash(QString::fromLatin1(kDefaultPassword)),
+        UserRole::kAdmin};
     admin.must_change_password_ = true;
     users_.append(admin);
     LOG_WARN("AUTH", "用户文件为空，重建默认 admin");

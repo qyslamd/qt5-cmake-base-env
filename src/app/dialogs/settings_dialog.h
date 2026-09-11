@@ -50,8 +50,8 @@ class SettingsDialog : public QDialog {
                           int min, int max, int default_value, int scale = 1);
   QComboBox* addComboBoxRow(QWidget* parent, const QString& title,
                             const QString& description,
-                            const QString& config_key,
-                            const QStringList& items, int default_index);
+                            const QString& config_key, const QStringList& items,
+                            int default_index);
   SwitchButton* addCheckBoxRow(QWidget* parent, const QString& title,
                                const QString& description,
                                const QString& config_key, bool default_value);

@@ -1,9 +1,9 @@
 #include "CrashHandler.h"
+
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QStandardPaths>
 #include <QSysInfo>
-
 
 #ifdef Q_OS_WIN
 #include "WindowsCrashHandler.h"

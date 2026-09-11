@@ -4,11 +4,11 @@
 #ifndef ETEST_CORE_CRASHHANDLER_LINUXCRASHHANDLER_H_
 #define ETEST_CORE_CRASHHANDLER_LINUXCRASHHANDLER_H_
 
-#include "CrashHandler.h"
-
 #include <csignal>
 #include <cstddef>
 #include <functional>
+
+#include "CrashHandler.h"
 
 /// Linux 平台崩溃处理器
 ///
@@ -30,9 +30,7 @@ class LinuxCrashHandler : public CrashHandler {
 
   /// 格式化信号头部信息到给定缓冲区（可测试的纯函数）
   /// @return 写入的字节数，失败返回 0
-  static size_t formatSignalHeader(char* buf,
-                                   size_t bufSize,
-                                   int signum,
+  static size_t formatSignalHeader(char* buf, size_t bufSize, int signum,
                                    siginfo_t* info);
 
  private:

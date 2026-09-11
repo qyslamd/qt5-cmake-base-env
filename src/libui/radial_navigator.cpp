@@ -20,15 +20,12 @@ RadialNavigator::RadialNavigator(QWidget* parent) : QWidget(parent) {
   qApp->installEventFilter(this);
 }
 
-RadialNavigator::~RadialNavigator() {
-  qApp->removeEventFilter(this);
-}
+RadialNavigator::~RadialNavigator() { qApp->removeEventFilter(this); }
 
-void RadialNavigator::addButton(const QPixmap& icon,
-                                  const QString& title,
-                                  std::function<void()> onClicked,
-                                  const QString& tooltip,
-                                  const QColor& background) {
+void RadialNavigator::addButton(const QPixmap& icon, const QString& title,
+                                std::function<void()> onClicked,
+                                const QString& tooltip,
+                                const QColor& background) {
   Button btn;
   btn.icon = icon;
   btn.title = title;
@@ -249,10 +246,8 @@ void RadialNavigator::drawSwitch(QPainter* painter) {
   }
 }
 
-void RadialNavigator::drawGlow(QPainter* painter,
-                                 const QPointF& center,
-                                 qreal radius,
-                                 const QColor& color) {
+void RadialNavigator::drawGlow(QPainter* painter, const QPointF& center,
+                               qreal radius, const QColor& color) {
   // 多层同心圆模拟羽化柔光（Qt 无原生 blur）
   constexpr int kLayers = 5;
   painter->save();

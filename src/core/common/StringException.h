@@ -1,8 +1,9 @@
 #ifndef ETEST_CORE_COMMON_STRING_EXCEPTION_H_
 #define ETEST_CORE_COMMON_STRING_EXCEPTION_H_
 
-#include <QString>
 #include <stdexcept>
+
+#include <QString>
 
 class StringException : public std::runtime_error {
  public:
@@ -15,8 +16,7 @@ class StringException : public std::runtime_error {
   };
 
   explicit StringException(Code code, const QString& message);
-  explicit StringException(Code code,
-                           const QString& message,
+  explicit StringException(Code code, const QString& message,
                            const QString& input);
 
   Code code() const;

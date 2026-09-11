@@ -1,13 +1,13 @@
 #include "logger.h"
 
+#include <spdlog/async.h>
+#include <spdlog/sinks/rotating_file_sink.h>
+
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
 #include <QObject>
 #include <QStandardPaths>
-
-#include <spdlog/async.h>
-#include <spdlog/sinks/rotating_file_sink.h>
 // stdout_color_sink 在 Windows 上映射为 wincolor，其余平台映射为 ansicolor
 #include <spdlog/sinks/stdout_color_sinks.h>
 
@@ -102,8 +102,7 @@ void Logger::init() {
 
   // 控制台彩色 sink（仅 Debug 构建启用）
 #ifndef NDEBUG
-  auto console_sink =
-      std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+  auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
   console_sink->set_level(spdlog::level::debug);
   // pattern 统一在 sink 建齐后由 ApplyPatternToSinks 按配置设置
   s_console_sink_ = console_sink;
@@ -167,23 +166,21 @@ void Logger::init() {
   }
 
   // 监听配置变更，日志级别实时生效
-  QObject::connect(&ConfigManager::instance(), &ConfigManager::configChanged,
-                   [](const QString& key) {
-                     if (key == QString::fromLatin1(kConfigLogLevel)) {
-                       int level = ConfigManager::instance().get<int>(
-                           QString::fromLatin1(kConfigLogLevel),
-                           kConfigLogDefaultLevel);
-                       spdlog::set_level(LevelFromConfig(level));
-                       LOG_INFO("LOGGER", "日志级别已更新为: {}", level);
-                     }
-                     // 格式开关变更即重建全部 sink 的 pattern
-                     if (key.startsWith(
-                             QString::fromLatin1(kConfigLogFmtPrefix))) {
-                       ApplyPatternToSinks();
-                       LOG_INFO("LOGGER", "日志格式已更新 [key={}]",
-                                key.toStdString());
-                     }
-                   });
+  QObject::connect(
+      &ConfigManager::instance(), &ConfigManager::configChanged,
+      [](const QString& key) {
+        if (key == QString::fromLatin1(kConfigLogLevel)) {
+          int level = ConfigManager::instance().get<int>(
+              QString::fromLatin1(kConfigLogLevel), kConfigLogDefaultLevel);
+          spdlog::set_level(LevelFromConfig(level));
+          LOG_INFO("LOGGER", "日志级别已更新为: {}", level);
+        }
+        // 格式开关变更即重建全部 sink 的 pattern
+        if (key.startsWith(QString::fromLatin1(kConfigLogFmtPrefix))) {
+          ApplyPatternToSinks();
+          LOG_INFO("LOGGER", "日志格式已更新 [key={}]", key.toStdString());
+        }
+      });
 
   LOG_INFO("LOGGER", "日志系统初始化完成，日志目录: {}", log_dir.toStdString());
 }
@@ -266,10 +263,6 @@ spdlog::logger* Logger::getLogger(const QString& module) {
   return getOrCreateModuleLogger(module.toStdString());
 }
 
-QtConsoleSink* Logger::qtConsoleSink() {
-  return s_qt_sink_;
-}
+QtConsoleSink* Logger::qtConsoleSink() { return s_qt_sink_; }
 
-LogHistoryBuffer* Logger::qtHistoryBuffer() {
-  return s_history_buffer_;
-}
+LogHistoryBuffer* Logger::qtHistoryBuffer() { return s_history_buffer_; }

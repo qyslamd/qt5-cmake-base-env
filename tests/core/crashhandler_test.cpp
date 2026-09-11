@@ -1,5 +1,6 @@
 #include "crashhandler/CrashHandler.h"
 
+#include <cstdlib>
 #include <gtest/gtest.h>
 
 #include <QCoreApplication>
@@ -8,8 +9,6 @@
 #include <QProcess>
 #include <QStandardPaths>
 #include <QTemporaryDir>
-
-#include <cstdlib>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -235,8 +234,7 @@ int main(int argc, char* argv[]) {
   QCoreApplication app(argc, argv);
 
   // 崩溃子进程模式须在 gtest 初始化之前拦截
-  const QString crash_kind =
-      FindArgValue(argc, argv, kCrashChildArg);
+  const QString crash_kind = FindArgValue(argc, argv, kCrashChildArg);
 #ifdef Q_OS_WIN
   if (!crash_kind.isEmpty()) {
     RunCrashChild(crash_kind, FindArgValue(argc, argv, kCrashDumpPathArg));

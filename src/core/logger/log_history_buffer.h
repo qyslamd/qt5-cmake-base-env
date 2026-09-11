@@ -1,12 +1,12 @@
 #ifndef FILE_CORE_LOGGER_LOG_HISTORY_BUFFER_H_
 #define FILE_CORE_LOGGER_LOG_HISTORY_BUFFER_H_
 
+#include <deque>
+
 #include <QList>
 #include <QMutex>
 #include <QObject>
 #include <QString>
-
-#include <deque>
 
 // 单条历史日志。POD 结构，构造时不分配资源。
 struct LogEntry {

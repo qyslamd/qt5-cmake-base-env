@@ -1,9 +1,9 @@
 #ifndef ETEST_CORE_COMMON_BYTE_EXCEPTION_H_
 #define ETEST_CORE_COMMON_BYTE_EXCEPTION_H_
 
-#include <QString>
 #include <stdexcept>
 
+#include <QString>
 
 class ByteException : public std::runtime_error {
  public:
@@ -16,8 +16,7 @@ class ByteException : public std::runtime_error {
   };
 
   explicit ByteException(Code code, const QString& message);
-  explicit ByteException(Code code,
-                         const QString& message,
+  explicit ByteException(Code code, const QString& message,
                          const QString& detail);
 
   Code code() const;

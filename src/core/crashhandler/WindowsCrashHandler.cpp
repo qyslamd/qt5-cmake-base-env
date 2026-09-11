@@ -6,8 +6,8 @@
 #include <QDir>
 #include <QFile>
 #include <QStandardPaths>
-#include "WindowsCrashHandler.h"
 
+#include "WindowsCrashHandler.h"
 
 #pragma comment(lib, "dbghelp.lib")
 
@@ -187,10 +187,8 @@ void WindowsCrashHandler::doCrashFallback(PEXCEPTION_POINTERS pExceptionInfo) {
 }
 
 // ── Helper: stack walk loop (try/catch with /EHa traps SEH) ──
-void WindowsCrashHandler::appendStackWalk(QString& out,
-                                          HANDLE process,
-                                          HANDLE thread,
-                                          CONTEXT* ctxCopy,
+void WindowsCrashHandler::appendStackWalk(QString& out, HANDLE process,
+                                          HANDLE thread, CONTEXT* ctxCopy,
                                           STACKFRAME64& stackFrame,
                                           DWORD machineType) {
   char symbolBuffer[sizeof(SYMBOL_INFO) + 256] = {0};

@@ -1,9 +1,9 @@
 #include "log_output_panel.h"
 
+#include <spdlog/spdlog.h>
+
 #include <QScrollBar>
 #include <QTextCursor>
-
-#include <spdlog/spdlog.h>
 
 #include "logger/logger.h"
 #include "logger/qt_console_sink.h"
@@ -14,8 +14,7 @@ LogOutputPanel::LogOutputPanel(QWidget* parent) : QWidget(parent) {
 
   // 实时日志：QtConsoleSink::logMessage -> appendLog（queued 跨线程）
   if (auto* sink = Logger::qtConsoleSink()) {
-    connect(sink, &QtConsoleSink::logMessage, this,
-            &LogOutputPanel::appendLog);
+    connect(sink, &QtConsoleSink::logMessage, this, &LogOutputPanel::appendLog);
   }
 
   // 拉取 Logger::init() 之后到本构造之间的历史日志
@@ -78,8 +77,7 @@ void LogOutputPanel::clearLog() {
 
 void LogOutputPanel::renderEntry(const LogEntry& entry) {
   QScrollBar* bar = text_edit_->verticalScrollBar();
-  bool was_at_bottom =
-      bar->maximum() > 0 && bar->value() >= bar->maximum() - 2;
+  bool was_at_bottom = bar->maximum() > 0 && bar->value() >= bar->maximum() - 2;
   text_edit_->append(buildEntryHtml(entry));
   // 仅当原先在底部才自动滚动，用户上翻时不打断阅读
   if (!scroll_locked_ && was_at_bottom) {

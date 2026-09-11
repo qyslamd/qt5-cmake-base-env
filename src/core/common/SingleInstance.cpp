@@ -13,8 +13,8 @@
 
 #include "logger/logger.h"
 
-SingleInstance::SingleInstance(const QString& appKey,
-                               const QString& mutexName, QObject* parent)
+SingleInstance::SingleInstance(const QString& appKey, const QString& mutexName,
+                               QObject* parent)
     : QObject(parent), app_key_(appKey), shared_memory_(appKey) {
   server_name_ =
       QString("%1-%2").arg(appKey).arg(QCoreApplication::applicationPid());
@@ -141,9 +141,7 @@ void SingleInstance::setActivationWindow(void* window) {
   activate_window_ = window;
 }
 
-void* SingleInstance::activationWindow() const {
-  return activate_window_;
-}
+void* SingleInstance::activationWindow() const { return activate_window_; }
 
 void SingleInstance::handleNewConnection() {
   auto* socket = local_server_->nextPendingConnection();
