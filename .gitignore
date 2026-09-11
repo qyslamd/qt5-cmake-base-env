@@ -86,6 +86,8 @@ htmlcov/
 # cmake generated files
 scripts/code_stats.bat
 scripts/code_stats.ps1
+scripts/clang_tidy.bat
+scripts/clang_tidy.ps1
 
 # ============================================================
 # CMake 构建产物

@@ -229,3 +229,28 @@ if(WIN32)
         )
     endif()
 endif()
+
+#-------------------------------------------------------------------------------
+# clang-tidy 静态分析脚本
+#-------------------------------------------------------------------------------
+
+if(WIN32)
+    find_program(CLANG_TIDY_EXECUTABLE NAMES clang-tidy)
+    if(NOT CLANG_TIDY_EXECUTABLE)
+        message(WARNING
+            "clang-tidy not found! 静态分析脚本不会生成。"
+            "请将其加入 PATH，或用 -DCLANG_TIDY_EXECUTABLE=<路径> 指定。")
+    else()
+        # 脚本内烘焙了本次配置的构建目录；脚本支持 -BuildDir 覆盖
+        configure_file(
+            "${CMAKE_SOURCE_DIR}/cmake/clang_tidy.ps1.in"
+            "${CMAKE_SOURCE_DIR}/scripts/clang_tidy.ps1"
+            @ONLY
+        )
+        configure_file(
+            "${CMAKE_SOURCE_DIR}/cmake/clang_tidy.bat.in"
+            "${CMAKE_SOURCE_DIR}/scripts/clang_tidy.bat"
+            @ONLY
+        )
+    endif()
+endif()

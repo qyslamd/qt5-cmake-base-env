@@ -1,0 +1,108 @@
+# @PROJECT_NAME@ clang-tidy 静态分析
+#
+# 由 CMake configure_file 生成，clang-tidy 与构建目录路径已在本机配置时
+# 确定，无需手工修改。规则集见仓库根目录的 .clang-tidy。
+#
+# 用法：
+#   scripts\clang_tidy.ps1                       检查 src 与 tests 下全部 .cpp
+#   scripts\clang_tidy.ps1 -BuildDir build\ninja-debug-x86
+#   scripts\clang_tidy.ps1 -Fix                  应用可自动修复的建议
+#   scripts\clang_tidy.ps1 -Files src\app\main.cpp
+#
+# 说明：默认只检查 .cpp。头文件中的问题会随包含它的编译单元一并报出，
+# 由 .clang-tidy 的 HeaderFilterRegex 过滤是否展示。
+
+[CmdletBinding()]
+param(
+    # 提供 compile_commands.json 的构建目录，默认为配置本脚本时的构建目录
+    [string]$BuildDir = "@CMAKE_BINARY_DIR@",
+
+    # 只检查指定文件；缺省则扫描 src 与 tests 下的全部 .cpp
+    [string[]]$Files,
+
+    # 应用 clang-tidy 可自动修复的建议（会直接改写源文件）
+    [switch]$Fix
+)
+
+$ErrorActionPreference = 'Stop'
+
+# 生成产物含中文，需以 UTF-8 输出；这也是本脚本要求 pwsh 7+ 的原因
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+$OutputEncoding = [Text.Encoding]::UTF8
+
+$clangTidy = "@CLANG_TIDY_EXECUTABLE@"
+$srcRoot = "@CMAKE_SOURCE_DIR@"
+
+if (-not (Test-Path $clangTidy)) {
+    Write-Host "Error: clang-tidy not found at $clangTidy" -ForegroundColor Red
+    exit 1
+}
+
+# -p 指向的目录必须已经有 compile_commands.json
+$compdb = Join-Path $BuildDir 'compile_commands.json'
+if (-not (Test-Path $compdb)) {
+    Write-Host "Error: $compdb not found." -ForegroundColor Red
+    Write-Host "请先执行一次 configure，例如： scripts\build_ninja.bat -t debug -c"
+    exit 1
+}
+
+if (-not $Files) {
+    $Files = @(
+        Get-ChildItem -Path (Join-Path $srcRoot 'src'), (Join-Path $srcRoot 'tests') `
+                      -Recurse -Filter *.cpp |
+        Sort-Object FullName |
+        ForEach-Object { $_.FullName }
+    )
+}
+
+if ($Files.Count -eq 0) {
+    Write-Host "没有待检查的源文件。"
+    exit 0
+}
+
+Write-Host "========================================"
+Write-Host " @PROJECT_NAME@ clang-tidy"
+Write-Host " 构建目录 : $BuildDir"
+Write-Host " 文件数量 : $($Files.Count)"
+if ($Fix) { Write-Host " 模式     : 应用自动修复" }
+Write-Host "========================================"
+Write-Host ""
+
+# 只打印有发现的文件，避免几十个文件的空输出淹没结果
+$extraArgs = @()
+if ($Fix) { $extraArgs += '--fix'; $extraArgs += '--fix-errors' }
+
+$affected = 0
+$total = 0
+$index = 0
+
+foreach ($file in $Files) {
+    $index++
+    Write-Progress -Activity 'clang-tidy' -Status $file `
+                   -PercentComplete ($index * 100 / $Files.Count)
+
+    $out = & $clangTidy -p $BuildDir @extraArgs $file 2>&1 | Out-String
+
+    $count = ([regex]::Matches($out, ':\d+:\d+: (warning|error): ')).Count
+    if ($count -gt 0) {
+        $affected++
+        $total += $count
+        Write-Host ""
+        Write-Host "=== $file  ($count)" -ForegroundColor Yellow
+        Write-Host $out.TrimEnd()
+    }
+}
+
+Write-Progress -Activity 'clang-tidy' -Completed
+
+Write-Host ""
+Write-Host "========================================"
+if ($total -gt 0) {
+    Write-Host " $affected 个文件共 $total 条发现" -ForegroundColor Yellow
+    Write-Host "========================================"
+    exit 1
+}
+
+Write-Host " 全部 $($Files.Count) 个文件未发现问题" -ForegroundColor Green
+Write-Host "========================================"
+exit 0
