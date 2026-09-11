@@ -1,0 +1,22 @@
+<RCC>
+    <qresource prefix="/">
+        <file>resources/styles/default.qss</file>
+        <file>resources/icons/png/icons8_rfid_signal_16.png</file>
+        <file>resources/icons/png/icons8_rfid_signal_32.png</file>
+        <file>resources/icons/png/icons8_rfid_signal_48.png</file>
+        <file>resources/icons/png/icons8_rfid_signal_64.png</file>
+        <file>resources/icons/png/icons8_rfid_signal_128.png</file>
+        <file>resources/icons/png/icons8_rfid_signal_256.png</file>
+        <file>resources/icons/icon.ico</file>
+        <file>resources/icons/svg/curve.svg</file>
+        <file>resources/icons/svg/expand.svg</file>
+        <file>resources/icons/svg/monitor.svg</file>
+        <file>resources/icons/svg/rewind.svg</file>
+        <file>resources/icons/svg/collapse.svg</file>
+        <file>resources/icons/svg/warning_sign.svg</file>
+        <file>resources/icons/svg/auo_check.svg</file>
+        <file>resources/icons/svg/bicycle_floor_pump.svg</file>
+        <file>resources/icons/svg/settings.svg</file>
+        <file>resources/icons/svg/user.svg</file>
+    </qresource>
+</RCC>

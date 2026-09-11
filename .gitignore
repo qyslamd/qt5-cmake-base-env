@@ -1,0 +1,257 @@
+# ============================================================
+# Taihang Zhendong - C++/Qt 项目 Git 忽略规则
+# ============================================================
+
+# ---------- 通用 ----------
+# 临时/备份文件
+*~
+*.bak
+*.swp
+*.tmp
+*.temp
+*.log
+*.orig
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+$RECYCLE.BIN/
+
+# 编辑器/IDE 通用
+.vscode/
+.idea/
+*.iml
+.cache/
+
+# ============================================================
+# C/C++ 编译产物
+# ============================================================
+# 目标文件
+*.o
+*.obj
+*.a
+*.lo
+*.la
+
+# 静态/动态库
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exp
+*.pdb
+*.ilk
+*.pch
+
+# 可执行文件
+*.exe
+*.out
+*.app
+
+# 调试信息
+*.idb
+*.suo
+*.res
+*.tli
+*.tlh
+*.pdb
+
+# 依赖文件 / ninja / make
+*.d
+*.dep
+*.make
+*.mk
+*.ninja
+*.ninja_log
+.ninja_deps
+.ninja_log
+*.gcno
+*.gcda
+
+# 预编译头
+*.gch
+*.pch
+
+# 覆盖率
+*.gcov
+coverage/
+*.info
+htmlcov/
+
+# cmake generated files
+scripts/code_stats.bat
+scripts/code_stats.ps1
+
+# ============================================================
+# CMake 构建产物
+# ============================================================
+# 常用构建目录
+build/
+build-*/
+out/
+cmake-build-*/
+cmake_build/
+cmake-build-*/
+
+# CMake 临时文件
+CMakeCache.txt
+CMakeCache.txt.in
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+Makefile
+CMakeUserPresets.json
+CTestTestfile.cmake
+_deps/
+Testing/
+
+# 单一文件构建 (cmake -P 等)
+CMakeScratch/
+CMakeFiles-KataJugi/
+
+# ============================================================
+# Qt 项目特定
+# ============================================================
+# Qt 生成的文件
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+qrc_*.h
+ui_*.h
+*.moc
+*.moc_include
+
+# QML 编译缓存
+*.qmlc
+*.jsc
+
+# Qt 项目用户文件
+*.pro.user
+*.pro.user.*
+*.qmlproject.user
+*.qmlproject.user.*
+*.creator.user
+*.creator.user.*
+
+# Qt Creator 项目文件
+*.autosave
+CMakeLists.txt.user
+CMakeLists.txt.user.*
+*.user
+*.user.*
+
+# qmake 临时文件
+.qmake.stash
+.qmake.cache
+Makefile.*
+*.qmlc.qml
+.qmlls.ini
+
+# Qt 翻译/资源中间产物
+*.ts.bak
+*.qm
+.lupdate/
+.lrelease/
+
+# Qt 资源外部二进制
+.rcc/
+qmlcachegen_*
+
+# ============================================================
+# 平台/工具相关
+# ============================================================
+# Visual Studio
+.vs/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln.docstates
+*.suo
+*.useross
+*.userprefs
+*.pdb
+*.opendb
+*.opensdf
+*.sdf
+*.cachefile
+*.VC.db
+*.VC.opendb
+
+# MSBuild
+[Bb]in/
+[Oo]bj/
+x64/
+x86/
+Win32/
+ARM/
+ARM64/
+[Ll]og/
+[Ll]ogs/
+[Oo]bj/
+[Oo]ut/
+[Ll]ib/
+[Ll]ibs/
+ipch/
+*.aps
+*.bak
+*.cache
+*.ilk
+*.log
+*.pdb
+*.tlog
+*.vsp
+*.vspx
+*.saplog
+*.dbmdl
+*.dbproj.schemaview
+*.jfm
+*.pfx
+*.publishsettings
+
+# MinGW
+mingw32-make.exe
+*.o.d
+mingw53_32/
+
+# Ninja/Make 中间文件
+*.ninja
+build.ninja
+
+# vcpkg / conan
+vcpkg_installed/
+conanbuildinfo.cmake
+conaninfo.txt
+conan.lock
+build/
+
+# ============================================================
+# 项目自定义
+# ============================================================
+# 数据/资源目录（按需）
+files/
+data/cache/
+data/temp/
+output/
+*.dat
+*.bin
+!docs/**/*.png
+!docs/**/*.jpg
+local.cmake
+demoes/draw_sector_menu/
+demoes/draw_ellipse_seal/
+demoes/radial_text_check/
+demoes/draw_bagua/
+
+
+# 3rdparty - 只保留压缩包，忽略解压后的目录和散落文件
+3rdparty/*/
+!3rdparty/*.tar.gz
+!3rdparty/*.zip
+!3rdparty/cloc-2.06/
+!3rdparty/QCustomPlot/
+
+version.txt
+make_installer.bat
+scripts/make_install_package.iss

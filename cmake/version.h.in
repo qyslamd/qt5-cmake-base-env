@@ -1,0 +1,29 @@
+#pragma once
+// clang-format off
+
+#define PROJECT_VERSION_MAJOR @APP_VERSION_MAJOR@
+#define PROJECT_VERSION_MINOR @APP_VERSION_MINOR@
+#define PROJECT_VERSION_PATCH @APP_VERSION_PATCH@
+#define PROJECT_VERSION_TWEAK @APP_VERSION_TWEAK@
+
+#define PROJECT_VERSION "V@APP_VERSION_MAJOR@.@APP_VERSION_MINOR@.@APP_VERSION_PATCH@.@APP_VERSION_TWEAK@"
+
+#define PROJECT_VERSION_STANDARD \
+"V@APP_VERSION_MAJOR@.@APP_VERSION_MINOR@.@APP_VERSION_PATCH@"
+
+// clang-format on
+
+#define PROJECT_BUILD_DATE __DATE__
+#define PROJECT_BUILD_TIME __TIME__
+
+inline const char* getProjectVersion() {
+  return PROJECT_VERSION_STANDARD;
+}
+
+inline const char* getProjectVersionAll() {
+  return PROJECT_VERSION;
+}
+
+inline const char* getProjectBuildInfo() {
+  return PROJECT_BUILD_DATE " " PROJECT_BUILD_TIME;
+}

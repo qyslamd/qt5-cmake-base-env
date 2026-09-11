@@ -1,0 +1,109 @@
+{
+    "version": 8,
+    "configurePresets": [
+        {
+            "name": "ninja-debug-x64",
+            "displayName": "Ninja Debug (x64)",
+            "description": "Ninja Debug，x64 输出目录（架构由 MSVC x64 环境决定）",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/${presetName}",
+                "CMAKE_CXX_STANDARD": "17",
+                "CMAKE_C_STANDARD": "11",
+                "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreadedDebugDLL",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": true
+            }
+        },
+        {
+            "name": "ninja-debug-x86",
+            "displayName": "Ninja Debug (x86)",
+            "description": "Ninja Debug，x86 输出目录（架构由 MSVC x86 环境决定）",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/${presetName}",
+                "CMAKE_CXX_STANDARD": "17",
+                "CMAKE_C_STANDARD": "11",
+                "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreadedDebugDLL",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": true
+            }
+        },
+        {
+            "name": "ninja-release-x64",
+            "displayName": "Ninja Release (x64)",
+            "description": "Ninja Release，x64 输出目录（架构由 MSVC x64 环境决定）",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/${presetName}",
+                "CMAKE_CXX_STANDARD": "17",
+                "CMAKE_C_STANDARD": "11",
+                "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreadedDLL",
+                "CMAKE_INTERPROCEDURAL_OPTIMIZATION": true
+            }
+        },
+        {
+            "name": "ninja-release-x86",
+            "displayName": "Ninja Release (x86)",
+            "description": "Ninja Release，x86 输出目录（架构由 MSVC x86 环境决定）",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/${presetName}",
+                "CMAKE_CXX_STANDARD": "17",
+                "CMAKE_C_STANDARD": "11",
+                "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreadedDLL",
+                "CMAKE_INTERPROCEDURAL_OPTIMIZATION": true
+            }
+        },
+        {
+            "name": "ninja-relwithdebinfo-x64",
+            "displayName": "Ninja RelWithDebInfo (x64)",
+            "description": "Ninja RelWithDebInfo，x64 输出目录（带调试信息，配合 PDB 调崩溃 dump）",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/${presetName}",
+                "CMAKE_CXX_STANDARD": "17",
+                "CMAKE_C_STANDARD": "11",
+                "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreadedDLL"
+            }
+        },
+        {
+            "name": "ninja-relwithdebinfo-x86",
+            "displayName": "Ninja RelWithDebInfo (x86)",
+            "description": "Ninja RelWithDebInfo，x86 输出目录（带调试信息，配合 PDB 调崩溃 dump）",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/${presetName}",
+                "CMAKE_CXX_STANDARD": "17",
+                "CMAKE_C_STANDARD": "11",
+                "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreadedDLL"
+            }
+        }
+    ],
+    "buildPresets": [
+        { "name": "ninja-debug-x64-build", "displayName": "Build Debug (x64)", "configurePreset": "ninja-debug-x64", "targets": "all" },
+        { "name": "ninja-debug-x86-build", "displayName": "Build Debug (x86)", "configurePreset": "ninja-debug-x86", "targets": "all" },
+        { "name": "ninja-release-x64-build", "displayName": "Build Release (x64)", "configurePreset": "ninja-release-x64", "targets": "all" },
+        { "name": "ninja-release-x86-build", "displayName": "Build Release (x86)", "configurePreset": "ninja-release-x86", "targets": "all" },
+        { "name": "ninja-relwithdebinfo-x64-build", "displayName": "Build RelWithDebInfo (x64)", "configurePreset": "ninja-relwithdebinfo-x64", "targets": "all" },
+        { "name": "ninja-relwithdebinfo-x86-build", "displayName": "Build RelWithDebInfo (x86)", "configurePreset": "ninja-relwithdebinfo-x86", "targets": "all" }
+    ],
+    "testPresets": [
+        { "name": "ninja-debug-x64-test", "displayName": "Test Debug (x64)", "configurePreset": "ninja-debug-x64" },
+        { "name": "ninja-debug-x86-test", "displayName": "Test Debug (x86)", "configurePreset": "ninja-debug-x86" },
+        { "name": "ninja-release-x64-test", "displayName": "Test Release (x64)", "configurePreset": "ninja-release-x64" },
+        { "name": "ninja-release-x86-test", "displayName": "Test Release (x86)", "configurePreset": "ninja-release-x86" },
+        { "name": "ninja-relwithdebinfo-x64-test", "displayName": "Test RelWithDebInfo (x64)", "configurePreset": "ninja-relwithdebinfo-x64" },
+        { "name": "ninja-relwithdebinfo-x86-test", "displayName": "Test RelWithDebInfo (x86)", "configurePreset": "ninja-relwithdebinfo-x86" }
+    ]
+}

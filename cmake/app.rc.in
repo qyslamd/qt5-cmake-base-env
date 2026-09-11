@@ -1,0 +1,34 @@
+#pragma code_page(65001)
+
+#include <windows.h>
+
+IDI_ICON1 ICON "@APP_ICON_PATH@"
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION    @APP_VERSION_MAJOR@,@APP_VERSION_MINOR@,@APP_VERSION_PATCH@,@APP_VERSION_TWEAK@
+ PRODUCTVERSION @APP_VERSION_MAJOR@,@APP_VERSION_MINOR@,@APP_VERSION_PATCH@,@APP_VERSION_TWEAK@
+ FILEFLAGSMASK  0x3fL
+ FILEFLAGS      0x0L
+ FILEOS         0x40004L
+ FILETYPE       0x1L
+ FILESUBTYPE    0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "080404B0"
+        BEGIN
+            VALUE "CompanyName",      "最牛批的有限公司"
+            VALUE "FileDescription",  "Qt CMake的demo程序"
+            VALUE "FileVersion",      "@APP_VERSION_MAJOR@.@APP_VERSION_MINOR@.@APP_VERSION_PATCH@.@APP_VERSION_TWEAK@"
+            VALUE "InternalName",     "demo_app"
+            VALUE "LegalCopyright",   "Copyright ©2026-9999"
+            VALUE "OriginalFilename", "demo_app.exe"
+            VALUE "ProductName",      "Demo App"
+            VALUE "ProductVersion",   "@APP_VERSION_MAJOR@.@APP_VERSION_MINOR@.@APP_VERSION_PATCH@.@APP_VERSION_TWEAK@"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x804, 1200
+    END
+END

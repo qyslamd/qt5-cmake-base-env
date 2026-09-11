@@ -1,0 +1,12 @@
+# Qt comfiguration
+set(Qt5_12_x_Path_x64 "@PATH_FOR_QT_INSTALLATION_X64@")
+set(Qt5_12_x_Path_x86 "@PATH_FOR_QT_INSTALLATION_X86@")
+
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set(Qt5_12_x_Path "${Qt5_12_x_Path_x64}")
+else()
+    set(Qt5_12_x_Path "${Qt5_12_x_Path_x86}")
+endif()
+
+set(Qt5_DIR "${Qt5_12_x_Path}/lib/cmake/Qt5")
+set(QT_DIR "${Qt5_12_x_Path}/lib/cmake/Qt5")

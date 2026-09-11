@@ -1,0 +1,344 @@
+* {
+  font-family: "Microsoft YaHei";
+}
+
+/* ========== LoginDialog ========== */
+#loginContent {
+  background: white;
+  border-radius: 12px;
+}
+#loginBrand {
+  background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+    stop: 0 #1d8fe1, stop: 1 #625eb1);
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+}
+#loginBrandTitle {
+  color: white;
+  font-size: 22px;
+  font-weight: 600;
+}
+#loginBrandSub {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+}
+#loginBrandHint {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+}
+#loginFormTitle {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1F1F1F;
+}
+#loginUsername, #loginPassword {
+  background: #f5f5f5;
+  border: 1px solid #D7D7D9;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #1F1F1F;
+}
+#loginUsername:focus, #loginPassword:focus {
+  border-color: #1d8fe1;
+  background: white;
+}
+QToolButton#loginButton {
+  background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+    stop: 0 #4080ff, stop: 1 #80c0ff);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 14px;
+  font-weight: 500;
+}
+QToolButton#loginButton:hover {
+  background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+    stop: 0 #3070ee, stop: 1 #70b0ff);
+}
+QToolButton#loginButton:pressed {
+  background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+    stop: 0 #2060dd, stop: 1 #60a0ee);
+}
+#loginHint {
+  color: #e53935;
+  font-size: 12px;
+}
+QToolButton#loginCloseBtn {
+  background: transparent;
+  border: none;
+  color: #999;
+  font-size: 18px;
+}
+QToolButton#loginCloseBtn:hover {
+  color: #333;
+}
+
+/* ========== ChangePasswordDialog ========== */
+#changePasswordDialog {
+  background: white;
+}
+#changePasswordTitle {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1F1F1F;
+}
+#changePasswordOld, #changePasswordNew, #changePasswordConfirm {
+  background: #f5f5f5;
+  border: 1px solid #D7D7D9;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #1F1F1F;
+}
+#changePasswordOld:focus, #changePasswordNew:focus,
+#changePasswordConfirm:focus {
+  border-color: #1d8fe1;
+  background: white;
+}
+QToolButton#changePasswordOk {
+  background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+    stop: 0 #4080ff, stop: 1 #80c0ff);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 24px;
+  font-size: 14px;
+  font-weight: 500;
+}
+QToolButton#changePasswordOk:hover {
+  background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+    stop: 0 #3070ee, stop: 1 #70b0ff);
+}
+QToolButton#changePasswordOk:pressed {
+  background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+    stop: 0 #2060dd, stop: 1 #60a0ee);
+}
+#changePasswordHint {
+  color: #e53935;
+  font-size: 12px;
+}
+
+/* ========== MainWindow 占位页 ========== */
+#pagePlaceholderTitle {
+  font-size: 28px;
+  font-weight: 600;
+  color: #1a237e;
+}
+#pagePlaceholderHint {
+  font-size: 14px;
+  color: #999;
+}
+/* ========== QTabWidget / QTabBar ========== */
+QTabWidget::pane {
+  border: none;
+}
+QTabBar {
+  background: #f5f6fa;
+}
+QTabBar::tab {
+  /* tab 形状由 TabBarStyle（QProxyStyle）自绘，此处不设样式避免冲突 */
+}
+
+/* ========== TopBar（顶部栏） ========== */
+#topBar {
+  background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+    stop: 0 #1a237e, stop: 1 #283593);
+}
+#topBarTitle {
+  color: white;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+#topBarStatus {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+}
+#topBarDot[state="green"] {
+  color: #4CAF50;
+}
+#topBarDot[state="gray"] {
+  color: #9E9E9E;
+}
+#topBar QToolButton {
+  background: #e8eaf6;
+  border: 1px solid #c5cae9;
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: #1a237e;
+}
+#topBar QToolButton:hover {
+  background: #c5cae9;
+}
+#topBar QToolButton:checked {
+  background: #1a237e;
+  color: white;
+  border-color: #c5cae9;
+}
+
+/* ========== LogFilterBar / LogOutputPanel ========== */
+#LogFilterBar {
+  background: #f5f6fa;
+  border-bottom: 1px solid #e0e0e0;
+}
+#LogFilterBar QToolButton {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-size: 11px;
+  color: #666;
+}
+#LogFilterBar QToolButton:checked {
+  background: #e8eaf6;
+  border-color: #c5cae9;
+  color: #1a237e;
+}
+#LogFilterBar QToolButton:hover {
+  background: #eef1fb;
+}
+#LogFilterBox {
+  border: 1px solid #d7d7d9;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+}
+#LogFilterBox[invalid="true"] {
+  border-color: #F44336;
+}
+#logOutputView {
+  background: white;
+  border: none;
+  font-family: "Consolas", "Microsoft YaHei";
+  font-size: 12px;
+}
+
+/* ========== ChannelCard / Dashboard ========== */
+#channelCard {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+#channelCard[state="normal"] {
+  background: white;
+  border-color: #e0e0e0;
+}
+#channelCard[state="warning"] {
+  background: #fffde7;
+  border-color: #FFC107;
+}
+#channelCard[state="alarm"] {
+  background: #ffebee;
+  border-color: #F44336;
+}
+#channelCard[state="offline"] {
+  background: #fafafa;
+  border-color: #e0e0e0;
+}
+#channelCardHeader {
+  font-size: 13px;
+  font-weight: bold;
+  color: #333;
+}
+#channelCardLed {
+  border-radius: 6px;
+}
+#channelCardLed[led="green"] { background-color: #4CAF50; }
+#channelCardLed[led="yellow"] { background-color: #FFC107; }
+#channelCardLed[led="red"] { background-color: #F44336; }
+#channelCardLed[led="gray"] { background-color: #9E9E9E; }
+#channelCardValue {
+  font-size: 15px;
+  font-weight: bold;
+  color: #222;
+}
+#channelCardPressure {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a237e;
+}
+#channelCardSensor {
+  font-size: 10px;
+  color: #999;
+}
+
+/* ========== SelfTestPage ========== */
+#selfTestPage #selfTestTable {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 13px;
+}
+#selfTestPage QHeaderView::section {
+  background: #f5f6fa;
+  padding: 6px 10px;
+  border: none;
+  border-bottom: 2px solid #e0e0e0;
+  font-size: 12px;
+  color: #666;
+  font-weight: 600;
+}
+
+/* ========== F5 告警页 ========== */
+#alarmTable {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 13px;
+  gridline-color: #f0f0f0;
+}
+#alarmTable QHeaderView::section {
+  background: #f5f6fa;
+  padding: 6px 10px;
+  border: none;
+  border-bottom: 2px solid #e0e0e0;
+  font-size: 12px;
+  color: #666;
+  font-weight: 600;
+}
+#alarmTable::item {
+  padding: 4px 8px;
+}
+
+/* ========== 用户管理对话框 ========== */
+#addEditUserHint {
+  color: #d32f2f;
+}
+#userManageTable {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 13px;
+  gridline-color: #f0f0f0;
+}
+#userManageTable QHeaderView::section {
+  background: #f5f6fa;
+  padding: 6px 10px;
+  border: none;
+  border-bottom: 2px solid #e0e0e0;
+  font-size: 12px;
+  color: #666;
+  font-weight: 600;
+}
+#userManageTable::item {
+  padding: 4px 8px;
+}
+
+/* ========== 阈值配置对话框 ========== */
+#thresholdDialog {
+  background: #fafbfc;
+}
+#thresholdDialog QLabel {
+  color: #333;
+}
+#thresholdDialog QDoubleSpinBox,
+#thresholdDialog QComboBox {
+  min-height: 24px;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  padding: 0 6px;
+  background: white;
+}
