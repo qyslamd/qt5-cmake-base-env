@@ -195,6 +195,11 @@ if(WIN32)
     # （而非依赖调用方先手动跑 make_deploy）。符号归档同样是发布必经步骤。
     if(WIN32 AND EXISTS ${ISCC_EXECUTABLE})
         add_custom_target(make_package
+            # 先校验构建配置：Debug 依赖调试版 C 运行时，打出的包在用户机器
+            # 上无法启动，直接拒绝；非 relwithdebinfo 则告警
+            COMMAND ${CMAKE_COMMAND}
+                -DBUILD_TYPE="$<CONFIG>"
+                -P "${CMAKE_SOURCE_DIR}/cmake/check_package_config.cmake"
             COMMAND "${CMAKE_SOURCE_DIR}/scripts/make_installer.bat"
                 "$<TARGET_FILE_DIR:${TARGET_NAME}>"
             WORKING_DIRECTORY "$<TARGET_FILE_DIR:${TARGET_NAME}>"
