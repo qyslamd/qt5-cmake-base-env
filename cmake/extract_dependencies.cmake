@@ -27,15 +27,19 @@ function(check_tar_command)
     endif()
 endfunction()
 
-# 检测7z解压命令是否可用
+# 定位 7z 可执行文件
+#
+# 优先使用 3rdparty 自带的 7z，使使用者无需预先安装解压软件；仓库未提供
+# 或文件缺失时回落到 PATH 上的 7z。SEVEN_ZIP_EXECUTABLE 由 find_program
+# 写入缓存，故无需 PARENT_SCOPE。
 function(check_7z_command)
-    execute_process(COMMAND 7z
-                    OUTPUT_VARIABLE 7z_help
-                    ERROR_QUIET
-                    RESULT_VARIABLE 7z_check)
-    if(7z_check EQUAL 0 OR 7z_check EQUAL 1)
+    find_program(SEVEN_ZIP_EXECUTABLE
+        NAMES 7z 7za
+        HINTS "${3RDPARTY_DIR}"
+    )
+    if(SEVEN_ZIP_EXECUTABLE)
         set(7Z_FOUND TRUE PARENT_SCOPE)
-        message(STATUS "Found 7z command, will use 7z for extraction")
+        message(STATUS "Found 7z: ${SEVEN_ZIP_EXECUTABLE}")
     else()
         set(7Z_FOUND FALSE PARENT_SCOPE)
         message(STATUS "7z command not found")
@@ -78,7 +82,7 @@ function(extract_if_needed archive_file)
         set(extract_success FALSE)
         if(7Z_FOUND)
             message(STATUS "  Extracting with 7z...")
-            execute_process(COMMAND 7z x "${archive_file}" -y
+            execute_process(COMMAND "${SEVEN_ZIP_EXECUTABLE}" x "${archive_file}" -y
                             WORKING_DIRECTORY "${3RDPARTY_DIR}"
                             RESULT_VARIABLE extract_result
                             OUTPUT_QUIET)
@@ -111,10 +115,29 @@ function(extract_if_needed archive_file)
         # 如果tar失败或不存在，尝试7z
         if(NOT extract_success AND 7Z_FOUND)
             message(STATUS "  Trying 7z...")
-            execute_process(COMMAND 7z x "${archive_file}" -y
+            execute_process(COMMAND "${SEVEN_ZIP_EXECUTABLE}" x "${archive_file}" -y
                             WORKING_DIRECTORY "${3RDPARTY_DIR}"
                             RESULT_VARIABLE extract_result
                             OUTPUT_QUIET)
+
+            # .tar.gz 是两层压缩：首次 x 只解出内层的 .tar，必须对它再解一次
+            # 才能得到目录（实测单次 x 只得到 spdlog-1.17.0.tar）。
+            # 无内层归档时同名为真，直接跳过。
+            string(REGEX REPLACE "\\.gz$" "" inner_archive "${archive_file}")
+            if(NOT "${inner_archive}" STREQUAL "${archive_file}")
+                if(EXISTS "${3RDPARTY_DIR}/${inner_archive}")
+                    message(STATUS "  Nested archive detected, extracting ${inner_archive}...")
+                    execute_process(
+                        COMMAND "${SEVEN_ZIP_EXECUTABLE}" x "${inner_archive}" -y
+                        WORKING_DIRECTORY "${3RDPARTY_DIR}"
+                        RESULT_VARIABLE extract_result
+                        OUTPUT_QUIET)
+                    # 内层 .tar 只是解压过程的中间产物，用完即删，
+                    # 否则 3rdparty 下会残留一份与压缩包等大的文件
+                    file(REMOVE "${3RDPARTY_DIR}/${inner_archive}")
+                endif()
+            endif()
+
             if(extract_result EQUAL 0)
                 set(extract_success TRUE)
                 message(STATUS "  Successfully extracted using 7z")

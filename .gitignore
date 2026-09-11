@@ -252,6 +252,10 @@ demoes/draw_bagua/
 # 3rdparty - 只保留压缩包，忽略解压后的目录和散落文件
 3rdparty/*/
 !3rdparty/*.tar.gz
+
+# 7z 解压工具随仓库提供，使使用者无需预先安装解压软件。
+# 会被上面的 *.exe 规则连同下面的通用规则一起忽略，故显式放行。
+!3rdparty/7z.exe
 !3rdparty/*.zip
 !3rdparty/cloc-2.06/
 !3rdparty/QCustomPlot/
