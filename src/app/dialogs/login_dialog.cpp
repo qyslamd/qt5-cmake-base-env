@@ -1,6 +1,7 @@
 #include "login_dialog.h"
 
 #include <QCheckBox>
+#include <QCoreApplication>
 #include <QFrame>
 #include <QGraphicsDropShadowEffect>
 #include <QGuiApplication>
@@ -67,9 +68,10 @@ void LoginDialog::initUi() {
   auto* brand_layout = new QVBoxLayout(brand);
   brand_layout->setContentsMargins(24, 24, 24, 24);
   brand_layout->setSpacing(4);
-  auto* brand_title = new QLabel(QStringLiteral("EP-H276"), brand);
+  // 品牌标题随 applicationName 走；副标题为占位文案，按项目自行替换
+  auto* brand_title = new QLabel(QCoreApplication::applicationName(), brand);
   brand_title->setObjectName(QStringLiteral("loginBrandTitle"));
-  auto* brand_sub = new QLabel(QStringLiteral("设备控制软件"), brand);
+  auto* brand_sub = new QLabel(QStringLiteral("应用程序"), brand);
   brand_sub->setObjectName(QStringLiteral("loginBrandSub"));
   auto* brand_hint = new QLabel(QStringLiteral("请登录以使用全部功能"), brand);
   brand_hint->setObjectName(QStringLiteral("loginBrandHint"));

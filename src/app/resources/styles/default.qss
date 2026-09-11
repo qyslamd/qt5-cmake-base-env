@@ -523,44 +523,6 @@ QTabBar::tab {
   /* tab 形状由 TabBarStyle（QProxyStyle）自绘，此处不设样式避免冲突 */
 }
 
-/* ========== TopBar（顶部栏） ========== */
-#topBar {
-  background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
-    stop: 0 #1a237e, stop: 1 #283593);
-}
-#topBarTitle {
-  color: white;
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: 1px;
-}
-#topBarStatus {
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 13px;
-}
-#topBarDot[state="green"] {
-  color: #4CAF50;
-}
-#topBarDot[state="gray"] {
-  color: #9E9E9E;
-}
-#topBar QToolButton {
-  background: #e8eaf6;
-  border: 1px solid #c5cae9;
-  border-radius: 4px;
-  padding: 4px 12px;
-  font-size: 12px;
-  color: #1a237e;
-}
-#topBar QToolButton:hover {
-  background: #c5cae9;
-}
-#topBar QToolButton:checked {
-  background: #1a237e;
-  color: white;
-  border-color: #c5cae9;
-}
-
 /* ========== LogFilterBar / LogOutputPanel ========== */
 #LogFilterBar {
   background: #f5f6fa;
@@ -598,93 +560,6 @@ QTabBar::tab {
   font-size: 12px;
 }
 
-/* ========== ChannelCard / Dashboard ========== */
-#channelCard {
-  background: white;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-}
-#channelCard[state="normal"] {
-  background: white;
-  border-color: #e0e0e0;
-}
-#channelCard[state="warning"] {
-  background: #fffde7;
-  border-color: #FFC107;
-}
-#channelCard[state="alarm"] {
-  background: #ffebee;
-  border-color: #F44336;
-}
-#channelCard[state="offline"] {
-  background: #fafafa;
-  border-color: #e0e0e0;
-}
-#channelCardHeader {
-  font-size: 13px;
-  font-weight: bold;
-  color: #333;
-}
-#channelCardLed {
-  border-radius: 6px;
-}
-#channelCardLed[led="green"] { background-color: #4CAF50; }
-#channelCardLed[led="yellow"] { background-color: #FFC107; }
-#channelCardLed[led="red"] { background-color: #F44336; }
-#channelCardLed[led="gray"] { background-color: #9E9E9E; }
-#channelCardValue {
-  font-size: 15px;
-  font-weight: bold;
-  color: #222;
-}
-#channelCardPressure {
-  font-size: 14px;
-  font-weight: 600;
-  color: #1a237e;
-}
-#channelCardSensor {
-  font-size: 10px;
-  color: #999;
-}
-
-/* ========== SelfTestPage ========== */
-#selfTestPage #selfTestTable {
-  background: white;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  font-size: 13px;
-}
-#selfTestPage QHeaderView::section {
-  background: #f5f6fa;
-  padding: 6px 10px;
-  border: none;
-  border-bottom: 2px solid #e0e0e0;
-  font-size: 12px;
-  color: #666;
-  font-weight: 600;
-}
-
-/* ========== F5 告警页 ========== */
-#alarmTable {
-  background: white;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  font-size: 13px;
-  gridline-color: #f0f0f0;
-}
-#alarmTable QHeaderView::section {
-  background: #f5f6fa;
-  padding: 6px 10px;
-  border: none;
-  border-bottom: 2px solid #e0e0e0;
-  font-size: 12px;
-  color: #666;
-  font-weight: 600;
-}
-#alarmTable::item {
-  padding: 4px 8px;
-}
-
 /* ========== 用户管理对话框 ========== */
 #addEditUserHint {
   color: #d32f2f;
@@ -707,22 +582,6 @@ QTabBar::tab {
 }
 #userManageTable::item {
   padding: 4px 8px;
-}
-
-/* ========== 阈值配置对话框 ========== */
-#thresholdDialog {
-  background: #fafbfc;
-}
-#thresholdDialog QLabel {
-  color: #333;
-}
-#thresholdDialog QDoubleSpinBox,
-#thresholdDialog QComboBox {
-  min-height: 24px;
-  border: 1px solid #d0d0d0;
-  border-radius: 4px;
-  padding: 0 6px;
-  background: white;
 }
 
 /* ========== SplashScreen（启动画面） ========== */

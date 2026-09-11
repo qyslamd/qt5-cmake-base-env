@@ -1,4 +1,4 @@
-set(TARGET_NAME demo_core)
+set(TARGET_NAME ${APP_TARGET_PREFIX}_core)
 
 set(ALL_HEADERS_SOURCES
     auth/auth_service.cpp

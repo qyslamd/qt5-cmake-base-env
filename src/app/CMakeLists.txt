@@ -1,4 +1,4 @@
-set(TARGET_NAME "demo_app")
+set(TARGET_NAME ${APP_TARGET_PREFIX}_app)
 
 #=======================================
 # 版本管理
@@ -23,12 +23,8 @@ set(TARGET_SRCS
     res.qrc
     mainwindow.cpp
     mainwindow.h
-    splash_screen.cpp
-    splash_screen.h
     log_window.cpp
     log_window.h
-    switch_button.cpp
-    switch_button.h
     dialogs/about_dialog.cpp
     dialogs/about_dialog.h
     dialogs/add_edit_user_dialog.cpp
@@ -67,7 +63,8 @@ target_include_directories(${TARGET_NAME}
 )
 
 target_link_libraries(${TARGET_NAME} PRIVATE
-    demo_core
+    ${APP_TARGET_PREFIX}_core
+    ${APP_TARGET_PREFIX}_libui
     qcustomplot
     Qt5::Widgets
     Qt5::Core

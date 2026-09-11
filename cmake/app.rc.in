@@ -17,13 +17,13 @@ BEGIN
     BEGIN
         BLOCK "080404B0"
         BEGIN
-            VALUE "CompanyName",      "最牛批的有限公司"
-            VALUE "FileDescription",  "Qt CMake的demo程序"
+            VALUE "CompanyName",      "@APP_ORG_NAME@"
+            VALUE "FileDescription",  "@APP_APP_NAME@"
             VALUE "FileVersion",      "@APP_VERSION_MAJOR@.@APP_VERSION_MINOR@.@APP_VERSION_PATCH@.@APP_VERSION_TWEAK@"
-            VALUE "InternalName",     "demo_app"
-            VALUE "LegalCopyright",   "Copyright ©2026-9999"
-            VALUE "OriginalFilename", "demo_app.exe"
-            VALUE "ProductName",      "Demo App"
+            VALUE "InternalName",     "@TARGET_NAME@"
+            VALUE "LegalCopyright",   "Copyright @APP_ORG_NAME@"
+            VALUE "OriginalFilename", "@TARGET_NAME@.exe"
+            VALUE "ProductName",      "@APP_APP_NAME@"
             VALUE "ProductVersion",   "@APP_VERSION_MAJOR@.@APP_VERSION_MINOR@.@APP_VERSION_PATCH@.@APP_VERSION_TWEAK@"
         END
     END

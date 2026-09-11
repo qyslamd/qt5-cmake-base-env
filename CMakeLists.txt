@@ -14,6 +14,11 @@ project(${PROJECT_NAME_STR}
 set(APP_ORG_NAME "Enpht")
 set(APP_APP_NAME "${PROJECT_NAME_STR}")
 
+# 各 CMake 目标名的前缀：core / app / libui 等子目录的 TARGET_NAME 均由此
+# 拼出（如 demo_core、demo_app、demo_libui）。新建项目改这一处即可，
+# 无需逐个文件改名
+set(APP_TARGET_PREFIX "demo")
+
 # 目标架构后缀（x64 / x86）。互斥体名与安装包文件名都要带它，
 # 故统一在此推导，供 C++、安装脚本共用
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
