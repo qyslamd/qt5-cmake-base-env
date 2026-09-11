@@ -132,7 +132,7 @@ echo.
 echo Options:
 echo   -t, --type ^<type^>       Build type: debug / relwithdebinfo / release
 echo   -a, --arch ^<arch^>       Target architecture: x64 (default) / x86
-echo   -m, --target ^<target^>   Build target (e.g. ETestStudio), omit for all
+echo   -m, --target ^<target^>   Build target (e.g. demo_app), omit for all
 echo   -d, --deploy              Run windeployqt after build
 echo   -p, --package             Run windeployqt + ISCC after build
 echo   -c, --configure           Only run CMake configure, skip build
@@ -144,8 +144,8 @@ echo.
 echo Examples:
 echo   build_ninja.bat
 echo   build_ninja.bat debug deploy
-echo   build_ninja.bat -t debug -m ETestStudio
-echo   build_ninja.bat -t relwithdebinfo -m ETestStudio -p
+echo   build_ninja.bat -t debug -m demo_app
+echo   build_ninja.bat -t relwithdebinfo -m demo_app -p
 echo   build_ninja.bat -t debug -a x86 -c
 exit /b 1
 
@@ -173,8 +173,6 @@ if /i "%ARCH%"=="x86" (
 ) else (
     call "%VS2019_CMD_DIR%\vcvars64.bat"
 )
-
-set PATH=%PATH%;"%ETest_CMake_Path%"
 
 if "%BUILD_TYPE%"=="" set "BUILD_TYPE=debug"
 
