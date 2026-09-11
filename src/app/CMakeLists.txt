@@ -103,10 +103,7 @@ endif()
 # 安装打包工具链（windeployqt / ISCC 均为 Windows 专属工具）
 #=======================================
 if(WIN32)
-    # 查找 windeployqt — 从 Qt5::qmake 目标推导 bin 目录
-    get_target_property(_qt_qmake Qt5::qmake IMPORTED_LOCATION)
-    get_filename_component(QT_BIN_DIR "${_qt_qmake}" DIRECTORY)
-
+    # 查找 windeployqt —— QT_BIN_DIR 由顶层统一推导，此处不再重复
     find_program(WINDEPLOYQT_EXECUTABLE
         NAMES windeployqt
         HINTS "${QT_BIN_DIR}"

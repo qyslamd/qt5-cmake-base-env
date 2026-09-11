@@ -158,11 +158,13 @@ find_package(Qt5 COMPONENTS
     Core Gui Widgets PrintSupport Test Xml Svg Network Concurrent Sql SerialPort OpenGL
     CONFIG REQUIRED)
 
-# Qt 运行时目录推导仅服务 Windows 消费方（run_app.bat、测试环境变量）
+# Qt 运行时目录推导仅服务 Windows 消费方（run_app.bat、测试环境变量）。
+# qmake 按定义位于 Qt 安装的 bin 目录下，由它反推最直接；不要在各子目录
+# 另起一套推导，否则改动假设时容易漏改。
 if(Qt5_FOUND AND WIN32)
-    get_target_property(_qt_core_location Qt5::Core LOCATION)
-    get_filename_component(QT_LIB_DIR "${_qt_core_location}" DIRECTORY)
-    get_filename_component(QT_BIN_DIR "${QT_LIB_DIR}/../bin" ABSOLUTE)
+    get_target_property(_qt_qmake Qt5::qmake IMPORTED_LOCATION)
+    get_filename_component(QT_BIN_DIR "${_qt_qmake}" DIRECTORY)
+    get_filename_component(QT_LIB_DIR "${QT_BIN_DIR}/../lib" ABSOLUTE)
     get_filename_component(QT_PLUGINS_DIR "${QT_BIN_DIR}/../plugins" ABSOLUTE)
 endif()
 
