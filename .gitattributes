@@ -15,9 +15,13 @@
 *.cmd  text eol=crlf
 *.sh   text eol=lf
 
-# 模板文件同样要钉死行尾：configure_file 生成的脚本会继承模板的行尾。
-# 若在 WSL 等环境下配置（.in 被检出为 LF），生成的 .bat 会是 LF，
-# 在 Windows 上无法执行。
+# 模板文件。实测 configure_file 会按宿主机平台统一输出行尾（Windows 下
+# LF 与 CRLF 模板都产出 CRLF），故模板自身的行尾不影响生成的脚本；这里
+# 指定只是让工作区中的模板与其它 .bat/.sh 保持一致。
+#
+# 需要注意的推论：在 Linux 侧 configure 时生成的是 LF 的 .bat，拷到
+# Windows 执行会失败。走 scripts/build_ninja.bat 不会遇到该问题——它每次
+# 都先 configure，脚本总是由 Windows 侧重新生成。
 *.bat.in text eol=crlf
 *.sh.in  text eol=lf
 
