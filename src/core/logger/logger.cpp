@@ -1,5 +1,6 @@
 #include "logger.h"
 
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
 #include <QObject>
@@ -7,7 +8,8 @@
 
 #include <spdlog/async.h>
 #include <spdlog/sinks/rotating_file_sink.h>
-#include <spdlog/sinks/wincolor_sink.h>
+// stdout_color_sink 在 Windows 上映射为 wincolor，其余平台映射为 ansicolor
+#include <spdlog/sinks/stdout_color_sinks.h>
 
 #include "config/config_defs.h"
 #include "config/config_manager.h"
@@ -78,16 +80,20 @@ void Logger::init() {
   spdlog::init_thread_pool(8192, 1);
 
   // 控制台彩色 sink（仅 Debug 构建启用）
-#ifdef _DEBUG
+#ifndef NDEBUG
   auto console_sink =
-      std::make_shared<spdlog::sinks::wincolor_stdout_sink_mt>();
+      std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
   console_sink->set_level(spdlog::level::debug);
   console_sink->set_pattern(
       "[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [%t] [%n] [%s:%#] %v");
 #endif
 
-  // 滚动文件 sink
-  QString log_path = log_dir + "/FILE.log";
+  // 滚动文件 sink；文件名随 applicationName 走，避免模板产物互相覆盖
+  QString app_name = QCoreApplication::applicationName();
+  if (app_name.isEmpty()) {
+    app_name = QStringLiteral("app");
+  }
+  QString log_path = log_dir + "/" + app_name + ".log";
   auto file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
       log_path.toStdString(), max_file_size, max_file_count, true);
   file_sink->set_level(spdlog::level::debug);
@@ -103,7 +109,7 @@ void Logger::init() {
   s_qt_sink_ = qt_sink.get();
 
   // 注册默认 logger，所有模块共用
-#ifdef _DEBUG
+#ifndef NDEBUG
   std::vector<spdlog::sink_ptr> sinks = {console_sink, file_sink, qt_sink};
 #else
   std::vector<spdlog::sink_ptr> sinks = {file_sink, qt_sink};

@@ -5,12 +5,14 @@
 
 #include <QDebug>
 
-#include "logger/Logger.h"
+#include "logger/logger.h"
 
 #ifdef Q_OS_WIN
-#include <dbghelp.h>
+// clang-format off
+// windows.h 必须先于 dbghelp.h，禁止 clang-format 重排
 #include <windows.h>
-
+#include <dbghelp.h>
+// clang-format on
 #else
 #include <execinfo.h>
 #endif
@@ -162,7 +164,7 @@ void GlobalExceptionHandler::qtMessageHandler(QtMsgType type,
       if (auto logger = spdlog::default_logger()) {
         logger->flush();
       }
-      etest::core::logger::Logger::shutdown();
+      Logger::shutdown();
       std::abort();
   }
 }

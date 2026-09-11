@@ -117,7 +117,8 @@ scripts/build_ninja.bat -t relwithdebinfo -m demo_app -p
    - 严禁出现 Co-Authored-By 信息 以及 Co-Authored-By: claude code 助手等相关信息
    - 不使用默认的 Claude 署名
    - 提交信息的开始和结束不能有 @ 符号
-
+14. 头文件顺序有要求的，必须要在包含头文件的地方关掉clang-format，不然容易被clang-format自动调整头文件顺序导致出问题
+  
 ## 功能开发流程
 
 所有涉及 UI/UX 变更或非纯逻辑的功能开发，必须遵循以下迭代流程：
@@ -128,7 +129,7 @@ scripts/build_ninja.bat -t relwithdebinfo -m demo_app -p
 4. **逐项修复审查问题** — 对每个问题给出选项和推荐项并说明理由，与用户逐个讨论确认
 5. **多轮审查直至无阻塞问题** — 修改后再次派 subagent 审查，反复直到无 🔴 阻塞问题
 6. **写代码** — 根据最终方案实施
-7. **Subagent 审查代码** — 派 subagent 代码审查
+7. **(可选)Subagent 审查代码** — 派 subagent 代码审查。写/改完代码之后编译无误之后询问我是否需要代码审查。
 8. **修复直至无问题** — 处理所有审查意见
 
 > **原则**：方案不经过审查不能写代码，代码不经过审查不能算完成。

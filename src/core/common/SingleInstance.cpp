@@ -7,7 +7,7 @@
 #include <QByteArray>
 #include <QCoreApplication>
 
-#include "logger/Logger.h"
+#include "logger/logger.h"
 
 SingleInstance::SingleInstance(const QString& appKey, QObject* parent)
     : QObject(parent), app_key_(appKey), shared_memory_(appKey) {
@@ -190,9 +190,8 @@ void SingleInstance::activateWindow() {
   SetForegroundWindow(hwnd);
   BringWindowToTop(hwnd);
   SetActiveWindow(hwnd);
-#else
-  emit showApplication();
 #endif
 
+  // 各平台统一发一次信号，由使用方连接完成 Qt 层的显示与激活
   emit showApplication();
 }

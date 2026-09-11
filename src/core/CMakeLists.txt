@@ -34,6 +34,19 @@ set(ALL_HEADERS_SOURCES
     common/SingleInstance.h
 )
 
+# 平台崩溃捕获实现按平台加入（源文件自身亦有平台守卫，此处为防御性组织）
+if(WIN32)
+    list(APPEND ALL_HEADERS_SOURCES
+        crashhandler/WindowsCrashHandler.cpp
+        crashhandler/WindowsCrashHandler.h
+    )
+else()
+    list(APPEND ALL_HEADERS_SOURCES
+        crashhandler/LinuxCrashHandler.cpp
+        crashhandler/LinuxCrashHandler.h
+    )
+endif()
+
 # ============================
 # 添加静态库目标
 add_library(${TARGET_NAME} STATIC ${ALL_HEADERS_SOURCES})
@@ -55,5 +68,10 @@ target_link_libraries(${TARGET_NAME} PUBLIC
     spdlog::spdlog
 )
 
-target_link_libraries(${TARGET_NAME} PRIVATE dbghelp)
-target_compile_options(${TARGET_NAME} PRIVATE /W4 /WX- /EHsc)
+if(WIN32)
+    target_link_libraries(${TARGET_NAME} PRIVATE dbghelp)
+endif()
+
+if(MSVC)
+    target_compile_options(${TARGET_NAME} PRIVATE /W4 /WX- /EHsc)
+endif()

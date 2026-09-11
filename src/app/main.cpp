@@ -4,12 +4,15 @@
 #include <QIcon>
 
 #include "AppVersion.h"
-#include "MainWindow.h"
 #include "auth/auth_service.h"
+#include "common/GlobalExceptionHandler.h"
+#include "common/SingleInstance.h"
 #include "config/config_defs.h"
 #include "config/config_manager.h"
+#include "crashhandler/CrashHandler.h"
 #include "dialogs/login_dialog.h"
 #include "logger/logger.h"
+#include "mainwindow.h"
 
 int main(int argc, char* argv[]) {
   QApplication app(argc, argv);
@@ -17,6 +20,14 @@ int main(int argc, char* argv[]) {
   app.setApplicationName("FILE");
   app.setWindowIcon(QIcon(":/resources/icons/icon.ico"));
   app.setApplicationVersion(getProjectVersionAll());
+
+  // 单实例检测：appKey 随 applicationName 走，第二实例转发参数后退出
+  SingleInstance single_instance(QCoreApplication::applicationName());
+  if (single_instance.isAppAlreadyRunning()) {
+    single_instance.connectToExistingInstance(QCoreApplication::arguments());
+    return 0;
+  }
+  single_instance.startListening();
 
   // 加载全局样式
   QFile style_file(QStringLiteral(":/resources/styles/default.qss"));
@@ -30,6 +41,25 @@ int main(int argc, char* argv[]) {
   Logger::init();
   LOG_INFO("MAIN", "应用程序启动，版本: {}", getProjectVersionAll());
 
+  // 模板防呆：applicationName 仍为占位值时，单实例键与日志/配置/崩溃
+  // 目录会和其它模板产物冲突（思路同 ISCC_APP_ID 的 GUID 警告）
+  if (app.applicationName() == QStringLiteral("FILE")) {
+    LOG_WARN("MAIN",
+             "applicationName 仍为模板占位值 \"FILE\"，"
+             "新建项目请修改 setOrganizationName/setApplicationName");
+  }
+
+  // 信号捕获 + Qt 消息重定向。致命信号实际由 CrashHandler 接管
+  // （其注册晚于本模块），此处生效的是 Qt 消息重定向与 SIGINT/SIGTERM
+  GlobalExceptionHandler::instance().init();
+
+  // 初始化崩溃捕获模块
+  auto crash_handler = CrashHandler::create();
+  if (crash_handler) {
+    crash_handler->init();
+    LOG_INFO("MAIN", "崩溃捕获模块初始化完成");
+  }
+
   MainWindow w;
   // 钳制窗口尺寸，防止损坏的 INI 产生不可用窗口
   const int saved_width = ConfigManager::instance().get<int>(
@@ -42,12 +72,23 @@ int main(int argc, char* argv[]) {
   LoginDialog login(&w);
   if (login.exec() != QDialog::Accepted) {
     LOG_INFO("MAIN", "未登录，退出程序");
+    GlobalExceptionHandler::instance().shutdown();
     Logger::shutdown();
     return 0;
   }
   LOG_INFO("MAIN", "登录成功，当前用户: {}",
            AuthService::instance().currentUser().user_name_.toStdString());
   w.show();
+
+  // 第二实例请求激活：Windows 在 SingleInstance 内走 HWND 置前，
+  // 其余平台依赖本信号完成 Qt 层的显示与激活
+  single_instance.setActivationWindow(reinterpret_cast<void*>(w.winId()));
+  QObject::connect(&single_instance, &SingleInstance::showApplication, &w,
+                   [&w]() {
+                     w.showNormal();
+                     w.raise();
+                     w.activateWindow();
+                   });
 
   // 退出前保存窗口尺寸并立即落盘
   QObject::connect(&app, &QApplication::aboutToQuit, [&w]() {
@@ -59,6 +100,7 @@ int main(int argc, char* argv[]) {
 
   int ret = app.exec();
 
+  GlobalExceptionHandler::instance().shutdown();
   LOG_INFO("MAIN", "应用程序退出");
   Logger::shutdown();
   return ret;

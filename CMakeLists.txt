@@ -5,18 +5,20 @@ project(${PROJECT_NAME_STR}
     DESCRIPTION "a complete qt cmake basic demo."
     LANGUAGES CXX C)
 	
-if (EXISTS "${CMAKE_SOURCE_DIR}/local.cmake")
-    include("${CMAKE_SOURCE_DIR}/local.cmake")
-    message(STATUS "Loaded variables from local.cmake")
-else()
-    if(WIN32)
+# local.cmake 为 Windows 路径语义，仅 Windows 读取；
+# Linux 使用系统 Qt，必要时通过 -DCMAKE_PREFIX_PATH / -DQt5_DIR 指定
+if(WIN32)
+    if (EXISTS "${CMAKE_SOURCE_DIR}/local.cmake")
+        include("${CMAKE_SOURCE_DIR}/local.cmake")
+        message(STATUS "Loaded variables from local.cmake")
+    else()
         set(PATH_FOR_QT_INSTALLATION_X64 "X:/Qt/Qt5.12.12/5.12.12/msvc2019_64")
         set(PATH_FOR_QT_INSTALLATION_X86 "X:/Qt/Qt5.12.12/5.12.12/msvc2019")
         configure_file("${CMAKE_SOURCE_DIR}/cmake/local.cmake.in"
             "${CMAKE_SOURCE_DIR}/local.cmake"
             @ONLY)
+        message(FATAL_ERROR "Please change local.cmake to set your own Qt paths for both x64 and x86, then rerun CMake.")
     endif()
-    message(FATAL_ERROR "Please change local.cmake to set your own Qt paths for both x64 and x86, then rerun CMake.")
 endif()
 
 #=======================================
@@ -48,15 +50,12 @@ find_package(Qt5 COMPONENTS
     Core Gui Widgets PrintSupport Test Xml Svg network Concurrent Sql SerialPort Network OpenGL
     CONFIG REQUIRED)
 
-if(Qt5_FOUND)
+# Qt 运行时目录推导仅服务 Windows 消费方（run_app.bat、测试环境变量）
+if(Qt5_FOUND AND WIN32)
     get_target_property(_qt_core_location Qt5::Core LOCATION)
     get_filename_component(QT_LIB_DIR "${_qt_core_location}" DIRECTORY)
-    if(WIN32)
-        get_filename_component(QT_BIN_DIR "${QT_LIB_DIR}/../bin" ABSOLUTE)
-        get_filename_component(QT_PLUGINS_DIR "${QT_BIN_DIR}/../plugins" ABSOLUTE)
-    else()
-        # TODO：
-    endif()
+    get_filename_component(QT_BIN_DIR "${QT_LIB_DIR}/../bin" ABSOLUTE)
+    get_filename_component(QT_PLUGINS_DIR "${QT_BIN_DIR}/../plugins" ABSOLUTE)
 endif()
 
 # spdlog 日志库

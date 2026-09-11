@@ -4,8 +4,11 @@
 #ifndef ETEST_CORE_CRASHHANDLER_WINDOWSCRASHHANDLER_H_
 #define ETEST_CORE_CRASHHANDLER_WINDOWSCRASHHANDLER_H_
 
-#include <dbghelp.h>
+// clang-format off
+// windows.h 必须先于 dbghelp.h，禁止 clang-format 重排
 #include <windows.h>
+#include <dbghelp.h>
+// clang-format on
 #include "CrashHandler.h"
 
 

@@ -18,11 +18,11 @@
 #include <unistd.h>
 // dlfcn.h 预留：未来 V2 版本用 dladdr() 解析符号名
 
-#include "logger/Logger.h"
+#include "logger/logger.h"
 
 namespace {
 // 崩溃日志文件名片段（编译期常量，sizeof 含 '\0'）
-constexpr char kCrashFilePrefix[] = "/etest_crash_";
+constexpr char kCrashFilePrefix[] = "/crash_";
 constexpr char kCrashFileExt[] = ".log";
 
 // long long 十进制最大位数（含符号位）
@@ -30,7 +30,7 @@ constexpr size_t kTimestampMaxLen =
     std::numeric_limits<long long>::digits10 + 1;
 
 // 终端提示文本片段
-constexpr char kTermCrashPrefix[] = "\n[ETestStudio] 程序崩溃 (";
+constexpr char kTermCrashPrefix[] = "\n程序崩溃 (";
 constexpr char kTermCrashMid[] = ")\n崩溃日志已写入: ";
 constexpr char kTermCrashSuffix[] = "\n使用 addr2line 解析调用栈地址。\n";
 

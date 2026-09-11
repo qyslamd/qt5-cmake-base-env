@@ -1,8 +1,13 @@
 # ============== Qt 测试运行环境变量 ==============
-set(TEST_ENV_QT
-    "PATH=${QT_BIN_DIR};$ENV{PATH}"
-    "QT_PLUGIN_PATH=${QT_PLUGINS_DIR}"
-)
+# Qt DLL/插件路径注入仅 Windows 需要；Linux 由系统安装路径自解析
+if(WIN32)
+    set(TEST_ENV_QT
+        "PATH=${QT_BIN_DIR};$ENV{PATH}"
+        "QT_PLUGIN_PATH=${QT_PLUGINS_DIR}"
+    )
+else()
+    set(TEST_ENV_QT "")
+endif()
 
 # ============== 全局通用测试配置 ==============
 # 公共头文件路径，所有测试通用
