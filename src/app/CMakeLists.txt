@@ -1,12 +1,10 @@
 set(TARGET_NAME ${APP_TARGET_PREFIX}_app)
 
 #=======================================
-# 版本管理
+# 版本管理：由 git 派生（tag 提供 major.minor.patch，提交数提供 build 号），
+# 同一提交在任何机器上构建得到同样的版本号
 include(${CMAKE_SOURCE_DIR}/cmake/version_manage.cmake)
-manage_version(
-    VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/version.txt"
-    OUTPUT_PREFIX "APP"
-)
+resolve_app_version(APP)
 
 configure_file(${CMAKE_SOURCE_DIR}/cmake/version.h.in
     ${CMAKE_CURRENT_BINARY_DIR}/AppVersion.h
@@ -172,11 +170,13 @@ if(WIN32)
     #=======================================
     # make_symbols target — 归档发布符号
     # 崩溃转储与崩溃日志里只有地址，事后解析要拿崩溃那一刻那个二进制匹配的
-    # PDB。而 exe 内嵌的是构建机的绝对 PDB 路径（分析机上不存在），版本号又
-    # 每次 configure 自增，旧 PDB 一旦被新构建覆盖便再也拿不回来。
-    # 故按版本号归档 exe + PDB；release 不产 PDB，由脚本告警而非中断打包。
+    # PDB。而 exe 内嵌的是构建机的绝对 PDB 路径（分析机上不存在），一旦被
+    # 后续构建覆盖便再也拿不回来。
+    # 目录名带上 git 短 hash：工作区有未提交改动时版本号不变但二进制不同，
+    # 只按版本号归档会让脏构建覆盖掉发布构建的符号。
+    # release 不产 PDB，由脚本告警而非中断打包。
     set(SYMBOLS_OUTPUT_DIR
-        "${PACKAGE_OUTPUT_DIR}/symbols/${APP_VERSION}-${APP_ARCH_SUFFIX}")
+        "${PACKAGE_OUTPUT_DIR}/symbols/${APP_VERSION}-${APP_GIT_HASH}-${APP_ARCH_SUFFIX}")
     if(MSVC)
         add_custom_target(make_symbols
             COMMAND ${CMAKE_COMMAND}

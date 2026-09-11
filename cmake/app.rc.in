@@ -24,6 +24,7 @@ BEGIN
             VALUE "LegalCopyright",   "Copyright @APP_ORG_NAME@"
             VALUE "OriginalFilename", "@TARGET_NAME@.exe"
             VALUE "ProductName",      "@APP_APP_NAME@"
+            VALUE "GitCommit",        "@APP_GIT_HASH@"
             VALUE "ProductVersion",   "@APP_VERSION_MAJOR@.@APP_VERSION_MINOR@.@APP_VERSION_PATCH@.@APP_VERSION_TWEAK@"
         END
     END

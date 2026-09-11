@@ -1,6 +1,10 @@
-#pragma once
-// clang-format off
+#ifndef FILE_CMAKE_VERSION_H_
+#define FILE_CMAKE_VERSION_H_
 
+// 由 cmake/version.h.in 生成，请勿手工修改。
+// 版本号由 git 派生（见 cmake/version_manage.cmake）。
+
+// clang-format off
 #define PROJECT_VERSION_MAJOR @APP_VERSION_MAJOR@
 #define PROJECT_VERSION_MINOR @APP_VERSION_MINOR@
 #define PROJECT_VERSION_PATCH @APP_VERSION_PATCH@
@@ -10,6 +14,9 @@
 
 #define PROJECT_VERSION_STANDARD \
 "V@APP_VERSION_MAJOR@.@APP_VERSION_MINOR@.@APP_VERSION_PATCH@"
+
+// 构建所依据的 git 提交（短 hash），工作区有未提交改动时带 -dirty 后缀
+#define PROJECT_GIT_COMMIT "@APP_GIT_HASH@"
 
 // clang-format on
 
@@ -24,6 +31,12 @@ inline const char* getProjectVersionAll() {
   return PROJECT_VERSION;
 }
 
+inline const char* getProjectGitCommit() {
+  return PROJECT_GIT_COMMIT;
+}
+
 inline const char* getProjectBuildInfo() {
   return PROJECT_BUILD_DATE " " PROJECT_BUILD_TIME;
 }
+
+#endif  // FILE_CMAKE_VERSION_H_
