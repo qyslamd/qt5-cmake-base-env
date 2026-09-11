@@ -7,7 +7,8 @@
 #define MyCompanyName ""
 #define MyAppPublisher ""
 #define MyAppURL ""
-#define MyAppMutex "@PROJECT_NAME@Mutex"
+; 与运行时 SingleInstance 创建的命名互斥体同名（见顶层 CMakeLists.txt）
+#define MyAppMutex "@APP_MUTEX_NAME@"
 #define MyInstallerIcon "@APP_ICON_ICO@"
 
 [Setup]
@@ -23,7 +24,7 @@ PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64compatible
 #endif
 OutputDir=@PACKAGE_OUTPUT_DIR@
-OutputBaseFilename={#MyAppName}-setup-@ISCC_APP_ARCH_SUFFIX@-@APP_VERSION@
+OutputBaseFilename={#MyAppName}-setup-@APP_ARCH_SUFFIX@-@APP_VERSION@
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -90,6 +91,131 @@ begin
                   '/install /quiet /norestart',
                   '', SW_SHOW, ewNoWait, ErrorCode);
       end;
+    end;
+  end;
+end;
+
+// 卸载前：主程序若在运行，先关闭再卸载
+function InitializeUninstall(): Boolean;
+var
+  ErrorCode: Integer;
+begin
+  Result := True;
+
+  if CheckForMutexes('{#MyAppMutex}') then
+  begin
+    if MsgBox('检测到 {#MyAppName} 正在运行，是否自动关闭后继续卸载？',
+              mbConfirmation, MB_YESNO) = IDYES then
+    begin
+      Exec('taskkill.exe', '/f /t /im @TARGET_NAME@.exe', '',
+           SW_HIDE, ewWaitUntilTerminated, ErrorCode);
+    end
+    else
+    begin
+      Result := False;
+      Exit;
+    end;
+  end;
+end;
+
+// 把标准卸载进度页换成自定义页，放一个「删除用户数据」复选框。
+// 结果存入 DeleteUserData，供 CurUninstallStepChanged 使用。
+procedure InitializeUninstallProgressForm();
+var
+  UninstallPage: TNewNotebookPage;
+  UninstallButton: TNewButton;
+  CheckBox: TNewCheckBox;
+  OriginalPageNameLabel: String;
+  OriginalPageDescriptionLabel: String;
+  OriginalCancelButtonEnabled: Boolean;
+  OriginalCancelButtonModalResult: Integer;
+  ctrl: TWinControl;
+begin
+  if UninstallSilent then
+  begin
+    DeleteUserData := False;
+    Exit;
+  end;
+
+  ctrl := UninstallProgressForm.CancelButton;
+
+  { 「卸载」按钮 }
+  UninstallButton := TNewButton.Create(UninstallProgressForm);
+  UninstallButton.Parent := UninstallProgressForm;
+  UninstallButton.Left := ctrl.Left - ctrl.Width - ScaleX(10);
+  UninstallButton.Top := ctrl.Top;
+  UninstallButton.Width := ctrl.Width;
+  UninstallButton.Height := ctrl.Height;
+  UninstallButton.TabOrder := ctrl.TabOrder;
+  UninstallButton.Caption := '卸载';
+  UninstallButton.ModalResult := mrOk;
+  UninstallButton.Default := True;
+  UninstallProgressForm.CancelButton.TabOrder := UninstallButton.TabOrder + 1;
+
+  { 把自定义页插入向导 }
+  UninstallPage := TNewNotebookPage.Create(UninstallProgressForm);
+  UninstallPage.Notebook := UninstallProgressForm.InnerNotebook;
+  UninstallPage.Parent := UninstallProgressForm.InnerNotebook;
+  UninstallPage.Align := alClient;
+  UninstallProgressForm.InnerNotebook.ActivePage := UninstallPage;
+
+  { 复选框：路径与运行时 QStandardPaths::AppLocalDataLocation 一致，
+    由 CMake 的 APP_ORG_NAME / APP_APP_NAME 注入 }
+  CheckBox := TNewCheckBox.Create(UninstallProgressForm);
+  CheckBox.Parent := UninstallPage;
+  CheckBox.Left := ScaleX(20);
+  CheckBox.Top := ScaleY(40);
+  CheckBox.Width := ScaleX(350);
+  CheckBox.Height := ScaleY(17);
+  CheckBox.Caption :=
+      '删除用户配置和缓存数据（%LOCALAPPDATA%\@APP_ORG_NAME@\@APP_APP_NAME@）';
+  CheckBox.Checked := False;
+
+  { 保存原始状态 }
+  OriginalPageNameLabel := UninstallProgressForm.PageNameLabel.Caption;
+  OriginalPageDescriptionLabel :=
+      UninstallProgressForm.PageDescriptionLabel.Caption;
+  OriginalCancelButtonEnabled := UninstallProgressForm.CancelButton.Enabled;
+  OriginalCancelButtonModalResult :=
+      UninstallProgressForm.CancelButton.ModalResult;
+
+  { 切换到自定义页 }
+  UninstallProgressForm.PageNameLabel.Caption := '卸载选项';
+  UninstallProgressForm.PageDescriptionLabel.Caption := '选择要移除的内容。';
+  UninstallProgressForm.CancelButton.Enabled := True;
+  UninstallProgressForm.CancelButton.ModalResult := mrCancel;
+
+  if UninstallProgressForm.ShowModal = mrCancel then
+    Abort;
+
+  { 恢复标准布局 }
+  UninstallButton.Visible := False;
+  UninstallProgressForm.PageNameLabel.Caption := OriginalPageNameLabel;
+  UninstallProgressForm.PageDescriptionLabel.Caption :=
+      OriginalPageDescriptionLabel;
+  UninstallProgressForm.CancelButton.Enabled := OriginalCancelButtonEnabled;
+  UninstallProgressForm.CancelButton.ModalResult :=
+      OriginalCancelButtonModalResult;
+
+  { 回到标准卸载页 }
+  UninstallProgressForm.InnerNotebook.ActivePage :=
+      UninstallProgressForm.InstallingPage;
+
+  DeleteUserData := CheckBox.Checked;
+end;
+
+// 卸载完成后按复选框决定是否删除用户数据
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usPostUninstall then
+  begin
+    if DeleteUserData then
+    begin
+      Log('Deleting user data...');
+      DelTree(ExpandConstant(
+                  '{localappdata}\@APP_ORG_NAME@\@APP_APP_NAME@'),
+              True, True, True);
+      Log('User data deleted.');
     end;
   end;
 end;

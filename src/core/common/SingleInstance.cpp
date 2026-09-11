@@ -1,7 +1,11 @@
+// clang-format off
+// windows.h 需先于其它头文件；<string> 用于构造宽字符互斥体名
 #ifdef _WIN32
 #include <windows.h>
+#include <string>
 #pragma comment(lib, "user32.lib")
 #endif
+// clang-format on
 #include "SingleInstance.h"
 
 #include <QByteArray>
@@ -9,10 +13,27 @@
 
 #include "logger/logger.h"
 
-SingleInstance::SingleInstance(const QString& appKey, QObject* parent)
+SingleInstance::SingleInstance(const QString& appKey,
+                               const QString& mutexName, QObject* parent)
     : QObject(parent), app_key_(appKey), shared_memory_(appKey) {
   server_name_ =
       QString("%1-%2").arg(appKey).arg(QCoreApplication::applicationPid());
+
+#ifdef _WIN32
+  // 命名互斥体，进程存活期间持有。安装/卸载程序用同名互斥体判断本程序
+  // 是否在运行。相比共享内存，进程异常退出时系统会回收句柄，不残留。
+  if (!mutexName.isEmpty()) {
+    const std::wstring mutex_name_w = mutexName.toStdWString();
+    mutex_handle_ = CreateMutexW(nullptr, FALSE, mutex_name_w.c_str());
+    if (mutex_handle_ != nullptr) {
+      // GetLastError 须紧接 CreateMutexW 读取，中间不能插入其它 API 调用
+      mutex_already_existed_ = (GetLastError() == ERROR_ALREADY_EXISTS);
+    } else {
+      LOG_WARN("SingleInstance", "创建命名互斥体失败，错误码: {}",
+               static_cast<unsigned long>(GetLastError()));
+    }
+  }
+#endif
 }
 
 SingleInstance::~SingleInstance() {
@@ -24,9 +45,22 @@ SingleInstance::~SingleInstance() {
   if (shared_memory_.isAttached()) {
     shared_memory_.detach();
   }
+
+#ifdef _WIN32
+  if (mutex_handle_ != nullptr) {
+    CloseHandle(reinterpret_cast<HANDLE>(mutex_handle_));
+    mutex_handle_ = nullptr;
+  }
+#endif
 }
 
 bool SingleInstance::isAppAlreadyRunning() {
+  // 互斥体优先：判据最可靠，且不会因共享内存残留而误报
+  if (mutex_already_existed_) {
+    LOG_INFO("SingleInstance", "检测到已有实例运行 (Mutex)");
+    return true;
+  }
+
   QLocalSocket socket;
   socket.connectToServer(app_key_, QIODevice::ReadWrite);
   if (socket.waitForConnected(CONNECTION_TIMEOUT)) {

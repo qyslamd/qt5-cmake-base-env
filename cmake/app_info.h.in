@@ -1,0 +1,16 @@
+#ifndef FILE_CMAKE_APP_INFO_H_
+#define FILE_CMAKE_APP_INFO_H_
+
+// 由 cmake/app_info.h.in 生成，请勿手工修改。
+// 取值集中定义在顶层 CMakeLists.txt 的 APP_ORG_NAME / APP_APP_NAME，
+// 与安装脚本共用同一来源；卸载流程需要按同样路径删除用户数据，
+// 两处若各自硬编码就会在改名后静默失配。
+
+#define APP_ORGANIZATION_NAME "@APP_ORG_NAME@"
+#define APP_APPLICATION_NAME "@APP_APP_NAME@"
+
+// 单实例命名互斥体名。与安装脚本的 MyAppMutex 同源同值，
+// 由 main 传给 SingleInstance；改由 CMake 统一产出，避免两处各写一份
+#define APP_MUTEX_NAME "@APP_MUTEX_NAME@"
+
+#endif  // FILE_CMAKE_APP_INFO_H_

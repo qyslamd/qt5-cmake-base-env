@@ -1,5 +1,6 @@
 #include "config_manager.h"
 
+#include <QCoreApplication>
 #include <QDebug>
 #include <QDir>
 #include <QFile>
@@ -10,14 +11,20 @@
 #include "config_defs.h"
 
 ConfigManager::ConfigManager() {
-  // 统一使用 AppLocalDataLocation + "/config"（%LOCALAPPDATA%/ENPH/FILE/
-  // config），与 logger 的 logs 目录同根，保证配置集中存放。
+  // 统一使用 AppLocalDataLocation + "/config"，与 logger 的 logs 目录同根，
+  // 保证配置集中存放。数据目录名由组织名/应用名决定，集中在顶层
+  // CMakeLists.txt 的 APP_ORG_NAME / APP_APP_NAME（见 cmake/app_info.h.in）
   QString config_path =
       QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) +
       "/config";
   QDir().mkpath(config_path);
-  settings_ = std::make_unique<QSettings>(config_path + "/FILE.ini",
-                                          QSettings::IniFormat);
+  // 配置文件名随 applicationName 走，避免不同模板产物共用同一份配置
+  QString app_name = QCoreApplication::applicationName();
+  if (app_name.isEmpty()) {
+    app_name = QStringLiteral("app");
+  }
+  settings_ = std::make_unique<QSettings>(
+      config_path + "/" + app_name + ".ini", QSettings::IniFormat);
   settings_->setIniCodec("UTF-8");
   initDefaultValues();
 }

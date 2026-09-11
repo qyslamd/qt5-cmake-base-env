@@ -3,6 +3,7 @@
 #include <QFile>
 #include <QIcon>
 
+#include "AppInfo.h"
 #include "AppVersion.h"
 #include "auth/auth_service.h"
 #include "common/GlobalExceptionHandler.h"
@@ -17,13 +18,17 @@
 
 int main(int argc, char* argv[]) {
   QApplication app(argc, argv);
-  app.setOrganizationName("Enpht");
-  app.setApplicationName("FILE");
+  // 组织名/应用名来自 CMake，决定 %LOCALAPPDATA% 数据目录、单实例键与
+  // 日志文件名，须与安装脚本的卸载路径保持一致
+  app.setOrganizationName(QString::fromLatin1(APP_ORGANIZATION_NAME));
+  app.setApplicationName(QString::fromLatin1(APP_APPLICATION_NAME));
   app.setWindowIcon(QIcon(":/resources/icons/icon.ico"));
   app.setApplicationVersion(getProjectVersionAll());
 
-  // 单实例检测：appKey 随 applicationName 走，第二实例转发参数后退出
-  SingleInstance single_instance(QCoreApplication::applicationName());
+  // 单实例检测：appKey 随 applicationName 走，互斥体名由 CMake 提供
+  // （与安装脚本同源），第二实例转发参数后退出
+  SingleInstance single_instance(QCoreApplication::applicationName(),
+                                 QString::fromLatin1(APP_MUTEX_NAME));
   if (single_instance.isAppAlreadyRunning()) {
     single_instance.connectToExistingInstance(QCoreApplication::arguments());
     return 0;
@@ -41,14 +46,6 @@ int main(int argc, char* argv[]) {
 
   Logger::init();
   LOG_INFO("MAIN", "应用程序启动，版本: {}", getProjectVersionAll());
-
-  // 模板防呆：applicationName 仍为占位值时，单实例键与日志/配置/崩溃
-  // 目录会和其它模板产物冲突（思路同 ISCC_APP_ID 的 GUID 警告）
-  if (app.applicationName() == QStringLiteral("FILE")) {
-    LOG_WARN("MAIN",
-             "applicationName 仍为模板占位值 \"FILE\"，"
-             "新建项目请修改 setOrganizationName/setApplicationName");
-  }
 
   // 信号捕获 + Qt 消息重定向。致命信号实际由 CrashHandler 接管
   // （其注册晚于本模块），此处生效的是 Qt 消息重定向与 SIGINT/SIGTERM

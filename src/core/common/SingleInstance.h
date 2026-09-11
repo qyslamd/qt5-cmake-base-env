@@ -8,11 +8,22 @@
 #include <QSharedMemory>
 #include <QStringList>
 
+// 单实例检测。三重判据，按可靠性排序：
+//   1. 命名互斥体（Windows）：进程异常退出时系统自动回收句柄，不会残留，
+//      且安装/卸载程序可以据同名互斥体判断本程序是否在运行
+//   2. 本地套接字：跨平台，且承载第二实例向首实例转发的命令行参数
+//   3. 共享内存：兜底
 class SingleInstance : public QObject {
   Q_OBJECT
 
  public:
-  explicit SingleInstance(const QString& appKey, QObject* parent = nullptr);
+  // appKey 用于本地套接字名与共享内存键。
+  // mutexName 为 Windows 命名互斥体名，由调用方传入而非内部按约定拼接：
+  // 该名字必须与安装脚本的 MyAppMutex 完全一致，两边各自推导会静默失配。
+  // 取值见 cmake/app_info.h.in 的 APP_MUTEX_NAME（含 x64/x86 架构后缀）。
+  // 传空串表示不创建互斥体，仅保留本地套接字与共享内存两条判据。
+  explicit SingleInstance(const QString& appKey, const QString& mutexName,
+                          QObject* parent = nullptr);
   ~SingleInstance() override;
 
   bool isAppAlreadyRunning();
@@ -42,6 +53,11 @@ class SingleInstance : public QObject {
   QLocalServer* local_server_ = nullptr;
   QSharedMemory shared_memory_;
   QString server_name_;
+  // 命名互斥体句柄（Windows HANDLE，其它平台恒为空）。用 void* 保存，
+  // 避免在头文件中引入平台相关头文件
+  void* mutex_handle_ = nullptr;
+  // 构造时该互斥体已存在，说明本进程之前已有实例在运行
+  bool mutex_already_existed_ = false;
   static const int CONNECTION_TIMEOUT = 1000;
 };
 

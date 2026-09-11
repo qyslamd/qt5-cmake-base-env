@@ -4,7 +4,39 @@ project(${PROJECT_NAME_STR}
     VERSION 1.0.0
     DESCRIPTION "a complete qt cmake basic demo."
     LANGUAGES CXX C)
-	
+
+#=======================================
+# 组织名与应用名
+# 单实例键、%LOCALAPPDATA% 下的数据目录（配置/日志/崩溃）、日志文件名、
+# 窗口标题以及安装包的卸载数据目录均由这两项决定，故集中定义，供
+# C++（cmake/app_info.h.in）与安装脚本（make_install_package.iss.in）
+# 共用，避免卸载时删不到运行时的真实数据目录
+set(APP_ORG_NAME "Enpht")
+set(APP_APP_NAME "${PROJECT_NAME_STR}")
+
+# 目标架构后缀（x64 / x86）。互斥体名与安装包文件名都要带它，
+# 故统一在此推导，供 C++、安装脚本共用
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set(APP_ARCH_SUFFIX "x64")
+else()
+    set(APP_ARCH_SUFFIX "x86")
+endif()
+
+# 单实例互斥体名。运行时由 SingleInstance 创建并持有，安装/卸载脚本据
+# 此判断程序是否在运行；两处必须同名，故只在此定义一处。
+# 必须带架构后缀：否则同机的 x86 与 x64 版本会共用同一互斥体，互相判定
+# 为"已在运行"，安装/卸载也会互相阻塞
+set(APP_MUTEX_NAME "${APP_APP_NAME}Mutex_${APP_ARCH_SUFFIX}")
+
+# 模板防呆：项目名未改说明尚未改名，应用名、数据目录与单实例键都会
+# 沿用模板取值，与其它模板产物冲突（思路同 ISCC_APP_ID 的 GUID 警告）
+if(PROJECT_NAME_STR STREQUAL "QtCMakeAppDemo")
+    message(WARNING
+        "PROJECT_NAME_STR 仍是模板默认值！新建项目请先改名，"
+        " APP_ORG_NAME / APP_APP_NAME 会随之决定数据目录与单实例键。")
+endif()
+
+
 # local.cmake 为 Windows 路径语义，仅 Windows 读取；
 # Linux 使用系统 Qt，必要时通过 -DCMAKE_PREFIX_PATH / -DQt5_DIR 指定
 if(WIN32)

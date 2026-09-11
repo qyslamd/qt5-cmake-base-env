@@ -12,6 +12,11 @@ configure_file(${CMAKE_SOURCE_DIR}/cmake/version.h.in
     ${CMAKE_CURRENT_BINARY_DIR}/AppVersion.h
     @ONLY)
 
+# 组织名 / 应用名：与安装脚本共用同一来源（见顶层 CMakeLists.txt）
+configure_file(${CMAKE_SOURCE_DIR}/cmake/app_info.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/AppInfo.h
+    @ONLY)
+
 
 set(TARGET_SRCS 
     main.cpp
@@ -142,18 +147,14 @@ if(WIN32)
     #=======================================
     # 架构变量（供 configure_file 注入到 .iss.in / .bat.in）
     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        set(APP_ARCH "x64")
         set(ISCC_APP_ID "{{028a3caf-84f9-43a5-818f-af4237aac3d6}}")
         set(ISCC_APP_PF "{autopf64}")
         set(ISCC_VC_REDIST "vc_redist.x64.exe")
-        set(ISCC_APP_ARCH_SUFFIX "x64")
         set(ISCC_USE_64BIT "YES")
     else()
-        set(APP_ARCH "x86")
         set(ISCC_APP_ID "{{c11fe96c-bb38-42e2-87ab-bd9d72fb4644}}")
         set(ISCC_APP_PF "{autopf}")
         set(ISCC_VC_REDIST "vc_redist.x86.exe")
-        set(ISCC_APP_ARCH_SUFFIX "x86")
         set(ISCC_USE_64BIT "NO")
     endif()
     set(APP_ICON_ICO "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/icon.ico")
@@ -194,7 +195,7 @@ if(WIN32)
             COMMAND "${CMAKE_SOURCE_DIR}/scripts/make_installer.bat"
                 "$<TARGET_FILE_DIR:${TARGET_NAME}>"
             WORKING_DIRECTORY "$<TARGET_FILE_DIR:${TARGET_NAME}>"
-            COMMENT "Building installer package with Inno Setup (${APP_ARCH})..."
+            COMMENT "Building installer package with Inno Setup (${APP_ARCH_SUFFIX})..."
         )
         add_dependencies(make_package ${TARGET_NAME})
         # windeployqt 未找到时 make_deploy 不存在，此时保持原有行为
