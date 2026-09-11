@@ -71,13 +71,36 @@ Filename: "{app}\@TARGET_NAME@.exe"; Description: "{cm:LaunchProgram,{#StringCha
 var
   DeleteUserData: Boolean;
 
+// VC++ 运行库由 [Tasks] 的 installvcruntime 复选框控制。
+// 该安装包需要管理员权限，故用 runas 触发 UAC 提权后静默安装；
+// ewNoWait 表示不阻塞安装流程。
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ErrorCode: Integer;
+  VcRedistPath: String;
+begin
+  if CurStep = ssPostInstall then
+  begin
+    if IsTaskSelected('installvcruntime') then
+    begin
+      VcRedistPath := ExpandConstant('{app}\@ISCC_VC_REDIST@');
+      if FileExists(VcRedistPath) then
+      begin
+        ShellExec('runas', VcRedistPath,
+                  '/install /quiet /norestart',
+                  '', SW_SHOW, ewNoWait, ErrorCode);
+      end;
+    end;
+  end;
+end;
+
 function InitializeSetup(): Boolean;
 var
   ErrorCode: Integer;
 begin
   if CheckForMutexes('{#MyAppMutex}') then
   begin
-    if MsgBox('检测到 {{#MyAppName} 正在运行，是否关闭后继续安装？',
+    if MsgBox('检测到 {#MyAppName} 正在运行，是否关闭后继续安装？',
               mbConfirmation, MB_YESNO) = IDYES then
     begin
       ShellExec('open', ExpandConstant('{cmd}'),
