@@ -4,6 +4,7 @@
 #include <QBrush>
 #include <QColor>
 #include <QLineF>
+#include <QPainter>
 #include <QPainterPath>
 #include <QSize>
 #include <QStyleOptionTab>
@@ -46,6 +47,23 @@ class TabAppearance {
       return QBrush(theme.hoverBackground);
     }
     return QBrush(Qt::NoBrush);
+  }
+
+  // 绘制。默认用 brush 填充 shape；画刷表达不了的效果（多层描边、辉光等）
+  // 由子类覆盖本函数自行绘制。三个状态都会调用——外观要给未选中态也铺
+  // 底色，在 brush 里返回对应画刷即可；不想画就返回 NoBrush
+  virtual void paint(QPainter* p, const QStyleOptionTab* opt,
+                     const TabTheme& theme, bool selected, bool hovered) const {
+    const QBrush fill = brush(opt, theme, selected, hovered);
+    if (fill.style() == Qt::NoBrush) {
+      return;
+    }
+    p->save();
+    p->setRenderHint(QPainter::Antialiasing);
+    p->setPen(Qt::NoPen);
+    p->setBrush(fill);
+    p->drawPath(shape(opt, theme));
+    p->restore();
   }
 
   // 未选中且未悬停的 tab 是否要画分隔线

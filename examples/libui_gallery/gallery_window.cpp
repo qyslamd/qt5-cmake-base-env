@@ -19,12 +19,14 @@
 #include "sector_menu.h"
 #include "splash_screen.h"
 #include "switch_button.h"
+#include "tab_appearance/battery_tab_appearance.h"
 #include "tab_appearance/cat_ear_tab_appearance.h"
 #include "tab_appearance/chrome_tab_appearance.h"
 #include "tab_appearance/firefox_tab_appearance.h"
 #include "tab_appearance/flame_tab_appearance.h"
 #include "tab_appearance/jelly_tab_appearance.h"
 #include "tab_appearance/liquid_tab_appearance.h"
+#include "tab_appearance/neon_tab_appearance.h"
 #include "tab_appearance/tab_bar_style.h"
 #include "tab_appearance/torn_paper_tab_appearance.h"
 
@@ -42,8 +44,9 @@ QLabel* MakeHint(QWidget* parent, const QString& text) {
 }
 
 // 切换表的一行：外观名、构造外观的工厂、以及该外观的主题微调。
-// 微调不能省：各外观自带的填充深浅差别很大，用同一套文字色会在浅色
-// 渐变上糊成一片。表里未列出微调的外观沿用 TabTheme 的默认配色
+// 微调多半不能省：各外观自带的填充深浅差别很大，用同一套文字色会在浅色
+// 渐变上糊成一片；填充本身就是深色的外观才沿用默认配色，此时 tune_theme
+// 留空即可
 struct AppearanceEntry {
   QString name;
   std::function<TabAppearance*()> create;
@@ -90,6 +93,18 @@ const std::vector<AppearanceEntry>& AppearanceTable() {
        [](TabTheme& theme) {
          theme.selectedTextColor = QColor(0x4A, 0x3B, 0x1A);
        }},
+      {QStringLiteral("Neon"),
+       []() -> TabAppearance* { return new NeonTabAppearance(); },
+       [](TabTheme& theme) {
+         // 霓虹把整条标签铺成深色，未选中态也必须用浅色字
+         theme.normalTextColor = QColor(0xC8, 0xE8, 0xFF);
+         theme.selectedTextColor = Qt::white;
+       }},
+      {QStringLiteral("Battery"),
+       []() -> TabAppearance* { return new BatteryTabAppearance(); },
+       // 电池三态都是饱和色，明度 220，黑色文字在红黄绿上都够对比度，
+       // 故无需微调
+       {}},
   };
   return kTable;
 }
@@ -220,7 +235,9 @@ void GalleryWindow::applyAppearance(int index) {
   const AppearanceEntry& entry = table[index];
   // 先回到默认主题再套微调，否则上一个外观留下的颜色会带到下一个
   tab_style_->theme() = TabTheme();
-  entry.tune_theme(tab_style_->theme());
+  if (entry.tune_theme) {
+    entry.tune_theme(tab_style_->theme());
+  }
   tab_style_->setAppearance(entry.create());
 
   LOG_INFO("GALLERY", "标签栏外观切换为：{}", entry.name.toStdString());

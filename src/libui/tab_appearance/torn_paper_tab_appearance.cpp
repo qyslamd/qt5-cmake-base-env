@@ -88,6 +88,6 @@ QBrush TornPaperTabAppearance::brush(const QStyleOptionTab* opt,
     g.setColorAt(1.0, QColor(0xF4, 0xEA, 0xC6));
     return QBrush(g);
   }
-  // TabBarStyle 在既未选中也未悬停时不取 brush，此处无需填充
-  return QBrush(Qt::NoBrush);
+  // 未选中：淡淡的纸色
+  return QBrush(QColor(0xFA, 0xF3, 0xDE, 180));
 }

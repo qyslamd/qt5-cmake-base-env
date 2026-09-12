@@ -100,6 +100,6 @@ QBrush CatEarTabAppearance::brush(const QStyleOptionTab* opt,
     g.setColorAt(1.0, QColor(0xFF, 0xCC, 0x99, 230));
     return QBrush(g);
   }
-  // TabBarStyle 在既未选中也未悬停时不取 brush，此处无需填充
-  return QBrush(Qt::NoBrush);
+  // 未选中：米色底，让耳朵轮廓在普通态也看得出来
+  return QBrush(QColor(0xFC, 0xEC, 0xD6, 200));
 }

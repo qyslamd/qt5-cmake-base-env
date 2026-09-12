@@ -84,6 +84,6 @@ QBrush JellyTabAppearance::brush(const QStyleOptionTab* opt,
     g.setColorAt(1.0, QColor(0xFF, 0x8F, 0xBE, 220));
     return QBrush(g);
   }
-  // TabBarStyle 在既未选中也未悬停时不取 brush，此处无需填充
-  return QBrush(Qt::NoBrush);
+  // 未选中：极淡的粉底，否则波浪在普通态看不出来
+  return QBrush(QColor(0xFF, 0xE4, 0xEE, 100));
 }

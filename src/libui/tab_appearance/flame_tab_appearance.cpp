@@ -109,22 +109,22 @@ QBrush FlameTabAppearance::brush(const QStyleOptionTab* opt,
   Q_UNUSED(theme);
   const QRectF r = opt->rect;
 
-  if (!selected && !hovered) {
-    // TabBarStyle 在既未选中也未悬停时不取 brush，此处无需填充
-    return QBrush(Qt::NoBrush);
-  }
-
-  // 由下往上取色：深红 -> 红 -> 橙 -> 黄，火苗越靠尖越亮
+  // 由下往上取色：深红 -> 红 -> 橙 -> 黄，火苗越靠尖越亮。
+  // 未选中态透明度很低，只留一个火苗轮廓
   QLinearGradient g(r.bottomLeft(), r.topLeft());
   if (selected) {
     g.setColorAt(0.00, QColor(0xC4, 0x0A, 0x00));
     g.setColorAt(0.35, QColor(0xFF, 0x2A, 0x00));
     g.setColorAt(0.65, QColor(0xFF, 0x8A, 0x00));
     g.setColorAt(1.00, QColor(0xFF, 0xE6, 0x40));
-  } else {
+  } else if (hovered) {
     g.setColorAt(0.00, QColor(0xFF, 0x2A, 0x00, 180));
     g.setColorAt(0.50, QColor(0xFF, 0x8A, 0x00, 170));
     g.setColorAt(1.00, QColor(0xFF, 0xE6, 0x40, 160));
+  } else {
+    g.setColorAt(0.00, QColor(0xFF, 0x2A, 0x00, 70));
+    g.setColorAt(0.50, QColor(0xFF, 0x8A, 0x00, 80));
+    g.setColorAt(1.00, QColor(0xFF, 0xE6, 0x40, 100));
   }
 
   return QBrush(g);

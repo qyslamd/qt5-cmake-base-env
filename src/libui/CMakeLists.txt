@@ -9,6 +9,8 @@ set(ALL_HEADERS_SOURCES
     radial_navigator.h
     sector_menu.cpp
     sector_menu.h
+    tab_appearance/battery_tab_appearance.cpp
+    tab_appearance/battery_tab_appearance.h
     tab_appearance/cat_ear_tab_appearance.cpp
     tab_appearance/cat_ear_tab_appearance.h
     tab_appearance/chrome_tab_appearance.cpp
@@ -21,6 +23,8 @@ set(ALL_HEADERS_SOURCES
     tab_appearance/jelly_tab_appearance.h
     tab_appearance/liquid_tab_appearance.cpp
     tab_appearance/liquid_tab_appearance.h
+    tab_appearance/neon_tab_appearance.cpp
+    tab_appearance/neon_tab_appearance.h
     tab_appearance/tab_appearance.h
     tab_appearance/tab_bar_style.cpp
     tab_appearance/tab_bar_style.h

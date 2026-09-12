@@ -126,18 +126,12 @@ void TabBarStyle::drawControl(ControlElement element, const QStyleOption* opt,
   const bool selected = state & QStyle::State_Selected;
   const bool hovered = state & QStyle::State_MouseOver;
 
-  if (selected || hovered) {
-    const QPainterPath path = appearance_->shape(tabOpt, theme_);
-    const QBrush brush = appearance_->brush(tabOpt, theme_, selected, hovered);
-    if (brush.style() != Qt::NoBrush) {
-      p->save();
-      p->setRenderHint(QPainter::Antialiasing);
-      p->setPen(Qt::NoPen);
-      p->setBrush(brush);
-      p->drawPath(path);
-      p->restore();
-    }
-  } else if (appearance_->wantsSeparator(tabOpt)) {
+  // 三个状态都交给外观自己画。不能只在选中/悬停时绘制：外观可能给未选中
+  // 态也备了底色（霓虹把整条 tab 铺深），一刀切会让这类外观的普通态
+  // 永远画不出来。不需要填充的外观在 paint 内部直接返回
+  appearance_->paint(p, tabOpt, theme_, selected, hovered);
+
+  if (!selected && !hovered && appearance_->wantsSeparator(tabOpt)) {
     const QLineF line = appearance_->separatorLine(tabOpt);
     if (!line.isNull()) {
       p->save();

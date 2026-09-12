@@ -240,6 +240,7 @@ files/
 data/cache/
 data/temp/
 output/
+temp/
 *.dat
 *.bin
 !docs/**/*.png
