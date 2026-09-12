@@ -190,13 +190,14 @@ add_subdirectory(3rdparty/QXlsx-1.5.0/QXlsx)
 # 本仓库模块
 #-------------------------------------------------------------------------------
 
-# 可选 demo（子目录未入库，克隆后为空，可整体删除）
-if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/demoes)
-    add_subdirectory(demoes)
-endif()
-
 # src 下的各模块（core / libui / app）
 add_subdirectory(src)
+
+# 示例程序：演示 libui 部件与若干自绘技术，供使用者参考
+option(BUILD_EXAMPLES "Build widget examples" ON)
+if(BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
 
 # 单元测试（仅在配置了 BUILD_TESTS 时启用）
 option(BUILD_TESTS "Build unit tests" ON)

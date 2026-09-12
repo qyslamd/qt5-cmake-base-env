@@ -111,6 +111,7 @@ scripts/build_ninja.bat -t relwithdebinfo -m demo_app -p
 10. 关于脚本：
     - 编写用户使用的脚本，请使用`powershell`或者`Command Prompt`，尤其是CMake的模板文件`xxxx.ps1.in`,`xxxx.bat.in`
     - 编写AI Agent工具使用的脚本(这些脚本通常不纳入源代码管理，不被用户直接调用)，请使用 `pwsh` 的语法来编写脚本，若尝试了三次`pwsh`脚本不行，请使用 `python`脚本。
+11. clang-tidy检查在开发机器上太慢了，除非用户明确提示，不然AI Agent默认不做clang-tidy检查。
 11. 改动完成代码，编译无误之后，**禁止**直接提交代码！除非是使用git worktree方式。
 12. 严禁中代码中使用QObject::tr("")或者在QObject的派生类中使用 tr("")中文。
 13. git提交规则：

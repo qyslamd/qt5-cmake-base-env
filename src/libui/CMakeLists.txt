@@ -7,6 +7,8 @@ set(ALL_HEADERS_SOURCES
     splash_screen.h
     radial_navigator.cpp
     radial_navigator.h
+    sector_menu.cpp
+    sector_menu.h
 )
 
 add_library(${TARGET_NAME} STATIC ${ALL_HEADERS_SOURCES})

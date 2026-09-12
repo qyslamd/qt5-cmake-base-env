@@ -245,10 +245,6 @@ output/
 !docs/**/*.png
 !docs/**/*.jpg
 local.cmake
-demoes/draw_sector_menu/
-demoes/draw_ellipse_seal/
-demoes/radial_text_check/
-demoes/draw_bagua/
 
 
 # 3rdparty - 只保留压缩包，忽略解压后的目录和散落文件

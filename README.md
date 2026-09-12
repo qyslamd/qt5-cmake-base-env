@@ -71,9 +71,9 @@ src/
 cmake/      构建脚本模块（版本、运行脚本、测试宏、符号归档、打包）
 scripts/    构建与打包入口脚本
 tests/      单元测试
+examples/   示例程序：libui 各通用部件的用法演示
 docs/       文档
 config/     随构建拷贝到输出目录的配置样例
-config 之外的 demoes/ 为本地绘图示例，未纳入仓库
 ```
 
 ## 常用命令
