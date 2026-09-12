@@ -109,6 +109,15 @@ bool LinuxCrashHandler::init() {
     return false;
   }
 
+  // 预热 unwinder：glibc 首次调用 backtrace() 要 dlopen libgcc_s 并做内存
+  // 分配，这些都不是信号安全的。若留到信号处理器里首次执行，会在崩溃后的
+  // 上下文里失败（表现为崩溃日志根本没生成），故此处先调一次把 libgcc_s
+  // 拉起来。测试 tests/core/crashhandler_test.cpp 的子进程崩溃用例覆盖此路径
+  {
+    void* warm_up[1];
+    backtrace(warm_up, 1);
+  }
+
   // 注册信号处理器
   // SA_RESETHAND: 信号处理器执行后恢复默认行为，防止 doCrashDump 内部
   // 嵌套崩溃导致无限递归（嵌套信号走默认处理器直接终止进程）
