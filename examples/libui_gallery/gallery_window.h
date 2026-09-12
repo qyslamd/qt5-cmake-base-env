@@ -3,16 +3,16 @@
 
 #include <QWidget>
 
-class QPlainTextEdit;
 class QPushButton;
 class QTimer;
-class RadialNavigator;
-class SectorMenu;
+class QWidget;
+class LogOutputPanel;
 class SplashScreen;
 class SwitchButton;
 
-// libui 部件集中演示：把各部件摆在一处，操作结果输出到右侧事件区，
-// 便于对照各部件头文件中的用法说明理解其接口。
+// libui 部件演示：上半部每个部件占一个标签页，下半部是日志面板。
+// 部件的操作结果走 LOG_INFO 输出到日志，既能看到交互，也能顺带了解
+// 日志系统的用法。新增部件时加一个 createXxxPage() 并注册成标签页即可。
 class GalleryWindow : public QWidget {
   Q_OBJECT
 
@@ -28,13 +28,14 @@ class GalleryWindow : public QWidget {
   void initUi();
   void initSignals();
 
-  void appendEvent(const QString& text);
+  // 各部件一页：页内是用法说明加上部件本身
+  QWidget* createSwitchButtonPage();
+  QWidget* createSectorMenuPage();
+  QWidget* createRadialNavigatorPage();
 
-  QPlainTextEdit* event_view_ = nullptr;
   QPushButton* splash_button_ = nullptr;
   SwitchButton* switch_button_ = nullptr;
-  SectorMenu* sector_menu_ = nullptr;
-  RadialNavigator* navigator_ = nullptr;
+  LogOutputPanel* log_panel_ = nullptr;
 
   SplashScreen* splash_ = nullptr;
   QTimer* splash_timer_ = nullptr;

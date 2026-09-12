@@ -1,13 +1,15 @@
 #include "gallery_window.h"
 
-#include <QDateTime>
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QPlainTextEdit>
 #include <QPushButton>
+#include <QSplitter>
+#include <QTabWidget>
 #include <QTimer>
 #include <QVBoxLayout>
 
+#include "log_output_panel.h"
+#include "logger/logger.h"
 #include "radial_navigator.h"
 #include "sector_menu.h"
 #include "splash_screen.h"
@@ -19,6 +21,13 @@ namespace {
 constexpr int kSplashStepMs = 600;
 constexpr int kSplashSteps = 4;
 
+// 每页顶部的用法说明
+QLabel* MakeHint(QWidget* parent, const QString& text) {
+  auto* label = new QLabel(text, parent);
+  label->setWordWrap(true);
+  return label;
+}
+
 }  // namespace
 
 GalleryWindow::GalleryWindow(QWidget* parent) : QWidget(parent) {
@@ -27,70 +36,108 @@ GalleryWindow::GalleryWindow(QWidget* parent) : QWidget(parent) {
 }
 
 void GalleryWindow::initUi() {
-  setWindowTitle(QStringLiteral("libui 部件示例"));
-  resize(900, 560);
+  setWindowTitle(QStringLiteral("libui 部件演示"));
+  resize(960, 720);
 
-  auto* root = new QHBoxLayout(this);
+  auto* root = new QVBoxLayout(this);
 
-  // 左侧：各部件依次摆放
-  auto* left = new QVBoxLayout();
-  left->setSpacing(12);
-
-  left->addWidget(new QLabel(QStringLiteral("SwitchButton 滑块开关"), this));
-  switch_button_ = new SwitchButton(this);
-  switch_button_->setChecked(true);
-  left->addWidget(switch_button_);
-
-  left->addWidget(new QLabel(QStringLiteral("SectorMenu 环形扇区菜单"), this));
-  sector_menu_ = new SectorMenu(this);
-  sector_menu_->setRadiusRatio(0.95, 0.55);
-  // SectorMenu 的动作用回调表达，与 RadialNavigator 一致，故在建立条目时
-  // 一并给出；QObject 派生的部件（SwitchButton）才走 initSignals 连接。
-  for (int i = 1; i <= 5; ++i) {
-    sector_menu_->addItem(
-        QStringLiteral("扇区 %1").arg(i),
-        [this, i]() {
-          appendEvent(QStringLiteral("SectorMenu 触发：扇区 %1").arg(i));
-        },
-        QColor::fromHsv((i - 1) * 60, 140, 200));
-  }
-  left->addWidget(sector_menu_, 1);
-
-  left->addWidget(
-      new QLabel(QStringLiteral("RadialNavigator 环形导航"), this));
-  navigator_ = new RadialNavigator(this);
-  navigator_->setMinimumHeight(200);
-  // 图标留空：本示例只演示交互与排布，实际项目按需传入各自图标
-  for (int i = 1; i <= 6; ++i) {
-    navigator_->addButton(
-        QPixmap(), QStringLiteral("项 %1").arg(i),
-        [this, i]() {
-          appendEvent(QStringLiteral("RadialNavigator 触发：项 %1").arg(i));
-        },
-        QStringLiteral("第 %1 项").arg(i));
-  }
-  left->addWidget(navigator_, 1);
-
+  // 顶部：作用于整个示例的操作
+  auto* actions = new QHBoxLayout();
   splash_button_ = new QPushButton(QStringLiteral("显示 SplashScreen"), this);
-  left->addWidget(splash_button_);
+  actions->addWidget(splash_button_);
+  actions->addStretch();
+  root->addLayout(actions);
 
-  // 右侧：事件输出，用于观察各部件是否按预期回调
-  event_view_ = new QPlainTextEdit(this);
-  event_view_->setReadOnly(true);
-  event_view_->setObjectName(QStringLiteral("galleryEventView"));
+  // 上半部按部件分页；部件多了只加标签页，布局不用动
+  auto* tabs = new QTabWidget(this);
+  tabs->addTab(createSwitchButtonPage(), QStringLiteral("SwitchButton"));
+  tabs->addTab(createSectorMenuPage(), QStringLiteral("SectorMenu"));
+  tabs->addTab(createRadialNavigatorPage(),
+               QStringLiteral("RadialNavigator"));
 
-  root->addLayout(left, 3);
-  root->addWidget(event_view_, 2);
+  // 下半部为日志面板：部件的事件都经 LOG_INFO 落到这里
+  log_panel_ = new LogOutputPanel(this);
+
+  auto* splitter = new QSplitter(Qt::Vertical, this);
+  splitter->addWidget(tabs);
+  splitter->addWidget(log_panel_);
+  splitter->setStretchFactor(0, 3);
+  splitter->setStretchFactor(1, 2);
+  root->addWidget(splitter, 1);
 
   splash_timer_ = new QTimer(this);
   splash_timer_->setInterval(kSplashStepMs);
 }
 
+QWidget* GalleryWindow::createSwitchButtonPage() {
+  auto* page = new QWidget(this);
+  auto* layout = new QVBoxLayout(page);
+
+  layout->addWidget(MakeHint(
+      page, QStringLiteral(
+                "滑块开关。勾选状态变化时发出 toggled 信号，属于 QAbstractButton "
+                "派生类，因此用信号槽连接，而不是像下面两个部件那样给回调。")));
+
+  switch_button_ = new SwitchButton(page);
+  switch_button_->setChecked(true);
+  layout->addWidget(switch_button_, 0, Qt::AlignLeft);
+  layout->addStretch();
+  return page;
+}
+
+QWidget* GalleryWindow::createSectorMenuPage() {
+  auto* page = new QWidget(this);
+  auto* layout = new QVBoxLayout(page);
+
+  layout->addWidget(MakeHint(
+      page, QStringLiteral(
+                "环形扇区菜单。扇区由外弧、内弧与两条径向边构成；标题沿中弧"
+                "排布，过宽时自动缩小字号。鼠标悬停高亮，点击触发对应扇区的"
+                "回调。可调整半径比与起始角。")));
+
+  auto* menu = new SectorMenu(page);
+  menu->setRadiusRatio(0.95, 0.55);
+  for (int i = 1; i <= 5; ++i) {
+    const int index = i;
+    menu->addItem(
+        QStringLiteral("扇区 %1").arg(index),
+        [index]() {
+          LOG_INFO("GALLERY", "SectorMenu 触发：扇区 {}", index);
+        },
+        QColor::fromHsv((index - 1) * 60, 140, 200));
+  }
+  layout->addWidget(menu, 1);
+  return page;
+}
+
+QWidget* GalleryWindow::createRadialNavigatorPage() {
+  auto* page = new QWidget(this);
+  auto* layout = new QVBoxLayout(page);
+
+  layout->addWidget(MakeHint(
+      page, QStringLiteral(
+                "环形导航。中央开关展开收起，按钮带逐项延迟动画。图标本例留空，"
+                "实际项目按需传入 QPixmap；点击执行按钮自带的回调，调用方无需"
+                "维护索引映射。")));
+
+  auto* navigator = new RadialNavigator(page);
+  for (int i = 1; i <= 6; ++i) {
+    const int index = i;
+    navigator->addButton(
+        QPixmap(), QStringLiteral("项 %1").arg(index),
+        [index]() {
+          LOG_INFO("GALLERY", "RadialNavigator 触发：项 {}", index);
+        },
+        QStringLiteral("第 %1 项").arg(index));
+  }
+  layout->addWidget(navigator, 1);
+  return page;
+}
+
 void GalleryWindow::initSignals() {
-  connect(switch_button_, &SwitchButton::toggled, this, [this](bool checked) {
-    appendEvent(QStringLiteral("SwitchButton 切换为：%1")
-                    .arg(checked ? QStringLiteral("开")
-                                 : QStringLiteral("关")));
+  connect(switch_button_, &SwitchButton::toggled, this, [](bool checked) {
+    LOG_INFO("GALLERY", "SwitchButton 切换为：{}",
+             checked ? "开" : "关");
   });
 
   connect(splash_button_, &QPushButton::clicked, this,
@@ -110,27 +157,18 @@ void GalleryWindow::onShowSplash() {
   splash_->show();
   splash_timer_->start();
 
-  appendEvent(QStringLiteral("SplashScreen 已显示"));
+  LOG_INFO("GALLERY", "SplashScreen 已显示");
 }
 
 void GalleryWindow::onSplashStep() {
   ++splash_step_;
-  const int percent = splash_step_ * 100 / kSplashSteps;
-  splash_->setProgress(percent);
-  splash_->setStatusText(QStringLiteral("步骤 %1 / %2")
-                             .arg(splash_step_)
-                             .arg(kSplashSteps));
+  splash_->setProgress(splash_step_ * 100 / kSplashSteps);
+  splash_->setStatusText(
+      QStringLiteral("步骤 %1 / %2").arg(splash_step_).arg(kSplashSteps));
 
   if (splash_step_ >= kSplashSteps) {
     splash_timer_->stop();
     splash_->finish();
-    appendEvent(QStringLiteral("SplashScreen 已结束"));
+    LOG_INFO("GALLERY", "SplashScreen 已结束");
   }
-}
-
-void GalleryWindow::appendEvent(const QString& text) {
-  event_view_->appendPlainText(
-      QStringLiteral("[%1] %2")
-          .arg(QDateTime::currentDateTime().toString(QStringLiteral("HH:mm:ss")))
-          .arg(text));
 }
