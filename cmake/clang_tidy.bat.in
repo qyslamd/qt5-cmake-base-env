@@ -4,15 +4,15 @@ REM
 REM Launcher for clang_tidy.ps1. All arguments are passed through:
 REM   clang_tidy.bat -BuildDir build\ninja-debug-x86
 REM   clang_tidy.bat -Fix
-REM   clang_tidy.bat -Files src\app\main.cpp
+REM   clang_tidy.bat -Files src\app\main.cpp,src\app\mainwindow.cpp
 REM
-REM The real work lives in the PowerShell script; this wrapper only exists so
-REM the tool can be invoked with the same muscle memory as the other scripts
-REM in this directory.
+REM Uses the built-in Windows PowerShell, which is present on every Windows
+REM install; nothing extra needs to be installed. The script is written to
+REM run under pwsh too, but does not require it.
 REM
 REM NOTE: keep this file ASCII-only. cmd.exe decodes batch files with the OEM
-REM codepage, so non-ASCII text would be torn apart and its fragments executed
-REM as commands.
+REM codepage, so non-ASCII text would be torn apart and its fragments
+REM executed as commands.
 
 setlocal
 
@@ -23,12 +23,11 @@ if not exist "%SCRIPT%" (
     exit /b 1
 )
 
-where pwsh >nul 2>&1
+where powershell >nul 2>&1
 if errorlevel 1 (
-    echo Error: pwsh not found. PowerShell 7 or later is required.
-    echo Install it from https://aka.ms/powershell, or run clang_tidy.ps1 directly.
+    echo Error: powershell not found on PATH.
     exit /b 1
 )
 
-pwsh -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT%" %*
+powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT%" %*
 exit /b %errorlevel%
