@@ -3,16 +3,39 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QSize>
+#include <QTimer>
 #include <QWidget>
 
-TabBarStyle::TabBarStyle(QObject* parent) : QProxyStyle(nullptr) {
+namespace {
+
+// 动画帧间隔，约 33 fps；相位推进的快慢由各外观自己的 tick 决定
+constexpr int kAnimationIntervalMs = 30;
+
+}  // namespace
+
+TabBarStyle::TabBarStyle(QObject* parent)
+    : QProxyStyle(nullptr), timer_(new QTimer(this)) {
   setParent(parent);
+  timer_->setInterval(kAnimationIntervalMs);
+  connect(timer_, &QTimer::timeout, this, [this]() {
+    if (!appearance_ || !appearance_->isAnimated()) {
+      return;
+    }
+    appearance_->tick();
+    // this-> 前缀不可省：构造函数参数名 parent 会遮蔽 QObject::parent()，
+    // 裸写 parent() 会变成调用参数变量
+    if (auto* w = qobject_cast<QWidget*>(this->parent())) {
+      w->update();
+    }
+  });
 }
 
 TabBarStyle::TabBarStyle(TabAppearance* appearance, QObject* parent)
-    : QProxyStyle(nullptr), appearance_(appearance) {
-  setParent(parent);
+    : TabBarStyle(parent) {
+  setAppearance(appearance);
 }
+
+TabBarStyle::~TabBarStyle() { delete appearance_; }
 
 void TabBarStyle::setAppearance(TabAppearance* appearance) {
   if (appearance_ == appearance) {
@@ -20,9 +43,20 @@ void TabBarStyle::setAppearance(TabAppearance* appearance) {
   }
   delete appearance_;
   appearance_ = appearance;
+  updateTimerState();
   // 触发所属 QTabBar 重绘
   if (auto* w = qobject_cast<QWidget*>(parent())) {
     w->update();
+  }
+}
+
+void TabBarStyle::updateTimerState() {
+  if (appearance_ && appearance_->isAnimated()) {
+    if (!timer_->isActive()) {
+      timer_->start();
+    }
+  } else {
+    timer_->stop();
   }
 }
 
@@ -89,33 +123,27 @@ void TabBarStyle::drawControl(ControlElement element, const QStyleOption* opt,
   }
 
   const auto state = tabOpt->state;
+  const bool selected = state & QStyle::State_Selected;
+  const bool hovered = state & QStyle::State_MouseOver;
 
-  if (state & QStyle::State_Selected) {
+  if (selected || hovered) {
     const QPainterPath path = appearance_->shape(tabOpt, theme_);
-    p->save();
-    p->setRenderHint(QPainter::Antialiasing);
-    p->setPen(Qt::NoPen);
-    p->setBrush(theme_.selectedBackground);
-    p->drawPath(path);
-    p->restore();
-  } else if (state & QStyle::State_MouseOver) {
-    const QPainterPath path = appearance_->shape(tabOpt, theme_);
-    p->save();
-    p->setRenderHint(QPainter::Antialiasing);
-    p->setPen(Qt::NoPen);
-    p->setBrush(theme_.hoverBackground);
-    p->drawPath(path);
-    p->restore();
-  } else {
-    // 未选中未 hover 时，视外观决定是否画分隔线
-    if (appearance_->wantsSeparator(tabOpt)) {
-      const QLineF line = appearance_->separatorLine(tabOpt);
-      if (!line.isNull()) {
-        p->save();
-        p->setPen(QPen(theme_.separatorColor, 1));
-        p->drawLine(line);
-        p->restore();
-      }
+    const QBrush brush = appearance_->brush(tabOpt, theme_, selected, hovered);
+    if (brush.style() != Qt::NoBrush) {
+      p->save();
+      p->setRenderHint(QPainter::Antialiasing);
+      p->setPen(Qt::NoPen);
+      p->setBrush(brush);
+      p->drawPath(path);
+      p->restore();
+    }
+  } else if (appearance_->wantsSeparator(tabOpt)) {
+    const QLineF line = appearance_->separatorLine(tabOpt);
+    if (!line.isNull()) {
+      p->save();
+      p->setPen(QPen(theme_.separatorColor, 1));
+      p->drawLine(line);
+      p->restore();
     }
   }
 }

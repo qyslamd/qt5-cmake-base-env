@@ -38,9 +38,10 @@ class GalleryWindow : public QWidget {
   SwitchButton* switch_button_ = nullptr;
   LogOutputPanel* log_panel_ = nullptr;
 
-  // 主标签栏（Chrome 外观）与 TabBarStyle 页中的 Firefox 外观示例
+  // 主标签栏（Chrome 外观）与 TabBarStyle 页中的 Firefox / Liquid 外观示例
   QTabWidget* tabs_ = nullptr;
   QTabWidget* firefox_tabs_ = nullptr;
+  QTabWidget* liquid_tabs_ = nullptr;
 
   SplashScreen* splash_ = nullptr;
   QTimer* splash_timer_ = nullptr;

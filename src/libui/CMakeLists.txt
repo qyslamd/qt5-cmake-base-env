@@ -13,6 +13,8 @@ set(ALL_HEADERS_SOURCES
     tab_appearance/chrome_tab_appearance.h
     tab_appearance/firefox_tab_appearance.cpp
     tab_appearance/firefox_tab_appearance.h
+    tab_appearance/liquid_tab_appearance.cpp
+    tab_appearance/liquid_tab_appearance.h
     tab_appearance/tab_appearance.h
     tab_appearance/tab_bar_style.cpp
     tab_appearance/tab_bar_style.h

@@ -5,11 +5,15 @@
 
 #include "tab_appearance.h"
 
+class QTimer;
+
 class TabBarStyle : public QProxyStyle {
   Q_OBJECT
+
  public:
   explicit TabBarStyle(QObject* parent = nullptr);
   TabBarStyle(TabAppearance* appearance, QObject* parent = nullptr);
+  ~TabBarStyle() override;
 
   // 替换外观（接管所有权）
   void setAppearance(TabAppearance* appearance);
@@ -26,8 +30,12 @@ class TabBarStyle : public QProxyStyle {
                    const QWidget* w) const override;
 
  private:
+  // 依据当前外观是否动画启停定时器，非动画外观不空转
+  void updateTimerState();
+
   TabAppearance* appearance_ = nullptr;
   TabTheme theme_;
+  QTimer* timer_ = nullptr;
 };
 
 #endif  // FILE_LIBUI_TAB_APPEARANCE_TAB_BAR_STYLE_H_

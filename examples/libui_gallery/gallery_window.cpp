@@ -17,6 +17,7 @@
 #include "switch_button.h"
 #include "tab_appearance/chrome_tab_appearance.h"
 #include "tab_appearance/firefox_tab_appearance.h"
+#include "tab_appearance/liquid_tab_appearance.h"
 #include "tab_appearance/tab_bar_style.h"
 
 namespace {
@@ -148,11 +149,12 @@ QWidget* GalleryWindow::createTabStylePage() {
   auto* layout = new QVBoxLayout(page);
 
   layout->addWidget(MakeHint(
-      page, QStringLiteral(
-                "标签栏外观框架。TabBarStyle 是 QProxyStyle，把形状绘制委托"
-                "给 TabAppearance，颜色与尺寸集中在 TabTheme：换外观不改"
-                "配色，改配色不碰几何。本页是 Firefox 外观（默认紫主题），"
-                "顶部主标签栏是 Chrome 外观（蓝主题），两者可对比。")));
+      page,
+      QStringLiteral("标签栏外观框架。TabBarStyle 是 QProxyStyle，把形状与填充"
+                     "委托给 TabAppearance，颜色与尺寸集中在 TabTheme，动画"
+                     "外观可接管逐帧驱动。三种形态可对比：顶部主标签栏是 "
+                     "Chrome（蓝主题），下方分别是 Firefox（默认紫主题）与"
+                     "液态波浪（自带蓝青渐变与逐帧动画）。")));
 
   firefox_tabs_ = new QTabWidget(page);
   for (int i = 1; i <= 3; ++i) {
@@ -164,7 +166,21 @@ QWidget* GalleryWindow::createTabStylePage() {
   firefox_tabs_->tabBar()->setStyle(
       new TabBarStyle(new FirefoxTabAppearance(), firefox_tabs_->tabBar()));
 
+  liquid_tabs_ = new QTabWidget(page);
+  for (int i = 1; i <= 3; ++i) {
+    auto* body =
+        new QLabel(QStringLiteral("第 %1 页的内容。").arg(i), liquid_tabs_);
+    body->setAlignment(Qt::AlignCenter);
+    liquid_tabs_->addTab(body, QStringLiteral("波 %1").arg(i));
+  }
+  auto* liquid_style =
+      new TabBarStyle(new LiquidTabAppearance(), liquid_tabs_->tabBar());
+  // 渐变偏亮，主题默认的白色选中文字对比度不足，改深色
+  liquid_style->theme().selectedTextColor = QColor(0x08, 0x3B, 0x66);
+  liquid_tabs_->tabBar()->setStyle(liquid_style);
+
   layout->addWidget(firefox_tabs_, 1);
+  layout->addWidget(liquid_tabs_, 1);
   return page;
 }
 
@@ -182,6 +198,12 @@ void GalleryWindow::initSignals() {
           [this](int index) {
             LOG_INFO("GALLERY", "Firefox 风格标签页切换：{}",
                      firefox_tabs_->tabText(index).toStdString());
+          });
+
+  connect(liquid_tabs_, &QTabWidget::currentChanged, liquid_tabs_,
+          [this](int index) {
+            LOG_INFO("GALLERY", "液态波浪标签页切换：{}",
+                     liquid_tabs_->tabText(index).toStdString());
           });
 
   connect(splash_button_, &QPushButton::clicked, this,
