@@ -5,12 +5,17 @@
 
 class QComboBox;
 class QPushButton;
+class QSlider;
 class QTabWidget;
 class QTimer;
+class CircleProgress;
+class DotCircleProgress;
+class HourglassProgress;
 class LogOutputPanel;
 class SplashScreen;
 class SwitchButton;
 class TabBarStyle;
+class WaterProgress;
 
 // libui 部件演示：上半部每个部件占一个标签页，下半部是日志面板。
 // 部件的操作结果走 LOG_INFO 输出到日志，既能看到交互，也能顺带了解
@@ -37,15 +42,26 @@ class GalleryWindow : public QWidget {
   QWidget* createSwitchButtonPage();
   QWidget* createSectorMenuPage();
   QWidget* createRadialNavigatorPage();
+  QWidget* createProgressBarPage();
 
   // 切换主标签栏外观：换掉 TabBarStyle 持有的 TabAppearance，
   // 并套用该外观自己的主题微调
   void applyAppearance(int index);
 
+  // 进度条页的滑块拖动：四种风格共用同一个进度源
+  void applyProgress(int value);
+
   QPushButton* splash_button_ = nullptr;
   SwitchButton* switch_button_ = nullptr;
   LogOutputPanel* log_panel_ = nullptr;
   QComboBox* appearance_combo_ = nullptr;
+
+  // 进度条演示：四种风格同时摆在页面上，由同一个滑块驱动
+  QSlider* progress_slider_ = nullptr;
+  CircleProgress* circle_progress_ = nullptr;
+  DotCircleProgress* dot_progress_ = nullptr;
+  HourglassProgress* hourglass_progress_ = nullptr;
+  WaterProgress* water_progress_ = nullptr;
 
   // 主标签栏与挂在它上面的外观样式
   QTabWidget* tabs_ = nullptr;

@@ -5,20 +5,26 @@
 
 #include <QColor>
 #include <QComboBox>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
+#include <QSlider>
 #include <QSplitter>
 #include <QTabWidget>
 #include <QTimer>
 #include <QVBoxLayout>
 
+#include "buttons/switch_button.h"
 #include "log_output_panel.h"
 #include "logger/logger.h"
+#include "progress_bars/circle_progress_bar.h"
+#include "progress_bars/dot_circle_progress_bar.h"
+#include "progress_bars/hourglass_progress_bar.h"
+#include "progress_bars/water_progress_bar.h"
 #include "radial_navigator.h"
 #include "sector_menu.h"
 #include "splash_screen.h"
-#include "switch_button.h"
 #include "tab_appearance/battery_tab_appearance.h"
 #include "tab_appearance/cat_ear_tab_appearance.h"
 #include "tab_appearance/chrome_tab_appearance.h"
@@ -41,6 +47,20 @@ QLabel* MakeHint(QWidget* parent, const QString& text) {
   auto* label = new QLabel(text, parent);
   label->setWordWrap(true);
   return label;
+}
+
+// 给进度条加一行类名标注：四种风格并排摆，不标出来分不清谁是谁
+QWidget* MakeProgressCell(QWidget* parent, const QString& title, QWidget* bar) {
+  auto* cell = new QWidget(parent);
+  auto* layout = new QVBoxLayout(cell);
+  layout->setContentsMargins(0, 0, 0, 0);
+  layout->setSpacing(4);
+
+  auto* label = new QLabel(title, cell);
+  label->setAlignment(Qt::AlignCenter);
+  layout->addWidget(label);
+  layout->addWidget(bar, 1);
+  return cell;
 }
 
 // 切换表的一行：外观名、构造外观的工厂、以及该外观的主题微调。
@@ -145,6 +165,7 @@ void GalleryWindow::initUi() {
   tabs_->addTab(createSwitchButtonPage(), QStringLiteral("SwitchButton"));
   tabs_->addTab(createSectorMenuPage(), QStringLiteral("SectorMenu"));
   tabs_->addTab(createRadialNavigatorPage(), QStringLiteral("RadialNavigator"));
+  tabs_->addTab(createProgressBarPage(), QStringLiteral("ProgressBar"));
 
   applyAppearance(appearance_combo_->currentIndex());
 
@@ -226,6 +247,56 @@ QWidget* GalleryWindow::createRadialNavigatorPage() {
   return page;
 }
 
+QWidget* GalleryWindow::createProgressBarPage() {
+  auto* page = new QWidget(this);
+  auto* layout = new QVBoxLayout(page);
+
+  layout->addWidget(MakeHint(
+      page,
+      QStringLiteral("自绘进度条族。ProgressBase 提供 value / minimum / "
+                     "maximum / textVisible 四个属性与归一化进度 ratio()，"
+                     "四种风格各自实现 paintEvent()：圆环、圆点拖尾、沙漏、"
+                     "水球。下方滑块同时驱动四种，其中水球的波浪另有定时器"
+                     "自走，不受进度影响。")));
+
+  circle_progress_ = new CircleProgress(page);
+  dot_progress_ = new DotCircleProgress(page);
+  hourglass_progress_ = new HourglassProgress(page);
+  water_progress_ = new WaterProgress(page);
+
+  auto* grid = new QGridLayout();
+  grid->setSpacing(12);
+  grid->addWidget(MakeProgressCell(page, QStringLiteral("CircleProgress"),
+                                   circle_progress_),
+                  0, 0);
+  grid->addWidget(MakeProgressCell(page, QStringLiteral("DotCircleProgress"),
+                                   dot_progress_),
+                  0, 1);
+  grid->addWidget(MakeProgressCell(page, QStringLiteral("HourglassProgress"),
+                                   hourglass_progress_),
+                  1, 0);
+  grid->addWidget(
+      MakeProgressCell(page, QStringLiteral("WaterProgress"), water_progress_),
+      1, 1);
+  layout->addLayout(grid, 1);
+
+  progress_slider_ = new QSlider(Qt::Horizontal, page);
+  progress_slider_->setRange(0, 100);
+  // 初值取中间偏一点，四种风格一眼能看出差别；0 时水球和圆点几乎是空的
+  progress_slider_->setValue(35);
+  layout->addWidget(progress_slider_);
+
+  applyProgress(progress_slider_->value());
+  return page;
+}
+
+void GalleryWindow::applyProgress(int value) {
+  circle_progress_->setValue(value);
+  dot_progress_->setValue(value);
+  hourglass_progress_->setValue(value);
+  water_progress_->setValue(value);
+}
+
 void GalleryWindow::applyAppearance(int index) {
   const auto& table = AppearanceTable();
   if (index < 0 || index >= static_cast<int>(table.size())) {
@@ -256,6 +327,13 @@ void GalleryWindow::initSignals() {
   connect(appearance_combo_,
           QOverload<int>::of(&QComboBox::currentIndexChanged), this,
           &GalleryWindow::applyAppearance);
+
+  connect(progress_slider_, &QSlider::valueChanged, this,
+          &GalleryWindow::applyProgress);
+  // 拖动过程中每变一格就记一条会把日志面板淹掉，松手时记最终值即可
+  connect(progress_slider_, &QSlider::sliderReleased, this, [this]() {
+    LOG_INFO("GALLERY", "进度条演示拖动到：{}%", progress_slider_->value());
+  });
 
   connect(splash_button_, &QPushButton::clicked, this,
           &GalleryWindow::onShowSplash);

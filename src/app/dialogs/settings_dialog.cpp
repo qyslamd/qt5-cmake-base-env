@@ -11,9 +11,9 @@
 #include <QStringList>
 #include <QVBoxLayout>
 
+#include "buttons/switch_button.h"
 #include "config/config_defs.h"
 #include "config/config_manager.h"
-#include "switch_button.h"
 
 namespace {
 

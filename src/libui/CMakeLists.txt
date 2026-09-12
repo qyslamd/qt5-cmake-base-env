@@ -1,8 +1,18 @@
 set(TARGET_NAME ${APP_TARGET_PREFIX}_libui)
 
 set(ALL_HEADERS_SOURCES
-    switch_button.cpp
-    switch_button.h
+    buttons/switch_button.cpp
+    buttons/switch_button.h
+    progress_bars/circle_progress_bar.cpp
+    progress_bars/circle_progress_bar.h
+    progress_bars/dot_circle_progress_bar.cpp
+    progress_bars/dot_circle_progress_bar.h
+    progress_bars/hourglass_progress_bar.cpp
+    progress_bars/hourglass_progress_bar.h
+    progress_bars/progress_bar_base.cpp
+    progress_bars/progress_bar_base.h
+    progress_bars/water_progress_bar.cpp
+    progress_bars/water_progress_bar.h
     splash_screen.cpp
     splash_screen.h
     radial_navigator.cpp
