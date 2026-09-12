@@ -1,6 +1,10 @@
 #include "gallery_window.h"
 
+#include <functional>
+#include <vector>
+
 #include <QColor>
+#include <QComboBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
@@ -15,10 +19,14 @@
 #include "sector_menu.h"
 #include "splash_screen.h"
 #include "switch_button.h"
+#include "tab_appearance/cat_ear_tab_appearance.h"
 #include "tab_appearance/chrome_tab_appearance.h"
 #include "tab_appearance/firefox_tab_appearance.h"
+#include "tab_appearance/flame_tab_appearance.h"
+#include "tab_appearance/jelly_tab_appearance.h"
 #include "tab_appearance/liquid_tab_appearance.h"
 #include "tab_appearance/tab_bar_style.h"
+#include "tab_appearance/torn_paper_tab_appearance.h"
 
 namespace {
 
@@ -31,6 +39,59 @@ QLabel* MakeHint(QWidget* parent, const QString& text) {
   auto* label = new QLabel(text, parent);
   label->setWordWrap(true);
   return label;
+}
+
+// 切换表的一行：外观名、构造外观的工厂、以及该外观的主题微调。
+// 微调不能省：各外观自带的填充深浅差别很大，用同一套文字色会在浅色
+// 渐变上糊成一片。表里未列出微调的外观沿用 TabTheme 的默认配色
+struct AppearanceEntry {
+  QString name;
+  std::function<TabAppearance*()> create;
+  std::function<void(TabTheme&)> tune_theme;
+};
+
+// 演示用的外观清单。每项都返回新对象，因为 TabBarStyle 换外观时
+// 会接管并销毁旧的那一个
+const std::vector<AppearanceEntry>& AppearanceTable() {
+  static const std::vector<AppearanceEntry> kTable = {
+      {QStringLiteral("Chrome"),
+       []() -> TabAppearance* { return new ChromeTabAppearance(); },
+       [](TabTheme& theme) {
+         // 取应用强调色，和 default.qss 里的蓝主题一致
+         theme.selectedBackground = QColor(0x00, 0x7A, 0xCC);
+         theme.selectedTextColor = Qt::white;
+       }},
+      {QStringLiteral("Firefox"),
+       []() -> TabAppearance* { return new FirefoxTabAppearance(); },
+       [](TabTheme& theme) { theme.selectedTextColor = Qt::white; }},
+      {QStringLiteral("Liquid"),
+       []() -> TabAppearance* { return new LiquidTabAppearance(); },
+       [](TabTheme& theme) {
+         // 蓝青渐变偏亮，白字对比度不足，改深蓝
+         theme.selectedTextColor = QColor(0x08, 0x3B, 0x66);
+       }},
+      {QStringLiteral("CatEar"),
+       []() -> TabAppearance* { return new CatEarTabAppearance(); },
+       [](TabTheme& theme) {
+         theme.selectedTextColor = QColor(0x5A, 0x2E, 0x00);
+       }},
+      {QStringLiteral("Jelly"),
+       []() -> TabAppearance* { return new JellyTabAppearance(); },
+       [](TabTheme& theme) {
+         theme.selectedTextColor = QColor(0x6B, 0x14, 0x3A);
+       }},
+      {QStringLiteral("TornPaper"),
+       []() -> TabAppearance* { return new TornPaperTabAppearance(); },
+       [](TabTheme& theme) {
+         theme.selectedTextColor = QColor(0x4A, 0x3B, 0x1A);
+       }},
+      {QStringLiteral("Flame"),
+       []() -> TabAppearance* { return new FlameTabAppearance(); },
+       [](TabTheme& theme) {
+         theme.selectedTextColor = QColor(0x4A, 0x3B, 0x1A);
+       }},
+  };
+  return kTable;
 }
 
 }  // namespace
@@ -51,20 +112,26 @@ void GalleryWindow::initUi() {
   splash_button_ = new QPushButton(QStringLiteral("显示 SplashScreen"), this);
   actions->addWidget(splash_button_);
   actions->addStretch();
+  actions->addWidget(new QLabel(QStringLiteral("标签栏外观："), this));
+
+  appearance_combo_ = new QComboBox(this);
+  for (const auto& entry : AppearanceTable()) {
+    appearance_combo_->addItem(entry.name);
+  }
+  actions->addWidget(appearance_combo_);
   root->addLayout(actions);
 
   // 上半部按部件分页；部件多了只加标签页，布局不用动。
-  // 主标签栏本身用 Chrome 外观演示 TabBarStyle，主题色取应用强调色
+  // 标签栏外观由顶部的下拉框切换，主标签栏本身就是演示对象
   tabs_ = new QTabWidget(this);
-  auto* chrome_style =
-      new TabBarStyle(new ChromeTabAppearance(), tabs_->tabBar());
-  chrome_style->theme().selectedBackground = QColor(0x00, 0x7A, 0xCC);
-  tabs_->tabBar()->setStyle(chrome_style);
+  tab_style_ = new TabBarStyle(tabs_->tabBar());
+  tabs_->tabBar()->setStyle(tab_style_);
 
   tabs_->addTab(createSwitchButtonPage(), QStringLiteral("SwitchButton"));
   tabs_->addTab(createSectorMenuPage(), QStringLiteral("SectorMenu"));
   tabs_->addTab(createRadialNavigatorPage(), QStringLiteral("RadialNavigator"));
-  tabs_->addTab(createTabStylePage(), QStringLiteral("TabBarStyle"));
+
+  applyAppearance(appearance_combo_->currentIndex());
 
   // 下半部为日志面板：部件的事件都经 LOG_INFO 落到这里
   log_panel_ = new LogOutputPanel(this);
@@ -144,44 +211,19 @@ QWidget* GalleryWindow::createRadialNavigatorPage() {
   return page;
 }
 
-QWidget* GalleryWindow::createTabStylePage() {
-  auto* page = new QWidget(this);
-  auto* layout = new QVBoxLayout(page);
-
-  layout->addWidget(MakeHint(
-      page,
-      QStringLiteral("标签栏外观框架。TabBarStyle 是 QProxyStyle，把形状与填充"
-                     "委托给 TabAppearance，颜色与尺寸集中在 TabTheme，动画"
-                     "外观可接管逐帧驱动。三种形态可对比：顶部主标签栏是 "
-                     "Chrome（蓝主题），下方分别是 Firefox（默认紫主题）与"
-                     "液态波浪（自带蓝青渐变与逐帧动画）。")));
-
-  firefox_tabs_ = new QTabWidget(page);
-  for (int i = 1; i <= 3; ++i) {
-    auto* body =
-        new QLabel(QStringLiteral("第 %1 页的内容。").arg(i), firefox_tabs_);
-    body->setAlignment(Qt::AlignCenter);
-    firefox_tabs_->addTab(body, QStringLiteral("页 %1").arg(i));
+void GalleryWindow::applyAppearance(int index) {
+  const auto& table = AppearanceTable();
+  if (index < 0 || index >= static_cast<int>(table.size())) {
+    return;
   }
-  firefox_tabs_->tabBar()->setStyle(
-      new TabBarStyle(new FirefoxTabAppearance(), firefox_tabs_->tabBar()));
 
-  liquid_tabs_ = new QTabWidget(page);
-  for (int i = 1; i <= 3; ++i) {
-    auto* body =
-        new QLabel(QStringLiteral("第 %1 页的内容。").arg(i), liquid_tabs_);
-    body->setAlignment(Qt::AlignCenter);
-    liquid_tabs_->addTab(body, QStringLiteral("波 %1").arg(i));
-  }
-  auto* liquid_style =
-      new TabBarStyle(new LiquidTabAppearance(), liquid_tabs_->tabBar());
-  // 渐变偏亮，主题默认的白色选中文字对比度不足，改深色
-  liquid_style->theme().selectedTextColor = QColor(0x08, 0x3B, 0x66);
-  liquid_tabs_->tabBar()->setStyle(liquid_style);
+  const AppearanceEntry& entry = table[index];
+  // 先回到默认主题再套微调，否则上一个外观留下的颜色会带到下一个
+  tab_style_->theme() = TabTheme();
+  entry.tune_theme(tab_style_->theme());
+  tab_style_->setAppearance(entry.create());
 
-  layout->addWidget(firefox_tabs_, 1);
-  layout->addWidget(liquid_tabs_, 1);
-  return page;
+  LOG_INFO("GALLERY", "标签栏外观切换为：{}", entry.name.toStdString());
 }
 
 void GalleryWindow::initSignals() {
@@ -194,17 +236,9 @@ void GalleryWindow::initSignals() {
              tabs_->tabText(index).toStdString());
   });
 
-  connect(firefox_tabs_, &QTabWidget::currentChanged, firefox_tabs_,
-          [this](int index) {
-            LOG_INFO("GALLERY", "Firefox 风格标签页切换：{}",
-                     firefox_tabs_->tabText(index).toStdString());
-          });
-
-  connect(liquid_tabs_, &QTabWidget::currentChanged, liquid_tabs_,
-          [this](int index) {
-            LOG_INFO("GALLERY", "液态波浪标签页切换：{}",
-                     liquid_tabs_->tabText(index).toStdString());
-          });
+  connect(appearance_combo_,
+          QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+          &GalleryWindow::applyAppearance);
 
   connect(splash_button_, &QPushButton::clicked, this,
           &GalleryWindow::onShowSplash);

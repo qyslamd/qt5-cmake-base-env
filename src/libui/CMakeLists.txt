@@ -9,15 +9,23 @@ set(ALL_HEADERS_SOURCES
     radial_navigator.h
     sector_menu.cpp
     sector_menu.h
+    tab_appearance/cat_ear_tab_appearance.cpp
+    tab_appearance/cat_ear_tab_appearance.h
     tab_appearance/chrome_tab_appearance.cpp
     tab_appearance/chrome_tab_appearance.h
     tab_appearance/firefox_tab_appearance.cpp
     tab_appearance/firefox_tab_appearance.h
+    tab_appearance/flame_tab_appearance.cpp
+    tab_appearance/flame_tab_appearance.h
+    tab_appearance/jelly_tab_appearance.cpp
+    tab_appearance/jelly_tab_appearance.h
     tab_appearance/liquid_tab_appearance.cpp
     tab_appearance/liquid_tab_appearance.h
     tab_appearance/tab_appearance.h
     tab_appearance/tab_bar_style.cpp
     tab_appearance/tab_bar_style.h
+    tab_appearance/torn_paper_tab_appearance.cpp
+    tab_appearance/torn_paper_tab_appearance.h
 )
 
 add_library(${TARGET_NAME} STATIC ${ALL_HEADERS_SOURCES})
