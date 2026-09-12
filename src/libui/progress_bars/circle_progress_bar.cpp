@@ -5,7 +5,7 @@
 CircleProgress::CircleProgress(QWidget* parent) : ProgressBase(parent) {}
 
 void CircleProgress::setLineWidth(int w) {
-  lineWidth_ = qMax(1, w);
+  line_width_ = qMax(1, w);
   update();
 }
 
@@ -14,11 +14,11 @@ void CircleProgress::setColor(const QColor& c) {
   update();
 }
 void CircleProgress::setBackgroundColor(const QColor& c) {
-  backgroundColor_ = c;
+  background_color_ = c;
   update();
 }
 void CircleProgress::setTextColor(const QColor& c) {
-  textColor_ = c;
+  text_color_ = c;
   update();
 }
 
@@ -29,30 +29,30 @@ void CircleProgress::paintEvent(QPaintEvent* event) {
   p.setRenderHint(QPainter::Antialiasing);
 
   const qreal side = qMin(width(), height());
-  const qreal penW = lineWidth_;
-  const qreal half = penW / 2.0;
+  const qreal pen_w = line_width_;
+  const qreal half = pen_w / 2.0;
 
   QRectF rect((width() - side) / 2.0 + half, (height() - side) / 2.0 + half,
-              side - penW, side - penW);
+              side - pen_w, side - pen_w);
 
   // 底轨
-  p.setPen(QPen(backgroundColor_, penW, Qt::SolidLine, Qt::RoundCap));
-  p.drawArc(rect, startAngle_ * 16, -spanAngle_ * 16);
+  p.setPen(QPen(background_color_, pen_w, Qt::SolidLine, Qt::RoundCap));
+  p.drawArc(rect, start_angle_ * 16, -span_angle_ * 16);
 
   // 进度弧
-  const int span = qRound(-spanAngle_ * 16 * ratio());
+  const int span = qRound(-span_angle_ * 16 * ratio());
   if (span != 0) {
-    p.setPen(QPen(color_, penW, Qt::SolidLine, Qt::RoundCap));
-    p.drawArc(rect, startAngle_ * 16, span);
+    p.setPen(QPen(color_, pen_w, Qt::SolidLine, Qt::RoundCap));
+    p.drawArc(rect, start_angle_ * 16, span);
   }
 
   // 文字
-  if (textVisible_) {
+  if (text_visible_) {
     QFont f = font();
     f.setPixelSize(qMax(10, static_cast<int>(side * 0.18)));
     f.setBold(true);
     p.setFont(f);
-    p.setPen(textColor_);
+    p.setPen(text_color_);
     p.drawText(rect, Qt::AlignCenter,
                QStringLiteral("%1%").arg(qRound(ratio() * 100)));
   }

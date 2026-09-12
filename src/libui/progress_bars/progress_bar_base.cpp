@@ -47,9 +47,9 @@ void ProgressBase::setRange(int min, int max) {
 }
 
 void ProgressBase::setTextVisible(bool visible) {
-  if (textVisible_ == visible) {
+  if (text_visible_ == visible) {
     return;
   }
-  textVisible_ = visible;
+  text_visible_ = visible;
   update();
 }

@@ -20,7 +20,7 @@ class ProgressBase : public QWidget {
   int value() const { return value_; }
   int minimum() const { return minimum_; }
   int maximum() const { return maximum_; }
-  bool textVisible() const { return textVisible_; }
+  bool textVisible() const { return text_visible_; }
 
   // 归一化进度：0.0 ~ 1.0
   qreal ratio() const;
@@ -39,7 +39,7 @@ class ProgressBase : public QWidget {
   int value_ = 0;
   int minimum_ = 0;
   int maximum_ = 100;
-  bool textVisible_ = true;
+  bool text_visible_ = true;
 };
 
 #endif  // FILE_LIBUI_PROGRESS_BARS_PROGRESS_BAR_BASE_H_

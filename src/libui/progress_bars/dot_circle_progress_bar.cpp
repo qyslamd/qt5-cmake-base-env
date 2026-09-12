@@ -11,17 +11,17 @@ void DotCircleProgress::setColor(const QColor& c) {
 }
 
 void DotCircleProgress::setTrackColor(const QColor& c) {
-  trackColor_ = c;
+  track_color_ = c;
   update();
 }
 
 void DotCircleProgress::setDotRadius(int r) {
-  dotRadius_ = qMax(1, r);
+  dot_radius_ = qMax(1, r);
   update();
 }
 
 void DotCircleProgress::setTailCount(int n) {
-  tailCount_ = qMax(0, n);
+  tail_count_ = qMax(0, n);
   update();
 }
 
@@ -45,7 +45,7 @@ void DotCircleProgress::paintEvent(QPaintEvent* event) {
   path.arcTo(rect, 90, -360);
 
   // 底轨
-  p.setPen(QPen(trackColor_, trackWidth_, Qt::SolidLine, Qt::RoundCap));
+  p.setPen(QPen(track_color_, track_width_, Qt::SolidLine, Qt::RoundCap));
   p.drawArc(rect, 90 * 16, -360 * 16);
 
   const qreal t = ratio();
@@ -56,27 +56,27 @@ void DotCircleProgress::paintEvent(QPaintEvent* event) {
   // 已走过的浅色弧
   QColor arc_color = color_;
   arc_color.setAlpha(50);
-  p.setPen(QPen(arc_color, trackWidth_, Qt::SolidLine, Qt::RoundCap));
+  p.setPen(QPen(arc_color, track_width_, Qt::SolidLine, Qt::RoundCap));
   p.drawArc(rect, 90 * 16, qRound(-360 * 16 * t));
 
   // 拖尾 + 头部亮点：从尾画到头，保证头部压在最上层
   p.setPen(Qt::NoPen);
-  for (int i = tailCount_; i >= 0; --i) {
-    const qreal pos = t - (i * tailStep_);
+  for (int i = tail_count_; i >= 0; --i) {
+    const qreal pos = t - (i * tail_step_);
     if (pos < 0.0) {
       continue;
     }
     const QPointF pt = path.pointAtPercent(pos);
-    const qreal k = (tailCount_ == 0) ? 0.0 : qreal(i) / tailCount_;
+    const qreal k = (tail_count_ == 0) ? 0.0 : qreal(i) / tail_count_;
 
     QColor c = color_;
     c.setAlpha(qRound(255 * (1.0 - (k * 0.85))));
     p.setBrush(c);
-    p.drawEllipse(pt, dotRadius_ * (1.0 - (k * 0.55)),
-                  dotRadius_ * (1.0 - (k * 0.55)));
+    p.drawEllipse(pt, dot_radius_ * (1.0 - (k * 0.55)),
+                  dot_radius_ * (1.0 - (k * 0.55)));
   }
 
-  if (textVisible_) {
+  if (text_visible_) {
     QFont f = font();
     f.setPixelSize(qMax(10, static_cast<int>(side * 0.22)));
     f.setBold(true);

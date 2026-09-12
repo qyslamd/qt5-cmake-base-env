@@ -34,22 +34,22 @@ WaterProgress::WaterProgress(QWidget* parent) : ProgressBase(parent) {
 }
 
 void WaterProgress::setWaterColor(const QColor& c) {
-  waterColor_ = c;
+  water_color_ = c;
   update();
 }
 
 void WaterProgress::setBorderColor(const QColor& c) {
-  borderColor_ = c;
+  border_color_ = c;
   update();
 }
 
 void WaterProgress::setBorderWidth(int w) {
-  borderWidth_ = qMax(0, w);
+  border_width_ = qMax(0, w);
   update();
 }
 
 void WaterProgress::setWaveHeight(qreal h) {
-  waveHeight_ = qMax(0.0, h);
+  wave_height_ = qMax(0.0, h);
   update();
 }
 
@@ -65,8 +65,8 @@ void WaterProgress::paintEvent(QPaintEvent* event) {
 
   const qreal side = qMin(width(), height());
   QRectF outer((width() - side) / 2.0, (height() - side) / 2.0, side, side);
-  QRectF inner =
-      outer.adjusted(borderWidth_, borderWidth_, -borderWidth_, -borderWidth_);
+  QRectF inner = outer.adjusted(border_width_, border_width_, -border_width_,
+                                -border_width_);
   if (inner.width() <= 1 || inner.height() <= 1) {
     return;
   }
@@ -81,29 +81,31 @@ void WaterProgress::paintEvent(QPaintEvent* event) {
 
   // 双正弦叠加，画一个封闭水体。两端也取样，保证水体贴住圆的两侧
   const qreal left = inner.left();
-  const qreal width = inner.width();
-  const qreal amp1 = waveHeight_;
-  const qreal amp2 = waveHeight_ * kSecondWaveRatio;
+  // 名字不叫 width：会遮蔽 QWidget::width()，同一函数里还要用后者
+  const qreal wave_width = inner.width();
+  const qreal amp_first = wave_height_;
+  const qreal amp_second = wave_height_ * kSecondWaveRatio;
 
   QPainterPath wave;
   wave.moveTo(left, water_top);
   for (int i = 0; i <= kWaveSteps; ++i) {
-    const qreal x = left + (width * i / kWaveSteps);
+    const qreal x = left + (wave_width * i / kWaveSteps);
     const qreal y =
         water_top +
-        (amp1 *
+        (amp_first *
          qSin((2.0 * M_PI * (i * kFirstWaveFrequency / kWaveSteps)) + phase_)) +
-        (amp2 * qSin((2.0 * M_PI * (i * kSecondWaveFrequency / kWaveSteps)) +
-                     (phase_ * 1.7)));
+        (amp_second *
+         qSin((2.0 * M_PI * (i * kSecondWaveFrequency / kWaveSteps)) +
+              (phase_ * 1.7)));
     wave.lineTo(x, y);
   }
   wave.lineTo(inner.right(), inner.bottom());
   wave.lineTo(left, inner.bottom());
   wave.closeSubpath();
 
-  QColor top_color = waterColor_;
+  QColor top_color = water_color_;
   top_color.setAlpha(200);
-  QColor bottom_color = waterColor_;
+  QColor bottom_color = water_color_;
   bottom_color.setAlpha(120);
   QLinearGradient grad(0, inner.top(), 0, inner.bottom());
   grad.setColorAt(0.0, top_color);
@@ -118,18 +120,18 @@ void WaterProgress::paintEvent(QPaintEvent* event) {
   // 圆形外框：内外两层，做出立体感
   p.setBrush(Qt::NoBrush);
 
-  QColor outer_border = borderColor_;
+  QColor outer_border = border_color_;
   outer_border.setAlpha(180);
-  p.setPen(QPen(outer_border, borderWidth_));
-  p.drawEllipse(outer.adjusted(borderWidth_ / 2.0, borderWidth_ / 2.0,
-                               -borderWidth_ / 2.0, -borderWidth_ / 2.0));
+  p.setPen(QPen(outer_border, border_width_));
+  p.drawEllipse(outer.adjusted(border_width_ / 2.0, border_width_ / 2.0,
+                               -border_width_ / 2.0, -border_width_ / 2.0));
 
   const QColor inner_border(234, 242, 255, 140);
-  p.setPen(QPen(inner_border, borderWidth_ * 0.6));
-  p.drawEllipse(
-      inner.adjusted(-borderWidth_, -borderWidth_, borderWidth_, borderWidth_));
+  p.setPen(QPen(inner_border, border_width_ * 0.6));
+  p.drawEllipse(inner.adjusted(-border_width_, -border_width_, border_width_,
+                               border_width_));
 
-  if (textVisible_) {
+  if (text_visible_) {
     QFont f = font();
     f.setPixelSize(qMax(10, static_cast<int>(side * 0.20)));
     f.setBold(true);

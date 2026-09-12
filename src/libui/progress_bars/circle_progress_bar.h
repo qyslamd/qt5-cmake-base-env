@@ -17,10 +17,10 @@ class CircleProgress : public ProgressBase {
  public:
   explicit CircleProgress(QWidget* parent = nullptr);
 
-  int lineWidth() const { return lineWidth_; }
+  int lineWidth() const { return line_width_; }
   QColor color() const { return color_; }
-  QColor backgroundColor() const { return backgroundColor_; }
-  QColor textColor() const { return textColor_; }
+  QColor backgroundColor() const { return background_color_; }
+  QColor textColor() const { return text_color_; }
 
  public slots:
   void setLineWidth(int w);
@@ -32,12 +32,12 @@ class CircleProgress : public ProgressBase {
   void paintEvent(QPaintEvent* event) override;
 
  private:
-  int lineWidth_ = 12;
+  int line_width_ = 12;
   QColor color_ = QColor(0, 160, 233);
-  QColor backgroundColor_ = QColor(232, 236, 240);
-  QColor textColor_ = QColor(0, 160, 233);
-  int startAngle_ = 90;  // 12 点方向
-  int spanAngle_ = 360;  // 整圆
+  QColor background_color_ = QColor(232, 236, 240);
+  QColor text_color_ = QColor(0, 160, 233);
+  int start_angle_ = 90;  // 12 点方向
+  int span_angle_ = 360;  // 整圆
 };
 
 #endif  // FILE_LIBUI_PROGRESS_BARS_CIRCLE_PROGRESS_BAR_H_

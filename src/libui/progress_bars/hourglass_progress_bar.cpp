@@ -7,17 +7,17 @@
 HourglassProgress::HourglassProgress(QWidget* parent) : ProgressBase(parent) {}
 
 void HourglassProgress::setFrameColor(const QColor& c) {
-  frameColor_ = c;
+  frame_color_ = c;
   update();
 }
 
 void HourglassProgress::setSandColor(const QColor& c) {
-  sandColor_ = c;
+  sand_color_ = c;
   update();
 }
 
 void HourglassProgress::setFrameWidth(int w) {
-  frameWidth_ = qMax(1, w);
+  frame_width_ = qMax(1, w);
   update();
 }
 
@@ -29,7 +29,7 @@ void HourglassProgress::paintEvent(QPaintEvent* event) {
   p.translate(rect().center());
 
   // 给外框线宽和文字留出余量
-  const qreal r = (qMin(width(), height()) / 2.0) - frameWidth_ - 2.0;
+  const qreal r = (qMin(width(), height()) / 2.0) - frame_width_ - 2.0;
   if (r <= 0) {
     return;
   }
@@ -44,14 +44,14 @@ void HourglassProgress::paintEvent(QPaintEvent* event) {
   frame.lineTo(0, 0);
   frame.closeSubpath();
 
-  p.setPen(QPen(frameColor_, frameWidth_, Qt::SolidLine, Qt::RoundCap,
+  p.setPen(QPen(frame_color_, frame_width_, Qt::SolidLine, Qt::RoundCap,
                 Qt::RoundJoin));
   p.setBrush(Qt::NoBrush);
   p.drawPath(frame);
 
   // 沙子
   p.setPen(Qt::NoPen);
-  p.setBrush(sandColor_);
+  p.setBrush(sand_color_);
 
   const qreal t = ratio();
 
@@ -77,12 +77,12 @@ void HourglassProgress::paintEvent(QPaintEvent* event) {
     p.drawPath(sand);
   }
 
-  if (textVisible_) {
+  if (text_visible_) {
     QFont f = font();
     f.setPixelSize(qMax(10, static_cast<int>(r * 0.5)));
     f.setBold(true);
     p.setFont(f);
-    p.setPen(sandColor_);
+    p.setPen(sand_color_);
     p.drawText(QRectF(-r, -r, r * 2, r * 2), Qt::AlignCenter,
                QStringLiteral("%1%").arg(qRound(t * 100)));
   }

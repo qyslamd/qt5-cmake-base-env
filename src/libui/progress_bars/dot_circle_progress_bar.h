@@ -18,9 +18,9 @@ class DotCircleProgress : public ProgressBase {
   explicit DotCircleProgress(QWidget* parent = nullptr);
 
   QColor color() const { return color_; }
-  QColor trackColor() const { return trackColor_; }
-  int dotRadius() const { return dotRadius_; }
-  int tailCount() const { return tailCount_; }
+  QColor trackColor() const { return track_color_; }
+  int dotRadius() const { return dot_radius_; }
+  int tailCount() const { return tail_count_; }
 
  public slots:
   void setColor(const QColor& c);
@@ -33,11 +33,11 @@ class DotCircleProgress : public ProgressBase {
 
  private:
   QColor color_ = QColor(64, 158, 255);
-  QColor trackColor_ = QColor(230, 234, 240);
-  int dotRadius_ = 9;
-  int tailCount_ = 10;
-  int trackWidth_ = 4;
-  qreal tailStep_ = 0.015;  // 拖尾点之间的百分比间距
+  QColor track_color_ = QColor(230, 234, 240);
+  int dot_radius_ = 9;
+  int tail_count_ = 10;
+  int track_width_ = 4;
+  qreal tail_step_ = 0.015;  // 拖尾点之间的百分比间距
 };
 
 #endif  // FILE_LIBUI_PROGRESS_BARS_DOT_CIRCLE_PROGRESS_BAR_H_

@@ -16,9 +16,9 @@ class HourglassProgress : public ProgressBase {
  public:
   explicit HourglassProgress(QWidget* parent = nullptr);
 
-  QColor frameColor() const { return frameColor_; }
-  QColor sandColor() const { return sandColor_; }
-  int frameWidth() const { return frameWidth_; }
+  QColor frameColor() const { return frame_color_; }
+  QColor sandColor() const { return sand_color_; }
+  int frameWidth() const { return frame_width_; }
 
  public slots:
   void setFrameColor(const QColor& c);
@@ -29,9 +29,9 @@ class HourglassProgress : public ProgressBase {
   void paintEvent(QPaintEvent* event) override;
 
  private:
-  QColor frameColor_ = QColor(63, 107, 157);
-  QColor sandColor_ = QColor(222, 164, 96);
-  int frameWidth_ = 6;
+  QColor frame_color_ = QColor(63, 107, 157);
+  QColor sand_color_ = QColor(222, 164, 96);
+  int frame_width_ = 6;
 };
 
 #endif  // FILE_LIBUI_PROGRESS_BARS_HOURGLASS_PROGRESS_BAR_H_

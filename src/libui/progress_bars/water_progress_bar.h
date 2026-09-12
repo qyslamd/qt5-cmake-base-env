@@ -20,10 +20,10 @@ class WaterProgress : public ProgressBase {
  public:
   explicit WaterProgress(QWidget* parent = nullptr);
 
-  QColor waterColor() const { return waterColor_; }
-  QColor borderColor() const { return borderColor_; }
-  int borderWidth() const { return borderWidth_; }
-  qreal waveHeight() const { return waveHeight_; }
+  QColor waterColor() const { return water_color_; }
+  QColor borderColor() const { return border_color_; }
+  int borderWidth() const { return border_width_; }
+  qreal waveHeight() const { return wave_height_; }
 
  public slots:
   void setWaterColor(const QColor& c);
@@ -37,10 +37,10 @@ class WaterProgress : public ProgressBase {
   void paintEvent(QPaintEvent* event) override;
 
  private:
-  QColor waterColor_ = QColor(43, 146, 255);
-  QColor borderColor_ = QColor(43, 146, 255);
-  int borderWidth_ = 3;
-  qreal waveHeight_ = 6.0;
+  QColor water_color_ = QColor(43, 146, 255);
+  QColor border_color_ = QColor(43, 146, 255);
+  int border_width_ = 3;
+  qreal wave_height_ = 6.0;
   qreal phase_ = 0.0;
   QTimer* timer_ = nullptr;
 };
