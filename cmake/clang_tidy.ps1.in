@@ -7,10 +7,18 @@
 # Usage:
 #   scripts\clang_tidy.ps1                        check every .cpp under src/ and tests/
 #   scripts\clang_tidy.ps1 -BuildDir build\ninja-debug-x86
-#   scripts\clang_tidy.ps1 -Fix                   apply fixes clang-tidy can make
+#   scripts\clang_tidy.ps1 -Fix                   apply the fixes clang-tidy can make
 #   scripts\clang_tidy.ps1 -Files src\app\main.cpp
 #   scripts\clang_tidy.ps1 -Files src\a.cpp,src\b.cpp     multiple: comma separated
 #   scripts\clang_tidy.ps1 -Throttle 4            limit concurrent processes
+#
+# Exit code:
+#   0  no findings (-Fix: fixes applied), or nothing to check
+#   1  findings reported, or clang-tidy failed on some file
+#
+#   With -Fix the script exits 0 as long as every clang-tidy run succeeded:
+#   applying fixes is an action, not a check, so a non-zero exit there would
+#   only break callers that chain commands. Process failures always exit 1.
 #
 # NOTE: this file must stay ASCII-only and must avoid PowerShell 7 only
 # syntax. It runs under the built-in Windows PowerShell as well as under
@@ -22,7 +30,11 @@
 # through the translation units that include them, filtered by the
 # HeaderFilterRegex setting in .clang-tidy.
 
-[CmdletBinding()]
+# Positional binding is disabled: a stray token would otherwise be bound to
+# whichever parameter comes next in declaration order, silently. A mistyped
+# or mangled argument then shows up as a confusing type error far from its
+# cause. All parameters are passed by name.
+[CmdletBinding(PositionalBinding = $false)]
 param(
     # Build directory holding compile_commands.json. Defaults to the build
     # directory that was configured when this script was generated.
@@ -33,11 +45,16 @@ param(
     # work because the extra values get bound to other parameters.
     [string[]]$Files,
 
-    # Apply the fixes clang-tidy can make (rewrites source files in place).
+    # Apply the corrections clang-tidy can make (rewrites source files).
+    # Only enables --fix. It deliberately does not enable --fix-errors,
+    # which applies fixes to code that does not even compile -- that can
+    # rewrite source in ways the compiler never confirmed.
     [switch]$Fix,
 
-    # Number of concurrent clang-tidy processes. Defaults to the CPU count.
-    [int]$Throttle = [Environment]::ProcessorCount
+    # Number of concurrent clang-tidy processes. Defaults to half the CPU
+    # count: each instance is memory hungry (Qt headers are large), and
+    # driving every core tends to starve the rest of the machine.
+    [int]$Throttle = [Math]::Max(1, [Math]::Floor([Environment]::ProcessorCount / 2))
 )
 
 $ErrorActionPreference = 'Stop'
@@ -56,6 +73,27 @@ function Resolve-RepoPath {
         return [System.IO.Path]::GetFullPath($Path)
     }
     return [System.IO.Path]::GetFullPath((Join-Path $srcRoot $Path))
+}
+
+# Wait for one process, read back what it wrote, and drop its temp files.
+function Complete-Item {
+    param($Item)
+
+    $Item.Proc.WaitForExit()
+
+    $text = ''
+    if (Test-Path $Item.Out) { $text += (Get-Content -Raw $Item.Out) }
+    if (Test-Path $Item.Err) { $text += (Get-Content -Raw $Item.Err) }
+    if ($null -eq $text) { $text = '' }
+
+    Remove-Item $Item.Out, $Item.Err -ErrorAction SilentlyContinue
+
+    [pscustomobject]@{
+        File     = $Item.File
+        Output   = $text
+        Count    = ([regex]::Matches($text, ':\d+:\d+: (warning|error): ')).Count
+        ExitCode = $Item.Proc.ExitCode
+    }
 }
 
 if (-not (Test-Path $clangTidy)) {
@@ -97,9 +135,24 @@ if ($Files) {
         exit 1
     }
 } else {
+    # Guard each directory individually: a template derived from this repo
+    # may well have dropped tests/, and handing a non-existent path to
+    # Get-ChildItem would terminate the script.
+    $searchDirs = @()
+    foreach ($name in @('src', 'tests')) {
+        $candidate = Join-Path $srcRoot $name
+        if (Test-Path $candidate) {
+            $searchDirs += $candidate
+        }
+    }
+
+    if ($searchDirs.Count -eq 0) {
+        Write-Host "Error: neither src nor tests found under $srcRoot"
+        exit 1
+    }
+
     $Files = @(
-        Get-ChildItem -Path (Join-Path $srcRoot 'src'), (Join-Path $srcRoot 'tests') `
-                      -Recurse -Filter *.cpp |
+        Get-ChildItem -Path $searchDirs -Recurse -Filter *.cpp |
         Sort-Object FullName |
         ForEach-Object { $_.FullName }
     )
@@ -127,7 +180,7 @@ Write-Host "Running, a few seconds per file..."
 # Do not batch several files into one invocation: measured on four files,
 # batching took 24s against 19s for separate runs, so loading the
 # compilation database repeatedly is not what costs time -- analysing each
-# translation unit is. Parallel execution took 10s on the same four files.
+# translation unit is. Parallel execution took 7s on the same four files.
 #
 # Processes are started with Start-Process and their streams redirected to
 # files. That avoids merging stderr through the PowerShell error stream:
@@ -135,89 +188,130 @@ Write-Host "Running, a few seconds per file..."
 # "2>&1" would wrap each line in an ErrorRecord and decorate the output
 # with "NativeCommandError" noise.
 $extraArgs = @()
-if ($Fix) {
-    $extraArgs += '--fix'
-    $extraArgs += '--fix-errors'
-}
+if ($Fix) { $extraArgs += '--fix' }
 
 $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("clang_tidy_" + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
 
-$pending = @()
-$results = @()
+try {
+    $queue = New-Object System.Collections.Queue
+    foreach ($file in $Files) { $queue.Enqueue($file) }
 
-foreach ($file in $Files) {
-    # Wait for a free slot before launching the next process.
-    while ($true) {
-        $live = @($pending | Where-Object { -not $_.Proc.HasExited })
-        if ($live.Count -lt $Throttle) {
-            break
+    $pending = @()
+    $results = @()
+
+    while ($queue.Count -gt 0 -or $pending.Count -gt 0) {
+        # Fill free slots.
+        while ($queue.Count -gt 0) {
+            $live = @($pending | Where-Object { -not $_.Proc.HasExited })
+            if ($live.Count -ge $Throttle) { break }
+
+            $file = $queue.Dequeue()
+            $id = [guid]::NewGuid().ToString('N')
+            $outFile = Join-Path $tempDir ($id + '.out')
+            $errFile = Join-Path $tempDir ($id + '.err')
+
+            $argList = @('-p', $BuildDir)
+            $argList += $extraArgs
+            $argList += $file
+
+            $proc = Start-Process -FilePath $clangTidy -ArgumentList $argList `
+                                  -NoNewWindow -PassThru `
+                                  -RedirectStandardOutput $outFile `
+                                  -RedirectStandardError $errFile
+
+            # Without this, ExitCode reads back empty on Windows PowerShell:
+            # -PassThru alone does not keep the process handle enabled.
+            $proc.EnableRaisingEvents = $true
+
+            $pending += [pscustomobject]@{
+                Proc = $proc
+                File = $file
+                Out  = $outFile
+                Err  = $errFile
+            }
         }
-        Start-Sleep -Milliseconds 200
+
+        # Collect whatever finished, in completion order rather than in the
+        # order the processes were started: waiting on the first launch first
+        # would stall behind one slow file while the rest sit reaped.
+        $finished = @($pending | Where-Object { $_.Proc.HasExited })
+        if ($finished.Count -eq 0) {
+            Start-Sleep -Milliseconds 200
+            continue
+        }
+
+        foreach ($item in $finished) {
+            $results += (Complete-Item $item)
+        }
+        $pending = @($pending | Where-Object { -not $_.Proc.HasExited })
     }
 
-    $id = [guid]::NewGuid().ToString('N')
-    $outFile = Join-Path $tempDir ($id + '.out')
-    $errFile = Join-Path $tempDir ($id + '.err')
+    # Results arrive in completion order; sort so repeated runs compare.
+    # An unreadable exit code must not count as a failure: that mistake once
+    # marked every file as failed because EnableRaisingEvents was missing.
+    $failed = @(
+        $results |
+        Where-Object { $null -ne $_.ExitCode -and $_.ExitCode -ne 0 } |
+        Sort-Object File
+    )
 
-    $argList = @('-p', $BuildDir)
-    $argList += $extraArgs
-    $argList += $file
+    # Files that failed are reported in their own section; leaving them out
+    # here avoids printing the same output twice.
+    $reported = @(
+        $results |
+        Where-Object {
+            $_.Count -gt 0 -and ($null -eq $_.ExitCode -or $_.ExitCode -eq 0)
+        } |
+        Sort-Object File
+    )
 
-    $proc = Start-Process -FilePath $clangTidy -ArgumentList $argList `
-                          -NoNewWindow -PassThru `
-                          -RedirectStandardOutput $outFile `
-                          -RedirectStandardError $errFile
-
-    $pending += [pscustomobject]@{
-        Proc = $proc
-        File = $file
-        Out  = $outFile
-        Err  = $errFile
-    }
-}
-
-foreach ($item in $pending) {
-    $item.Proc.WaitForExit()
-
-    $text = ''
-    if (Test-Path $item.Out) { $text += (Get-Content -Raw $item.Out) }
-    if (Test-Path $item.Err) { $text += (Get-Content -Raw $item.Err) }
-    if ($null -eq $text) { $text = '' }
-
-    $results += [pscustomobject]@{
-        File   = $item.File
-        Output = $text
-        Count  = ([regex]::Matches($text, ':\d+:\d+: (warning|error): ')).Count
+    $affected = 0
+    $total = 0
+    foreach ($r in $reported) {
+        $affected++
+        $total += $r.Count
+        Write-Host ""
+        Write-Host "=== $($r.File)  ($($r.Count))"
+        Write-Host $r.Output.TrimEnd()
     }
 
-    Remove-Item $item.Out, $item.Err -ErrorAction SilentlyContinue
-}
+    # clang-tidy returns 0 even when it reports findings, so a non-zero exit
+    # means the run itself failed. Reporting that as "clean" would hide a
+    # broken check behind a passing one.
+    if ($failed.Count -gt 0) {
+        Write-Host ""
+        Write-Host "=== clang-tidy failed on $($failed.Count) file(s)"
+        foreach ($f in $failed) {
+            Write-Host ""
+            Write-Host "--- $($f.File)  (exit $($f.ExitCode))"
+            Write-Host $f.Output.TrimEnd()
+        }
+    }
 
-Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
-
-# Jobs finish in whatever order they happen to; sort by path so repeated
-# runs produce comparable output.
-$reported = @($results | Where-Object { $_.Count -gt 0 } | Sort-Object File)
-
-$affected = 0
-$total = 0
-foreach ($r in $reported) {
-    $affected++
-    $total += $r.Count
     Write-Host ""
-    Write-Host "=== $($r.File)  ($($r.Count))"
-    Write-Host $r.Output.TrimEnd()
-}
-
-Write-Host ""
-Write-Host "========================================"
-if ($total -gt 0) {
-    Write-Host " $affected file(s), $total finding(s)"
     Write-Host "========================================"
-    exit 1
-}
+    if ($failed.Count -gt 0) {
+        Write-Host " $affected file(s) with findings, $($failed.Count) failed"
+        Write-Host "========================================"
+        exit 1
+    }
 
-Write-Host " All $($Files.Count) file(s) clean"
-Write-Host "========================================"
-exit 0
+    if ($Fix) {
+        Write-Host " Fixes applied, $($Files.Count) file(s) processed"
+        Write-Host "========================================"
+        exit 0
+    }
+
+    if ($total -gt 0) {
+        Write-Host " $affected file(s), $total finding(s)"
+        Write-Host "========================================"
+        exit 1
+    }
+
+    Write-Host " All $($Files.Count) file(s) clean"
+    Write-Host "========================================"
+    exit 0
+} finally {
+    Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+}
