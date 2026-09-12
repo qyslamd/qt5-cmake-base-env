@@ -4,8 +4,8 @@
 #include <QWidget>
 
 class QPushButton;
+class QTabWidget;
 class QTimer;
-class QWidget;
 class LogOutputPanel;
 class SplashScreen;
 class SwitchButton;
@@ -32,10 +32,15 @@ class GalleryWindow : public QWidget {
   QWidget* createSwitchButtonPage();
   QWidget* createSectorMenuPage();
   QWidget* createRadialNavigatorPage();
+  QWidget* createTabStylePage();
 
   QPushButton* splash_button_ = nullptr;
   SwitchButton* switch_button_ = nullptr;
   LogOutputPanel* log_panel_ = nullptr;
+
+  // 主标签栏（Chrome 外观）与 TabBarStyle 页中的 Firefox 外观示例
+  QTabWidget* tabs_ = nullptr;
+  QTabWidget* firefox_tabs_ = nullptr;
 
   SplashScreen* splash_ = nullptr;
   QTimer* splash_timer_ = nullptr;

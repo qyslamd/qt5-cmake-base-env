@@ -1,5 +1,6 @@
 #include "gallery_window.h"
 
+#include <QColor>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
@@ -14,6 +15,9 @@
 #include "sector_menu.h"
 #include "splash_screen.h"
 #include "switch_button.h"
+#include "tab_appearance/chrome_tab_appearance.h"
+#include "tab_appearance/firefox_tab_appearance.h"
+#include "tab_appearance/tab_bar_style.h"
 
 namespace {
 
@@ -48,18 +52,24 @@ void GalleryWindow::initUi() {
   actions->addStretch();
   root->addLayout(actions);
 
-  // 上半部按部件分页；部件多了只加标签页，布局不用动
-  auto* tabs = new QTabWidget(this);
-  tabs->addTab(createSwitchButtonPage(), QStringLiteral("SwitchButton"));
-  tabs->addTab(createSectorMenuPage(), QStringLiteral("SectorMenu"));
-  tabs->addTab(createRadialNavigatorPage(),
-               QStringLiteral("RadialNavigator"));
+  // 上半部按部件分页；部件多了只加标签页，布局不用动。
+  // 主标签栏本身用 Chrome 外观演示 TabBarStyle，主题色取应用强调色
+  tabs_ = new QTabWidget(this);
+  auto* chrome_style =
+      new TabBarStyle(new ChromeTabAppearance(), tabs_->tabBar());
+  chrome_style->theme().selectedBackground = QColor(0x00, 0x7A, 0xCC);
+  tabs_->tabBar()->setStyle(chrome_style);
+
+  tabs_->addTab(createSwitchButtonPage(), QStringLiteral("SwitchButton"));
+  tabs_->addTab(createSectorMenuPage(), QStringLiteral("SectorMenu"));
+  tabs_->addTab(createRadialNavigatorPage(), QStringLiteral("RadialNavigator"));
+  tabs_->addTab(createTabStylePage(), QStringLiteral("TabBarStyle"));
 
   // 下半部为日志面板：部件的事件都经 LOG_INFO 落到这里
   log_panel_ = new LogOutputPanel(this);
 
   auto* splitter = new QSplitter(Qt::Vertical, this);
-  splitter->addWidget(tabs);
+  splitter->addWidget(tabs_);
   splitter->addWidget(log_panel_);
   splitter->setStretchFactor(0, 3);
   splitter->setStretchFactor(1, 2);
@@ -74,9 +84,10 @@ QWidget* GalleryWindow::createSwitchButtonPage() {
   auto* layout = new QVBoxLayout(page);
 
   layout->addWidget(MakeHint(
-      page, QStringLiteral(
-                "滑块开关。勾选状态变化时发出 toggled 信号，属于 QAbstractButton "
-                "派生类，因此用信号槽连接，而不是像下面两个部件那样给回调。")));
+      page,
+      QStringLiteral(
+          "滑块开关。勾选状态变化时发出 toggled 信号，属于 QAbstractButton "
+          "派生类，因此用信号槽连接，而不是像下面两个部件那样给回调。")));
 
   switch_button_ = new SwitchButton(page);
   switch_button_->setChecked(true);
@@ -101,9 +112,7 @@ QWidget* GalleryWindow::createSectorMenuPage() {
     const int index = i;
     menu->addItem(
         QStringLiteral("扇区 %1").arg(index),
-        [index]() {
-          LOG_INFO("GALLERY", "SectorMenu 触发：扇区 {}", index);
-        },
+        [index]() { LOG_INFO("GALLERY", "SectorMenu 触发：扇区 {}", index); },
         QColor::fromHsv((index - 1) * 60, 140, 200));
   }
   layout->addWidget(menu, 1);
@@ -134,11 +143,46 @@ QWidget* GalleryWindow::createRadialNavigatorPage() {
   return page;
 }
 
+QWidget* GalleryWindow::createTabStylePage() {
+  auto* page = new QWidget(this);
+  auto* layout = new QVBoxLayout(page);
+
+  layout->addWidget(MakeHint(
+      page, QStringLiteral(
+                "标签栏外观框架。TabBarStyle 是 QProxyStyle，把形状绘制委托"
+                "给 TabAppearance，颜色与尺寸集中在 TabTheme：换外观不改"
+                "配色，改配色不碰几何。本页是 Firefox 外观（默认紫主题），"
+                "顶部主标签栏是 Chrome 外观（蓝主题），两者可对比。")));
+
+  firefox_tabs_ = new QTabWidget(page);
+  for (int i = 1; i <= 3; ++i) {
+    auto* body =
+        new QLabel(QStringLiteral("第 %1 页的内容。").arg(i), firefox_tabs_);
+    body->setAlignment(Qt::AlignCenter);
+    firefox_tabs_->addTab(body, QStringLiteral("页 %1").arg(i));
+  }
+  firefox_tabs_->tabBar()->setStyle(
+      new TabBarStyle(new FirefoxTabAppearance(), firefox_tabs_->tabBar()));
+
+  layout->addWidget(firefox_tabs_, 1);
+  return page;
+}
+
 void GalleryWindow::initSignals() {
   connect(switch_button_, &SwitchButton::toggled, this, [](bool checked) {
-    LOG_INFO("GALLERY", "SwitchButton 切换为：{}",
-             checked ? "开" : "关");
+    LOG_INFO("GALLERY", "SwitchButton 切换为：{}", checked ? "开" : "关");
   });
+
+  connect(tabs_, &QTabWidget::currentChanged, tabs_, [this](int index) {
+    LOG_INFO("GALLERY", "主标签页切换：{}",
+             tabs_->tabText(index).toStdString());
+  });
+
+  connect(firefox_tabs_, &QTabWidget::currentChanged, firefox_tabs_,
+          [this](int index) {
+            LOG_INFO("GALLERY", "Firefox 风格标签页切换：{}",
+                     firefox_tabs_->tabText(index).toStdString());
+          });
 
   connect(splash_button_, &QPushButton::clicked, this,
           &GalleryWindow::onShowSplash);
