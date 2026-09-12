@@ -3,6 +3,7 @@
 #include <functional>
 #include <vector>
 
+#include <QCheckBox>
 #include <QColor>
 #include <QComboBox>
 #include <QGridLayout>
@@ -21,6 +22,7 @@
 #include "progress_bars/circle_progress_bar.h"
 #include "progress_bars/dot_circle_progress_bar.h"
 #include "progress_bars/hourglass_progress_bar.h"
+#include "progress_bars/progress_bar_base.h"
 #include "progress_bars/water_progress_bar.h"
 #include "radial_navigator.h"
 #include "sector_menu.h"
@@ -41,6 +43,9 @@ namespace {
 // SplashScreen 演示的推进节奏与步数，仅用于让效果可见
 constexpr int kSplashStepMs = 600;
 constexpr int kSplashSteps = 4;
+
+// 进度条演示的进度上限，与滑块量程一致
+constexpr int kProgressMaximum = 100;
 
 // 每页顶部的用法说明
 QLabel* MakeHint(QWidget* parent, const QString& text) {
@@ -254,10 +259,12 @@ QWidget* GalleryWindow::createProgressBarPage() {
   layout->addWidget(MakeHint(
       page,
       QStringLiteral("自绘进度条族。ProgressBase 提供 value / minimum / "
-                     "maximum / textVisible 四个属性与归一化进度 ratio()，"
-                     "四种风格各自实现 paintEvent()：圆环、圆点拖尾、沙漏、"
-                     "水球。下方滑块同时驱动四种，其中水球的波浪另有定时器"
-                     "自走，不受进度影响。")));
+                     "maximum / textVisible 四个属性、归一化进度 ratio()，"
+                     "以及动画骨架：定时器归基类，可见且 isAnimated() 为真时"
+                     "才跑，子类实现 tick() 推进相位。四种风格各自实现 "
+                     "paintEvent()：圆环、圆点拖尾、沙漏、水球。滑块同时驱动"
+                     "四种；勾选忙碌后 range 收成 (0, 0)，四种改画各自的"
+                     "不确定动画，水球的波浪则一直都在晃。")));
 
   circle_progress_ = new CircleProgress(page);
   dot_progress_ = new DotCircleProgress(page);
@@ -281,10 +288,17 @@ QWidget* GalleryWindow::createProgressBarPage() {
   layout->addLayout(grid, 1);
 
   progress_slider_ = new QSlider(Qt::Horizontal, page);
-  progress_slider_->setRange(0, 100);
+  progress_slider_->setRange(0, kProgressMaximum);
   // 初值取中间偏一点，四种风格一眼能看出差别；0 时水球和圆点几乎是空的
   progress_slider_->setValue(35);
-  layout->addWidget(progress_slider_);
+
+  progress_busy_check_ =
+      new QCheckBox(QStringLiteral("忙碌（不确定）状态"), page);
+
+  auto* control_row = new QHBoxLayout();
+  control_row->addWidget(progress_slider_, 1);
+  control_row->addWidget(progress_busy_check_);
+  layout->addLayout(control_row);
 
   applyProgress(progress_slider_->value());
   return page;
@@ -295,6 +309,24 @@ void GalleryWindow::applyProgress(int value) {
   dot_progress_->setValue(value);
   hourglass_progress_->setValue(value);
   water_progress_->setValue(value);
+}
+
+void GalleryWindow::setProgressBusy(bool busy) {
+  // 忙碌态沿用 QProgressBar 的约定：range 收成 (0, 0)
+  const std::initializer_list<ProgressBase*> bars = {
+      circle_progress_, dot_progress_, hourglass_progress_, water_progress_};
+  for (ProgressBase* bar : bars) {
+    bar->setRange(0, busy ? 0 : kProgressMaximum);
+  }
+
+  // 忙碌时进度值没有意义，滑块一并禁用；退出时值被 range 收敛成 0，
+  // 按滑块当前值重新刷一遍，免得滑块显示 35 而进度条停在 0
+  progress_slider_->setEnabled(!busy);
+  if (!busy) {
+    applyProgress(progress_slider_->value());
+  }
+
+  LOG_INFO("GALLERY", "进度条切换到{}", busy ? "忙碌态" : "确定态");
 }
 
 void GalleryWindow::applyAppearance(int index) {
@@ -330,6 +362,8 @@ void GalleryWindow::initSignals() {
 
   connect(progress_slider_, &QSlider::valueChanged, this,
           &GalleryWindow::applyProgress);
+  connect(progress_busy_check_, &QCheckBox::toggled, this,
+          &GalleryWindow::setProgressBusy);
   // 拖动过程中每变一格就记一条会把日志面板淹掉，松手时记最终值即可
   connect(progress_slider_, &QSlider::sliderReleased, this, [this]() {
     LOG_INFO("GALLERY", "进度条演示拖动到：{}%", progress_slider_->value());

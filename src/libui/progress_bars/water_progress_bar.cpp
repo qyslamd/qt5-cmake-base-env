@@ -3,14 +3,12 @@
 #include <QLinearGradient>
 #include <QPainter>
 #include <QPainterPath>
-#include <QTimer>
 #include <QtMath>
 
 namespace {
 
-// 波浪相位的推进步长与帧间隔
+// 波浪相位的推进步长
 constexpr qreal kPhaseStep = 0.09;
-constexpr int kWaveIntervalMs = 30;
 
 // 水面起伏的采样点数，以及第二层波的振幅比例与频率倍数
 constexpr int kWaveSteps = 80;
@@ -18,19 +16,18 @@ constexpr qreal kSecondWaveRatio = 0.6;
 constexpr qreal kFirstWaveFrequency = 1.5;
 constexpr qreal kSecondWaveFrequency = 3.0;
 
+// 忙碌态的水位：停在半位，让水球看起来在晃但不在涨
+constexpr qreal kBusyLevel = 0.5;
+
 }  // namespace
 
-WaterProgress::WaterProgress(QWidget* parent) : ProgressBase(parent) {
-  timer_ = new QTimer(this);
-  timer_->setInterval(kWaveIntervalMs);
-  connect(timer_, &QTimer::timeout, this, [this]() {
-    phase_ += kPhaseStep;
-    if (phase_ > 2.0 * M_PI) {
-      phase_ -= 2.0 * M_PI;
-    }
-    update();
-  });
-  timer_->start();
+WaterProgress::WaterProgress(QWidget* parent) : ProgressBase(parent) {}
+
+void WaterProgress::tick() {
+  phase_ += kPhaseStep;
+  if (phase_ > 2.0 * M_PI) {
+    phase_ -= 2.0 * M_PI;
+  }
 }
 
 void WaterProgress::setWaterColor(const QColor& c) {
@@ -53,10 +50,6 @@ void WaterProgress::setWaveHeight(qreal h) {
   update();
 }
 
-void WaterProgress::startWave() { timer_->start(); }
-
-void WaterProgress::stopWave() { timer_->stop(); }
-
 void WaterProgress::paintEvent(QPaintEvent* event) {
   Q_UNUSED(event)
 
@@ -76,8 +69,10 @@ void WaterProgress::paintEvent(QPaintEvent* event) {
   clip.addEllipse(inner);
   p.setClipPath(clip);
 
-  // 水位线：ratio 为 0 时水面在底部，为 1 时到顶部
-  const qreal water_top = inner.top() + (inner.height() * (1.0 - ratio()));
+  // 水位线：ratio 为 0 时水面在底部，为 1 时到顶部。
+  // 忙碌态无进度可言，水位固定在中位，只让波浪照常晃
+  const qreal level = isBusy() ? kBusyLevel : ratio();
+  const qreal water_top = inner.top() + (inner.height() * (1.0 - level));
 
   // 双正弦叠加，画一个封闭水体。两端也取样，保证水体贴住圆的两侧
   const qreal left = inner.left();
@@ -131,7 +126,7 @@ void WaterProgress::paintEvent(QPaintEvent* event) {
   p.drawEllipse(inner.adjusted(-border_width_, -border_width_, border_width_,
                                border_width_));
 
-  if (text_visible_) {
+  if (text_visible_ && !isBusy()) {
     QFont f = font();
     f.setPixelSize(qMax(10, static_cast<int>(side * 0.20)));
     f.setBold(true);

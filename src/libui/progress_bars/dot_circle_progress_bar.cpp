@@ -3,7 +3,21 @@
 #include <QPainter>
 #include <QPainterPath>
 
+namespace {
+
+// 忙碌绕圈的相位步长：每帧 0.012，约 83 帧（2.5 秒）转一圈
+constexpr qreal kPhaseStep = 0.012;
+
+}  // namespace
+
 DotCircleProgress::DotCircleProgress(QWidget* parent) : ProgressBase(parent) {}
+
+void DotCircleProgress::tick() {
+  phase_ += kPhaseStep;
+  if (phase_ > 1.0) {
+    phase_ -= 1.0;
+  }
+}
 
 void DotCircleProgress::setColor(const QColor& c) {
   color_ = c;
@@ -48,22 +62,31 @@ void DotCircleProgress::paintEvent(QPaintEvent* event) {
   p.setPen(QPen(track_color_, track_width_, Qt::SolidLine, Qt::RoundCap));
   p.drawArc(rect, 90 * 16, -360 * 16);
 
-  const qreal t = ratio();
-  if (t <= 0.0) {
+  const bool busy = isBusy();
+  // 忙碌态：亮点以相位为位置绕圈；进度态：亮点停在 ratio() 处
+  const qreal t = busy ? phase_ : ratio();
+  if (!busy && t <= 0.0) {
     return;
   }
 
-  // 已走过的浅色弧
-  QColor arc_color = color_;
-  arc_color.setAlpha(50);
-  p.setPen(QPen(arc_color, track_width_, Qt::SolidLine, Qt::RoundCap));
-  p.drawArc(rect, 90 * 16, qRound(-360 * 16 * t));
+  if (!busy) {
+    // 已走过的浅色弧
+    QColor arc_color = color_;
+    arc_color.setAlpha(50);
+    p.setPen(QPen(arc_color, track_width_, Qt::SolidLine, Qt::RoundCap));
+    p.drawArc(rect, 90 * 16, qRound(-360 * 16 * t));
+  }
 
   // 拖尾 + 头部亮点：从尾画到头，保证头部压在最上层
   p.setPen(Qt::NoPen);
   for (int i = tail_count_; i >= 0; --i) {
-    const qreal pos = t - (i * tail_step_);
-    if (pos < 0.0) {
+    qreal pos = t - (i * tail_step_);
+    if (busy) {
+      // 绕圈时拖尾要跨过起点接到上一圈，否则每圈开头拖尾都会消失
+      while (pos < 0.0) {
+        pos += 1.0;
+      }
+    } else if (pos < 0.0) {
       continue;
     }
     const QPointF pt = path.pointAtPercent(pos);
@@ -76,7 +99,7 @@ void DotCircleProgress::paintEvent(QPaintEvent* event) {
                   dot_radius_ * (1.0 - (k * 0.55)));
   }
 
-  if (text_visible_) {
+  if (text_visible_ && !busy) {
     QFont f = font();
     f.setPixelSize(qMax(10, static_cast<int>(side * 0.22)));
     f.setBold(true);

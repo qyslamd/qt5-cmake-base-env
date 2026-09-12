@@ -4,7 +4,21 @@
 #include <QPainterPath>
 #include <QtMath>
 
+namespace {
+
+// 忙碌漏沙的相位步长：每帧 0.01，约 100 帧（3 秒）漏空一次
+constexpr qreal kPhaseStep = 0.01;
+
+}  // namespace
+
 HourglassProgress::HourglassProgress(QWidget* parent) : ProgressBase(parent) {}
+
+void HourglassProgress::tick() {
+  phase_ += kPhaseStep;
+  if (phase_ > 1.0) {
+    phase_ -= 1.0;
+  }
+}
 
 void HourglassProgress::setFrameColor(const QColor& c) {
   frame_color_ = c;
@@ -53,7 +67,8 @@ void HourglassProgress::paintEvent(QPaintEvent* event) {
   p.setPen(Qt::NoPen);
   p.setBrush(sand_color_);
 
-  const qreal t = ratio();
+  // 忙碌态：沙子以相位为"已漏掉的比例"循环漏空；进度态：就是 ratio()
+  const qreal t = isBusy() ? phase_ : ratio();
 
   // 上半个：剩余沙子面积正比于 1-t，故边长取平方根
   const qreal up = r * qSqrt(qMax(0.0, 1.0 - t));
@@ -77,7 +92,7 @@ void HourglassProgress::paintEvent(QPaintEvent* event) {
     p.drawPath(sand);
   }
 
-  if (text_visible_) {
+  if (text_visible_ && !isBusy()) {
     QFont f = font();
     f.setPixelSize(qMax(10, static_cast<int>(r * 0.5)));
     f.setBold(true);

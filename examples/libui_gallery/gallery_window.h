@@ -3,6 +3,7 @@
 
 #include <QWidget>
 
+class QCheckBox;
 class QComboBox;
 class QPushButton;
 class QSlider;
@@ -51,6 +52,9 @@ class GalleryWindow : public QWidget {
   // 进度条页的滑块拖动：四种风格共用同一个进度源
   void applyProgress(int value);
 
+  // 进度条页的忙碌开关：四种风格一起进出忙碌态
+  void setProgressBusy(bool busy);
+
   QPushButton* splash_button_ = nullptr;
   SwitchButton* switch_button_ = nullptr;
   LogOutputPanel* log_panel_ = nullptr;
@@ -58,6 +62,7 @@ class GalleryWindow : public QWidget {
 
   // 进度条演示：四种风格同时摆在页面上，由同一个滑块驱动
   QSlider* progress_slider_ = nullptr;
+  QCheckBox* progress_busy_check_ = nullptr;
   CircleProgress* circle_progress_ = nullptr;
   DotCircleProgress* dot_progress_ = nullptr;
   HourglassProgress* hourglass_progress_ = nullptr;
