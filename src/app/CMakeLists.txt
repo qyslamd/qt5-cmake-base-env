@@ -100,7 +100,10 @@ endif()
 
 
 #=======================================
-# 安装打包工具链（windeployqt / ISCC 均为 Windows 专属工具）
+# 安装打包工具链
+#   Windows：windeployqt + Inno Setup，产出安装程序
+#   Linux：linuxdeploy + appimagetool，产出 AppImage
+# 两侧同构——同样的输出目录 dist/、同样的符号归档位置 dist/symbols/
 #=======================================
 if(WIN32)
     # 查找 windeployqt —— QT_BIN_DIR 由顶层统一推导，此处不再重复
@@ -216,4 +219,80 @@ if(WIN32)
             add_dependencies(make_package make_symbols)
         endif()
     endif()
-endif() # if(WIN32)
+else() # 非 Windows：Linux 侧用 AppImage
+    set(PACKAGE_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/dist")
+    # 三个打包工具随仓库提供，理由见 3rdparty/appimage-tools/README.md
+    set(APPIMAGE_TOOLS_DIR "${CMAKE_SOURCE_DIR}/3rdparty/appimage-tools")
+    set(APPIMAGE_WORK_DIR "${CMAKE_BINARY_DIR}/appimage")
+    set(APPIMAGE_ICON_FILE
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/icon.png")
+    set(APPIMAGE_DESKTOP_FILE "${APPIMAGE_WORK_DIR}/${APP_APP_NAME}.desktop")
+    # AppImage 的架构名要用 Linux 惯例（x86_64 / aarch64），不是 x64/x86
+    set(APPIMAGE_ARCH "${CMAKE_SYSTEM_PROCESSOR}")
+    set(APPIMAGE_BUILD_DIR "${CMAKE_BINARY_DIR}")
+    set(APPIMAGE_OUTPUT_DIR "${PACKAGE_OUTPUT_DIR}")
+    # 目录名与 Windows 侧同规则：版本号 + git 短 hash + 架构
+    set(APPIMAGE_SYMBOLS_DIR
+        "${PACKAGE_OUTPUT_DIR}/symbols/${APP_VERSION}-${APP_GIT_HASH}-${APP_ARCH_SUFFIX}")
+
+    # 工具或图标缺失只告警，不阻断 configure——不做 Linux 打包的构建不该因此失败
+    foreach(_tool linuxdeploy linuxdeploy-plugin-qt appimagetool)
+        if(NOT EXISTS "${APPIMAGE_TOOLS_DIR}/${_tool}-x86_64.AppImage")
+            message(WARNING
+                "未找到 ${_tool}-x86_64.AppImage，AppImage 打包不可用。"
+                "见 3rdparty/appimage-tools/README.md")
+        endif()
+    endforeach()
+    unset(_tool)
+    if(NOT EXISTS "${APPIMAGE_ICON_FILE}")
+        message(WARNING
+            "${APPIMAGE_ICON_FILE} 不存在；AppImage 打包需要 256x256 PNG 图标")
+    endif()
+
+    # .desktop 的字段全部由顶层定制区注入，与 .iss 的做法一致。APP_URL 为空
+    # 时整行留空而非写出空的 URL=，否则桌面环境会把它当成无效链接
+    if(APP_URL)
+        set(APPIMAGE_URL_LINE "URL=${APP_URL}")
+    else()
+        set(APPIMAGE_URL_LINE "")
+    endif()
+    file(MAKE_DIRECTORY "${APPIMAGE_WORK_DIR}")
+    configure_file(
+        "${CMAKE_SOURCE_DIR}/cmake/appimage.desktop.in"
+        "${APPIMAGE_DESKTOP_FILE}"
+        @ONLY
+    )
+
+    # 打包脚本，对应 Windows 侧的 scripts/make_installer.bat
+    configure_file(
+        "${CMAKE_SOURCE_DIR}/cmake/make_appimage.sh.in"
+        "${CMAKE_SOURCE_DIR}/scripts/make_appimage.sh"
+        @ONLY
+    )
+    file(CHMOD "${CMAKE_SOURCE_DIR}/scripts/make_appimage.sh"
+        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                    GROUP_READ GROUP_EXECUTE
+                    WORLD_READ WORLD_EXECUTE)
+
+    # 安装规则：打包脚本用 cmake --install 铺 AppDir，也可用于常规 Linux 安装
+    install(TARGETS ${TARGET_NAME} RUNTIME DESTINATION bin)
+    install(FILES "${APPIMAGE_DESKTOP_FILE}"
+        DESTINATION share/applications
+        RENAME "${APP_APP_NAME}.desktop")
+    install(FILES "${APPIMAGE_ICON_FILE}"
+        DESTINATION share/icons/hicolor/256x256/apps
+        RENAME "${APP_APP_NAME}.png")
+
+    # make_appimage target — 对应 Windows 侧的 make_package。构建配置校验复用
+    # 同一个脚本，仅入参区分平台
+    add_custom_target(make_appimage
+        COMMAND ${CMAKE_COMMAND}
+            -DBUILD_TYPE="$<CONFIG>"
+            -DPLATFORM=LINUX
+            -P "${CMAKE_SOURCE_DIR}/cmake/check_package_config.cmake"
+        COMMAND "${CMAKE_SOURCE_DIR}/scripts/make_appimage.sh"
+        WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+        COMMENT "Building AppImage (${APPIMAGE_ARCH})..."
+    )
+    add_dependencies(make_appimage ${TARGET_NAME})
+endif() # if(WIN32) / else()

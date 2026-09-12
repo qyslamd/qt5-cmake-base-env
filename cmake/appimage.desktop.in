@@ -1,0 +1,14 @@
+[Desktop Entry]
+# 由 CMake configure_file 从 cmake/appimage.desktop.in 生成，不要手动编辑。
+# 应用标识由顶层 CMakeLists.txt 注入，此处无需修改。
+Type=Application
+Name=@APP_APP_NAME@
+Exec=@TARGET_NAME@
+Icon=@APP_APP_NAME@
+Categories=Utility;
+Terminal=false
+StartupNotify=true
+@APPIMAGE_URL_LINE@
+# 桌面菜单里显示的简短说明（Comment=）是可选项：需要时在上方加一行
+# Comment=<说明文字>，本模板默认不填，避免与 Name 重复
+X-AppImage-Version=@APP_VERSION@

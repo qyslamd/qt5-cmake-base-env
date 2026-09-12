@@ -1,0 +1,104 @@
+#!/bin/bash
+# AppImage 打包脚本：由 CMake configure_file 生成，不要手动编辑。
+# 模板见 cmake/make_appimage.sh.in，对应 Windows 侧的 scripts/make_installer.bat。
+#
+# 流程：
+#   1. 铺 AppDir：cmake --install 装入 usr/bin，配置与数据目录按 Windows 侧
+#      同样的布局放在可执行文件旁边
+#   2. linuxdeploy 收集依赖，并由 qt 插件打包 Qt 库、平台插件与翻译
+#   3. strip AppDir 里的可执行文件，再交由 appimagetool 产出 .AppImage
+#   4. 归档未 strip 的可执行文件：崩溃日志里只有裸地址，事后 addr2line 必须
+#      用与打包那一刻一致的未 strip 二进制，对应 Windows 侧的符号归档
+#
+# 三个打包工具随仓库提供在 3rdparty/appimage-tools/，无需联网。脚本会导出
+# APPIMAGE_EXTRACT_AND_RUN，让它们免 FUSE 自解包运行，容器与 CI 同样可用。
+#
+# 使用非系统 Qt 时，先导出 QMAKE 指向那份 Qt 的 qmake：
+#   QMAKE=/opt/Qt/5.15.2/gcc_64/bin/qmake ./scripts/make_appimage.sh
+
+set -euo pipefail
+
+APP_NAME="@APP_APP_NAME@"
+APP_VERSION="@APP_VERSION@"
+TARGET_NAME="@TARGET_NAME@"
+APPIMAGE_ARCH="@APPIMAGE_ARCH@"
+BUILD_DIR="@APPIMAGE_BUILD_DIR@"
+OUTPUT_DIR="@APPIMAGE_OUTPUT_DIR@"
+TOOLS_DIR="@APPIMAGE_TOOLS_DIR@"
+WORK_DIR="@APPIMAGE_WORK_DIR@"
+DESKTOP_SRC="@APPIMAGE_DESKTOP_FILE@"
+ICON_SRC="@APPIMAGE_ICON_FILE@"
+SYMBOLS_DIR="@APPIMAGE_SYMBOLS_DIR@"
+CMAKE="@CMAKE_COMMAND@"
+
+APP_DIR="$WORK_DIR/${APP_NAME}.AppDir"
+BIN_DIR="$BUILD_DIR/bin"
+EXE_NAME="${TARGET_NAME}"
+
+die() {
+    echo "错误：$*" >&2
+    exit 1
+}
+
+# ---- 前置检查：缺什么就直说缺什么，不留下半截产物 ----
+[ -x "$BIN_DIR/$EXE_NAME" ] || die "未找到 $BIN_DIR/$EXE_NAME，请先构建"
+[ -f "$ICON_SRC" ] || die "缺少图标 $ICON_SRC（AppImage 需要 256x256 PNG）"
+[ -f "$DESKTOP_SRC" ] || die "缺少 $DESKTOP_SRC，请重新运行 configure 生成"
+command -v strip >/dev/null || die "缺少 strip（binutils），无法裁剪发布二进制"
+
+for tool in linuxdeploy linuxdeploy-plugin-qt appimagetool; do
+    tool_path="$TOOLS_DIR/${tool}-x86_64.AppImage"
+    if [ ! -f "$tool_path" ]; then
+        die "缺少 $tool_path（打包工具应随仓库提供，见 3rdparty/appimage-tools/README.md）"
+    fi
+    # Windows 侧克隆时权限位可能丢失，这里补一次
+    chmod +x "$tool_path" 2>/dev/null || true
+done
+
+# ---- 1. 铺 AppDir ----
+rm -rf "$APP_DIR"
+mkdir -p "$APP_DIR/usr"
+"$CMAKE" --install "$BUILD_DIR" --prefix "$APP_DIR/usr" >/dev/null
+
+# 配置与数据目录：模板示例，项目未必有，与 Windows 侧同样放在可执行文件旁
+for data_dir in config calibration; do
+    if [ -e "$BIN_DIR/$data_dir" ]; then
+        cp -a "$BIN_DIR/$data_dir" "$APP_DIR/usr/bin/"
+    fi
+done
+
+# ---- 2. AppDir 根目录：.desktop 与图标（文件名须与 .desktop 的 Icon= 一致）----
+cp "$DESKTOP_SRC" "$APP_DIR/${APP_NAME}.desktop"
+cp "$ICON_SRC" "$APP_DIR/${APP_NAME}.png"
+
+# ---- 3. linuxdeploy：收集依赖 + qt 插件打包 Qt ----
+# 插件必须以 linuxdeploy-plugin-qt 这个名字出现在 PATH 里，linuxdeploy 才认
+export APPIMAGE_EXTRACT_AND_RUN=1
+PLUGIN_DIR="$WORK_DIR/tools"
+mkdir -p "$PLUGIN_DIR"
+ln -sf "$TOOLS_DIR/linuxdeploy-plugin-qt-x86_64.AppImage" \
+       "$PLUGIN_DIR/linuxdeploy-plugin-qt"
+
+PATH="$PLUGIN_DIR:$PATH" "$TOOLS_DIR/linuxdeploy-x86_64.AppImage" \
+    --appdir "$APP_DIR" \
+    --desktop-file "$APP_DIR/${APP_NAME}.desktop" \
+    --icon-file "$APP_DIR/${APP_NAME}.png" \
+    --plugin qt
+
+# ---- 4. 裁剪 + 打包 ----
+# 图标与 .desktop 已由 linuxdeploy 置于 AppDir 根，此处只需压缩
+strip --strip-unneeded "$APP_DIR/usr/bin/$EXE_NAME"
+
+mkdir -p "$OUTPUT_DIR"
+APPIMAGE_FILE="$OUTPUT_DIR/${APP_NAME}-${APPIMAGE_ARCH}-${APP_VERSION}.AppImage"
+ARCH="$APPIMAGE_ARCH" VERSION="$APP_VERSION" \
+    "$TOOLS_DIR/appimagetool-x86_64.AppImage" -n "$APP_DIR" "$APPIMAGE_FILE"
+
+# ---- 5. 归档未 strip 的可执行文件（Windows 侧由 make_symbols 目标负责）----
+mkdir -p "$SYMBOLS_DIR"
+cp "$BIN_DIR/$EXE_NAME" "$SYMBOLS_DIR/"
+
+echo
+echo "AppImage 已生成：$APPIMAGE_FILE"
+echo "符号已归档：$SYMBOLS_DIR/$EXE_NAME"
+echo "  崩溃日志中的裸地址用：addr2line -e $SYMBOLS_DIR/$EXE_NAME -f -C <地址>"

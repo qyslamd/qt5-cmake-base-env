@@ -13,7 +13,8 @@
 - **版本号由 git 派生**：tag 提供主版本号，提交数提供 build 号，exe 版本
   资源中记录提交 hash，同一提交在任何机器上构建结果一致
 - **一键构建部署打包**：一条命令完成编译 → 归档符号 → windeployqt →
-  Inno Setup 生成安装程序
+  Inno Setup 生成安装程序；Linux 侧对应 linuxdeploy → appimagetool 生成
+  AppImage
 - **符号自动归档**：按版本与提交归档 exe 与 PDB，崩溃转储事后可解析
 - **基础能力开箱可用**：单实例运行、崩溃捕获、日志系统（含界面日志面板与
   运行时格式开关）、配置管理、登录认证
@@ -30,6 +31,7 @@
 | CMake | ≥ 3.19；使用 `CMakePresets.json` 需 ≥ 3.26 |
 | Ninja | 随构建脚本使用 |
 | Inno Setup 6 | 生成安装程序，`3rdparty/` 内已附 |
+| linuxdeploy / appimagetool | 生成 AppImage（Linux），`3rdparty/` 内已附 |
 
 第三方库随仓库提供（spdlog、googletest、QCustomPlot、QXlsx），首次
 configure 时自动解压，无需另行下载。
@@ -96,6 +98,15 @@ scripts\build_ninja.bat -t relwithdebinfo -p
 ```
 
 `scripts\build_ninja.bat -h` 可查看全部参数。
+
+Linux 侧（AppImage）：
+
+```bash
+cmake --preset ninja-relwithdebinfo-x64
+cmake --build --preset ninja-relwithdebinfo-x64-build
+# 打 AppImage + 归档未 strip 的可执行文件到 dist/
+cmake --build --preset ninja-relwithdebinfo-x64-build --target make_appimage
+```
 
 ## 文档
 

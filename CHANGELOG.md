@@ -10,6 +10,18 @@
 
 ### 新增
 
+- **Linux 侧 AppImage 打包**：新增 `make_appimage` 目标与
+  `scripts/make_appimage.sh`（由 `cmake/make_appimage.sh.in` 生成，与
+  Windows 侧的 `make_installer.bat` 对应）。应用标识、版本号、图标全部由
+  顶层定制区注入，同 Windows 一样无需改脚本；产出的 AppImage 与未 strip 的
+  可执行文件分别落到 `dist/` 与 `dist/symbols/`
+- **打包工具随仓库提供**：`3rdparty/appimage-tools/` 内的 linuxdeploy /
+  linuxdeploy-plugin-qt / appimagetool（合计约 46 MiB），打包全程无需联网
+- `src/app/resources/icons/icon.png`：256×256 的 Linux 图标，由 `icon.ico`
+  的 PNG 帧提取而来
+- **Linux 崩溃子进程测试**：`tests/core/crashhandler_test.cpp` 新增三条真实
+  崩溃用例（SIGSEGV / SIGFPE / SIGABRT），覆盖此前零覆盖的 Linux 崩溃路径；
+  崩溃测试骨架（子进程入口与父进程断言）改为两平台共用
 - `.gitattributes`：钉死行尾约定。`.bat`/`.bat.in` 为 CRLF、`.sh`/`.sh.in`
   为 LF。此前该行为完全依赖各开发者本机的 `core.autocrlf`，而它不入库
 - `.clang-tidy`：静态分析规则，与 `.clangd` 配合在编辑器内实时提示
@@ -18,6 +30,11 @@
 
 ### 变更
 
+- `cmake/check_package_config.cmake` 增加可选入参 `PLATFORM`：Windows 与
+  Linux 的拒绝/告警理由不同（前者是调试版 C 运行时无法在用户机器启动，
+  后者是体积与调试符号的取舍），故分开措辞。省略该入参时行为与原先一致
+- `.gitignore` 放行 `3rdparty/appimage-tools/`，`.gitattributes` 将
+  `*.AppImage` 标记为二进制
 - 编译告警级别统一到 `/W4`：`demo_app` 此前用 MSVC 默认的 `/W3`，
   测试目标则未设置
 - 文件名改为 snake_case，并清理残留的 `ETEST_` 前缀头文件保护宏
@@ -27,6 +44,13 @@
 
 ### 修复
 
+- **`dist/` 未被忽略**：打包输出目录此前靠 `*.exe`/`*.pdb` 规则被动覆盖，
+  而 AppImage 与无扩展名的 Linux 符号文件不在任何扩展名规则内，打包后会
+  污染 `git status`。现整目录忽略
+- **Linux 崩溃日志完全未生成**：`LinuxCrashHandler` 在信号处理器里首次调用
+  `backtrace()`，而 glibc 的首次调用需要 dlopen libgcc_s 并做内存分配，两者
+  都不满足信号安全约束，在崩溃后的上下文里会失败。改为 `init()` 时预热一次
+  `backtrace()`。此前该缺陷无测试覆盖，故一直未被发现
 - 构建脚本中 `ETest_CMake_Path` 是死变量（从未赋值），展开后往 PATH
   追加空条目；Windows 上空条目意味着搜索当前目录
 - Debug 配置此前可以打包，但其产物依赖调试版 C 运行时（不在 VC++

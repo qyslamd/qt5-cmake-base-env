@@ -248,6 +248,11 @@ temp/
 local.cmake
 
 
+# 打包输出：安装程序 / AppImage 与归档的符号。Windows 侧的产物恰好被
+# *.exe / *.pdb 规则覆盖，而 AppImage 与无扩展名的 Linux 符号文件不在任何
+# 扩展名规则内，故整目录忽略
+dist/
+
 # 3rdparty - 只保留压缩包，忽略解压后的目录和散落文件
 3rdparty/*/
 !3rdparty/*.tar.gz
@@ -258,6 +263,9 @@ local.cmake
 !3rdparty/*.zip
 !3rdparty/cloc-2.06/
 !3rdparty/QCustomPlot/
+# AppImage 打包工具（linuxdeploy / appimagetool）。入库而非按需下载，因为
+# GitHub 的 release 资源 CDN 在国内网络下常常不可达，按需下载会直接失败。
+!3rdparty/appimage-tools/
 
 version.txt
 make_installer.bat

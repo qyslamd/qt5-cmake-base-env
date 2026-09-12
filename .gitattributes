@@ -38,6 +38,7 @@
 *.pdb      binary
 *.tar.gz   binary
 *.zip      binary
+*.AppImage binary
 
 # SVG 是文本格式，保留行尾归一化与可读的 diff
 *.svg text
