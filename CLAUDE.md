@@ -108,7 +108,9 @@ scripts/build_ninja.bat -t relwithdebinfo -m demo_app -p
 7. 回答问题的语气**禁止**阿谀奉承，不用故意谄媚，只说问题的解决办法和思路，切实中肯，言简意赅
 8. 不要每次改动之后都给我说百分百没问题！
 9. 使用spdlog编写日志的时候，**尽可能**使用我封装好的Logger类及其宏定义
-10. 禁止使用`powershell`编写脚本，使用 `pwsh` 语法来编写脚本，若`pwsh`脚本不行，请使用 `python`脚本。
+10. 关于脚本：
+    - 编写用户使用的脚本，请使用`powershell`或者`Command Prompt`，尤其是CMake的模板文件`xxxx.ps1.in`,`xxxx.bat.in`
+    - 编写AI Agent工具使用的脚本(这些脚本通常不纳入源代码管理，不被用户直接调用)，请使用 `pwsh` 的语法来编写脚本，若尝试了三次`pwsh`脚本不行，请使用 `python`脚本。
 11. 改动完成代码，编译无误之后，**禁止**直接提交代码！除非是使用git worktree方式。
 12. 严禁中代码中使用QObject::tr("")或者在QObject的派生类中使用 tr("")中文。
 13. git提交规则：
