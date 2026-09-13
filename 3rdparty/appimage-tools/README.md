@@ -3,6 +3,10 @@
 Linux 侧 AppImage 打包用的三个官方工具，**随仓库提供**，打包时无需联网。
 `scripts/make_appimage.sh`（由 CMake 生成）调用它们。
 
+文件按 `<工具>-<架构>.AppImage` 命名，架构名与 `APPIMAGE_ARCH`（由构建目标
+架构映射而来）同源；下面这一套是 **x86_64**。为其它架构打包时需要补齐对应的
+一套，脚本在前置检查里会指出缺哪个文件。
+
 | 文件 | 用途 | 版本 |
 | --- | --- | --- |
 | `linuxdeploy-x86_64.AppImage` | 铺 AppDir、收集依赖、驱动插件 | 1-alpha，build 368（2026-09-01） |

@@ -227,8 +227,37 @@ else() # 非 Windows：Linux 侧用 AppImage
     set(APPIMAGE_ICON_FILE
         "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/icon.png")
     set(APPIMAGE_DESKTOP_FILE "${APPIMAGE_WORK_DIR}/${APP_APP_NAME}.desktop")
-    # AppImage 的架构名要用 Linux 惯例（x86_64 / aarch64），不是 x64/x86
-    set(APPIMAGE_ARCH "${CMAKE_SYSTEM_PROCESSOR}")
+    # AppImage 的架构名要用 appimagetool 认识的写法（x86_64 / i686 / aarch64 /
+    # armhf），而 CMAKE_SYSTEM_PROCESSOR 在部分工具链下是 AMD64、arm64 之类，
+    # 故做一次映射。该值同时决定工具文件名（linuxdeploy-${APPIMAGE_ARCH}.AppImage），
+    # 使架构不一致时能被前置检查直接拦下
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64|x64)$")
+        set(APPIMAGE_ARCH "x86_64")
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+        set(APPIMAGE_ARCH "aarch64")
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(i[3-6]86|x86)$")
+        set(APPIMAGE_ARCH "i686")
+    else()
+        set(APPIMAGE_ARCH "${CMAKE_SYSTEM_PROCESSOR}")
+        message(WARNING
+            "未识别的架构 ${CMAKE_SYSTEM_PROCESSOR}，AppImage 将原样使用该名；"
+            "若 appimagetool 不认，请在顶层定制区之外自行映射")
+    endif()
+
+    # linuxdeploy 的 qt 插件靠 qmake 判断该打包哪套 Qt，必须与工程链接的是
+    # 同一套，否则可能打进系统里另一份 Qt。取 Qt5 包提供的 qmake 烘焙进脚本
+    if(TARGET Qt5::qmake)
+        get_target_property(QT_QMAKE_EXECUTABLE Qt5::qmake IMPORTED_LOCATION)
+    endif()
+    if(NOT QT_QMAKE_EXECUTABLE OR NOT EXISTS "${QT_QMAKE_EXECUTABLE}")
+        set(QT_QMAKE_EXECUTABLE "")
+        message(WARNING
+            "未定位到 qmake，打包脚本将交由 linuxdeploy 自行从 PATH 查找；"
+            "多套 Qt 共存时可能打进错误的一套，可导出 QMAKE 指定")
+    endif()
+
+    set(APPIMAGE_CHECK_SCRIPT
+        "${CMAKE_SOURCE_DIR}/cmake/check_package_config.cmake")
     set(APPIMAGE_BUILD_DIR "${CMAKE_BINARY_DIR}")
     set(APPIMAGE_OUTPUT_DIR "${PACKAGE_OUTPUT_DIR}")
     # 目录名与 Windows 侧同规则：版本号 + git 短 hash + 架构
@@ -237,9 +266,9 @@ else() # 非 Windows：Linux 侧用 AppImage
 
     # 工具或图标缺失只告警，不阻断 configure——不做 Linux 打包的构建不该因此失败
     foreach(_tool linuxdeploy linuxdeploy-plugin-qt appimagetool)
-        if(NOT EXISTS "${APPIMAGE_TOOLS_DIR}/${_tool}-x86_64.AppImage")
+        if(NOT EXISTS "${APPIMAGE_TOOLS_DIR}/${_tool}-${APPIMAGE_ARCH}.AppImage")
             message(WARNING
-                "未找到 ${_tool}-x86_64.AppImage，AppImage 打包不可用。"
+                "未找到 ${_tool}-${APPIMAGE_ARCH}.AppImage，AppImage 打包不可用。"
                 "见 3rdparty/appimage-tools/README.md")
         endif()
     endforeach()
@@ -283,13 +312,9 @@ else() # 非 Windows：Linux 侧用 AppImage
         DESTINATION share/icons/hicolor/256x256/apps
         RENAME "${APP_APP_NAME}.png")
 
-    # make_appimage target — 对应 Windows 侧的 make_package。构建配置校验复用
-    # 同一个脚本，仅入参区分平台
+    # make_appimage target — 对应 Windows 侧的 make_package。构建配置校验放在
+    # 脚本里（而非此处），这样直接调用脚本也拦得住 Debug 打包
     add_custom_target(make_appimage
-        COMMAND ${CMAKE_COMMAND}
-            -DBUILD_TYPE="$<CONFIG>"
-            -DPLATFORM=LINUX
-            -P "${CMAKE_SOURCE_DIR}/cmake/check_package_config.cmake"
         COMMAND "${CMAKE_SOURCE_DIR}/scripts/make_appimage.sh"
         WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
         COMMENT "Building AppImage (${APPIMAGE_ARCH})..."

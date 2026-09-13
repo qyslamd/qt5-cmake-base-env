@@ -248,6 +248,11 @@ temp/
 local.cmake
 
 
+# Linux 打包脚本：由每次 configure 重新生成，且烘焙了本机的构建目录与工具
+# 路径。Windows 侧的 .bat/.iss 虽然同样由 configure 生成但沿用了入库的约定，
+# 这一份不入库——换台机器路径就不对了
+scripts/make_appimage.sh
+
 # 打包输出：安装程序 / AppImage 与归档的符号。Windows 侧的产物恰好被
 # *.exe / *.pdb 规则覆盖，而 AppImage 与无扩展名的 Linux 符号文件不在任何
 # 扩展名规则内，故整目录忽略
