@@ -10,3 +10,23 @@ endif()
 
 set(Qt5_DIR "${Qt5_12_x_Path}/lib/cmake/Qt5")
 set(QT_DIR "${Qt5_12_x_Path}/lib/cmake/Qt5")
+
+# qt-libui 外部库的安装前缀。库按「架构-构建类型」分目录安装：
+# 静态库的 CRT（MD/MDd）不能混用，Debug 链接会直接 LNK1319 失败，
+# 故 debug 与 relwithdebinfo 各装一份；Release 与 RelWithDebInfo 同为
+# /MD，共用 relwithdebinfo 一份
+set(QtLibUi_Root "D:/sb/sdk/qt-libui")
+
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set(QtLibUi_Arch "x64")
+else()
+    set(QtLibUi_Arch "x86")
+endif()
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(QtLibUi_Config "debug")
+else()
+    set(QtLibUi_Config "relwithdebinfo")
+endif()
+
+set(qt-libui_DIR "${QtLibUi_Root}/${QtLibUi_Arch}-${QtLibUi_Config}/lib/cmake/qt-libui")

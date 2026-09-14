@@ -24,9 +24,9 @@ set(APP_APP_NAME "${PROJECT_NAME_STR}")
 # 项目主页 / 支持地址，写入安装包的发行者链接；留空则不显示链接。
 set(APP_URL "")
 
-# 各 CMake 目标名的前缀。core / libui / app 子目录的 TARGET_NAME 均由此
-# 拼出，得到 <前缀>_core / <前缀>_libui / <前缀>_app，同时决定 exe 文件名、
-# 运行脚本名与打包脚本中的目标名。
+# 各 CMake 目标名的前缀。core / app 子目录的 TARGET_NAME 均由此拼出，
+# 得到 <前缀>_core / <前缀>_app，同时决定 exe 文件名、运行脚本名与
+# 打包脚本中的目标名。
 set(APP_TARGET_PREFIX "demo")
 
 # 安装包产品标识（Inno Setup 的 AppId），x64 与 x86 各一个。
@@ -158,6 +158,17 @@ find_package(Qt5 COMPONENTS
     Core Gui Widgets PrintSupport Test Xml Svg Network Concurrent Sql SerialPort OpenGL
     CONFIG REQUIRED)
 
+# qt-libui 外部库（原 src/libui，已抽为独立仓库）。位置由 local.cmake 提供，
+# 不加 REQUIRED：失败时在这里给可读提示，而不是 CMake 默认报错。
+# Linux 侧 local.cmake 不生效，用 -DCMAKE_PREFIX_PATH 指向安装前缀
+find_package(qt-libui CONFIG)
+if(NOT qt-libui_FOUND)
+    message(FATAL_ERROR
+        "qt-libui not found. 请先构建并安装 qt-libui 仓库，并在 local.cmake "
+        "的 QtLibUi_Root 填写安装前缀；Linux 侧改用 "
+        "-DCMAKE_PREFIX_PATH=<安装前缀> 指定")
+endif()
+
 # Qt 运行时目录推导仅服务 Windows 消费方（run_app.bat、测试环境变量）。
 # qmake 按定义位于 Qt 安装的 bin 目录下，由它反推最直接；不要在各子目录
 # 另起一套推导，否则改动假设时容易漏改。
@@ -190,14 +201,8 @@ add_subdirectory(3rdparty/QXlsx-1.5.0/QXlsx)
 # 本仓库模块
 #-------------------------------------------------------------------------------
 
-# src 下的各模块（core / libui / app）
+# src 下的各模块（core / app）
 add_subdirectory(src)
-
-# 示例程序：演示 libui 部件与若干自绘技术，供使用者参考
-option(BUILD_EXAMPLES "Build widget examples" ON)
-if(BUILD_EXAMPLES)
-    add_subdirectory(examples)
-endif()
 
 # 单元测试（仅在配置了 BUILD_TESTS 时启用）
 option(BUILD_TESTS "Build unit tests" ON)

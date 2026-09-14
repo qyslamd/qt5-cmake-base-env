@@ -585,6 +585,8 @@ QTabBar::tab {
 }
 
 /* ========== SplashScreen（启动画面） ========== */
+/* 跨仓契约：下列 objectName 由 qt-libui 的 SplashScreen 设置（见其
+   splash_screen.cpp）。改名前请同步确认该库未改名，否则此处样式静默失效 */
 #splashContent {
   background: white;
   border: 1px solid #D0D0D0;

@@ -62,7 +62,7 @@ target_include_directories(${TARGET_NAME}
 
 target_link_libraries(${TARGET_NAME} PRIVATE
     ${APP_TARGET_PREFIX}_core
-    ${APP_TARGET_PREFIX}_libui
+    qt-libui::libui
     qcustomplot
     Qt5::Widgets
     Qt5::Core
@@ -76,7 +76,7 @@ set_target_properties(${TARGET_NAME} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
-# 编译选项与 core / libui 保持一致：MSVC 默认只有 /W3，界面层同样需要 /W4
+# 编译选项与 core 保持一致：MSVC 默认只有 /W3，界面层同样需要 /W4
 if(MSVC)
     target_compile_options(${TARGET_NAME} PRIVATE /W4 /WX- /EHsc)
 endif()

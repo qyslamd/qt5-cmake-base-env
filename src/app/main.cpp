@@ -3,6 +3,8 @@
 #include <QFile>
 #include <QIcon>
 
+#include <qt-libui/splash_screen.h>
+
 #include "AppInfo.h"
 #include "AppVersion.h"
 #include "auth/auth_service.h"
@@ -14,7 +16,6 @@
 #include "dialogs/login_dialog.h"
 #include "logger/logger.h"
 #include "mainwindow.h"
-#include "splash_screen.h"
 
 int main(int argc, char* argv[]) {
   QApplication app(argc, argv);
@@ -73,6 +74,8 @@ int main(int argc, char* argv[]) {
   // processEvents 保证进度条实时刷新；模板使用者可在步骤之间加入
   // 自己的耗时初始化逻辑，Splash 无需感知主窗口内部结构。
   SplashScreen splash;
+  // logo 由消费方提供（库不携带资源），用应用图标
+  splash.setLogo(QIcon(":/resources/icons/icon.ico"));
   splash.show();
   QCoreApplication::processEvents();
 

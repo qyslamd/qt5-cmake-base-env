@@ -30,6 +30,18 @@
 
 ### 变更
 
+- **通用 UI 部件抽为独立库**：`src/libui`（40 文件 / 3196 行）与
+  `examples/libui_gallery` 迁出本仓，成为独立仓库 `qt-libui`，本仓改为
+  通过 `find_package(qt-libui CONFIG)` 引用。依赖该库的目标名由
+  `demo_libui` 变为 `qt-libui::libui`，头文件包含改为
+  `<qt-libui/...>` 前缀形式
+- **使用前需先安装 qt-libui**：本机位置写在 `local.cmake` 的
+  `QtLibUi_Root`；库按「架构-构建类型」分目录安装（静态库的 CRT 不能
+  跨 MD/MDd 混用，Debug 会直接链接失败），`local.cmake` 据此拼出
+  `qt-libui_DIR`。Linux 侧无 `local.cmake`，改用 `-DCMAKE_PREFIX_PATH`
+- `SplashScreen` 的 logo 改由消费方经 `setLogo()` 传入（该库不再假设
+  调用方提供了某个资源路径）
+- 顶层 `BUILD_EXAMPLES` 选项与 `examples/` 目录一并移除
 - `cmake/check_package_config.cmake` 增加可选入参 `PLATFORM`：Windows 与
   Linux 的拒绝/告警理由不同（前者是调试版 C 运行时无法在用户机器启动，
   后者是体积与调试符号的取舍），故分开措辞。省略该入参时行为与原先一致
