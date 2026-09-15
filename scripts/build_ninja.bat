@@ -139,7 +139,9 @@ echo   -c, --configure           Only run CMake configure, skip build
 echo   -h, --help                Show this help
 echo.
 echo Architecture notes:
-echo   VS2019_CMD_DIR should point to the directory containing vcvars64.bat and vcvars32.bat
+echo   VS2019 is auto-detected via vswhere when VS2019_CMD_DIR is not set.
+echo   Set VS2019_CMD_DIR to override, pointing to the directory containing
+echo   vcvars64.bat and vcvars32.bat.
 echo.
 echo Examples:
 echo   build_ninja.bat
@@ -161,17 +163,33 @@ if /i not "%ARCH%"=="x64" if /i not "%ARCH%"=="x86" (
     exit /b 1
 )
 
-:: Init vcvars env for the chosen arch
-if not defined VS2019_CMD_DIR (
-    echo VS2019_CMD_DIR env var not set.
-    echo Set it to the directory containing vcvars64.bat and vcvars32.bat.
+:: Init vcvars env for the chosen arch.
+:: VS2019_CMD_DIR takes priority (explicit override); otherwise
+:: auto-detect VS2019 via vswhere shipped with the VS Installer.
+set "VCVARS_DIR="
+if defined VS2019_CMD_DIR (
+    set "VCVARS_DIR=%VS2019_CMD_DIR%"
+) else (
+    call :find_vs2019
+)
+
+if not defined VCVARS_DIR (
+    echo VS2019 not found.
+    echo Set VS2019_CMD_DIR to the directory containing vcvars64.bat and vcvars32.bat.
     exit /b 1
 )
 
-if /i "%ARCH%"=="x86" (
-    call "%VS2019_CMD_DIR%\vcvars32.bat"
-) else (
-    call "%VS2019_CMD_DIR%\vcvars64.bat"
+set "VCVARS=%VCVARS_DIR%\vcvars64.bat"
+if /i "%ARCH%"=="x86" set "VCVARS=%VCVARS_DIR%\vcvars32.bat"
+if not exist "%VCVARS%" (
+    echo vcvars script not found: "%VCVARS%"
+    exit /b 1
+)
+
+call "%VCVARS%"
+if errorlevel 1 (
+    echo Failed to initialize VS2019 %ARCH% environment.
+    exit /b 1
 )
 
 if "%BUILD_TYPE%"=="" set "BUILD_TYPE=debug"
@@ -246,3 +264,20 @@ if /i "%ACTION%"=="package" (
     )
     echo Package done!
 )
+
+exit /b 0
+
+:: =======================================
+:: Auto-detect VS2019 via vswhere.
+:: Sets VCVARS_DIR on success, leaves it
+:: empty on failure.
+:: =======================================
+:find_vs2019
+set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+if not exist "%VSWHERE%" exit /b 1
+
+for /f "usebackq tokens=*" %%I in (`call "%VSWHERE%" -version "[16.0,17.0)" -property installationPath -products *`) do (
+    rem keep the first match only, avoid being overwritten by later ones
+    if not defined VCVARS_DIR set "VCVARS_DIR=%%I\VC\Auxiliary\Build"
+)
+exit /b 0
