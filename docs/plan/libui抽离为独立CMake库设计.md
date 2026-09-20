@@ -1,5 +1,14 @@
 # libui 抽离为独立 CMake 库 设计文档
 
+> **后续变更（2026-09-20）**：本仓对 `qt-libui` 的引用方式已从
+> `find_package` 改为 **git submodule 源码内嵌**（`external/qt-libui`，
+> 顶层 `add_subdirectory`）。因此本文中关于 `local.cmake` 的
+> `QtLibUi_Root`、按「架构-构建类型」分目录安装（决策 D3）、CRT 不可混用
+> 的约束及相关判断**均已作废**；库侧为此去掉了「假定自己是顶层项目」的
+> 三处写法。抽离本身（目录布局、目标名 `qt-libui::libui`、头文件
+> `include/qt-libui/` 前缀、SplashScreen 契约）仍然有效，本文保留作为
+> 当时的决策记录。
+
 > 状态：已根据三轮 subagent 审查修订（2026-09-14）。
 >
 > 第一轮：事实错误 3 处（find_package 论据、提交数、行数口径）、技术缺陷

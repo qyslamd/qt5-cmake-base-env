@@ -158,17 +158,6 @@ find_package(Qt5 COMPONENTS
     Core Gui Widgets PrintSupport Test Xml Svg Network Concurrent Sql SerialPort OpenGL
     CONFIG REQUIRED)
 
-# qt-libui 外部库（原 src/libui，已抽为独立仓库）。位置由 local.cmake 提供，
-# 不加 REQUIRED：失败时在这里给可读提示，而不是 CMake 默认报错。
-# Linux 侧 local.cmake 不生效，用 -DCMAKE_PREFIX_PATH 指向安装前缀
-find_package(qt-libui CONFIG)
-if(NOT qt-libui_FOUND)
-    message(FATAL_ERROR
-        "qt-libui not found. 请先构建并安装 qt-libui 仓库，并在 local.cmake "
-        "的 QtLibUi_Root 填写安装前缀；Linux 侧改用 "
-        "-DCMAKE_PREFIX_PATH=<安装前缀> 指定")
-endif()
-
 # Qt 运行时目录推导仅服务 Windows 消费方（run_app.bat、测试环境变量）。
 # qmake 按定义位于 Qt 安装的 bin 目录下，由它反推最直接；不要在各子目录
 # 另起一套推导，否则改动假设时容易漏改。
@@ -196,6 +185,16 @@ add_subdirectory(3rdparty/QCustomPlot)
 
 # QXlsx Excel读写库
 add_subdirectory(3rdparty/QXlsx-1.5.0/QXlsx)
+
+#-------------------------------------------------------------------------------
+# 外部源码仓库（git submodule）
+#-------------------------------------------------------------------------------
+
+# qt-libui 通用 UI 部件。以 submodule 引入并源码内嵌，随本仓一次构建：
+# 库内按「非顶层构建」处理——不读它自己的 local.cmake（Qt 由本仓解析）、
+# 不编 gallery 示例、不登记 install 规则，只提供 qt-libui::libui 目标。
+# 克隆本仓后若该目录为空，先执行 git submodule update --init --recursive
+add_subdirectory(external/qt-libui)
 
 #-------------------------------------------------------------------------------
 # 本仓库模块

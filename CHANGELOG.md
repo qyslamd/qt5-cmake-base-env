@@ -32,13 +32,15 @@
 
 - **通用 UI 部件抽为独立库**：`src/libui`（40 文件 / 3196 行）与
   `examples/libui_gallery` 迁出本仓，成为独立仓库 `qt-libui`，本仓改为
-  通过 `find_package(qt-libui CONFIG)` 引用。依赖该库的目标名由
+  引用外部库（机制随后改为 submodule 源码内嵌，见下条）。目标名由
   `demo_libui` 变为 `qt-libui::libui`，头文件包含改为
   `<qt-libui/...>` 前缀形式
-- **使用前需先安装 qt-libui**：本机位置写在 `local.cmake` 的
-  `QtLibUi_Root`；库按「架构-构建类型」分目录安装（静态库的 CRT 不能
-  跨 MD/MDd 混用，Debug 会直接链接失败），`local.cmake` 据此拼出
-  `qt-libui_DIR`。Linux 侧无 `local.cmake`，改用 `-DCMAKE_PREFIX_PATH`
+- **qt-libui 改为 submodule 源码内嵌**：`external/qt-libui` 以 git
+  submodule 引入，随本仓一次编译，无需预先构建安装。`local.cmake` 的
+  `QtLibUi_Root` 与「按架构-构建类型分目录安装」的约定（为规避静态库
+  CRT 跨 MD/MDd 混用）随之作废；Linux 侧不再需要额外指定安装前缀。
+  克隆时需 `git clone --recursive`，或事后
+  `git submodule update --init --recursive`
 - `SplashScreen` 的 logo 改由消费方经 `setLogo()` 传入（该库不再假设
   调用方提供了某个资源路径）
 - 顶层 `BUILD_EXAMPLES` 选项与 `examples/` 目录一并移除
