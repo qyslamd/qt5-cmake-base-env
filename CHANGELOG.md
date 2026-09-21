@@ -10,6 +10,14 @@
 
 ### 新增
 
+- **funq 手动分离运行示例 `examples/funq/`**：两个终端各起一边，把 funq 的
+  server 侧与 client 侧摆开——终端 1 起 `demo_app` 并注入 `libFunq`，终端 2
+  只连一条 TCP。客户端脚本七步走完「连上 → 认登录界面 → 输错密码断言提示 →
+  换对密码进主窗口 → 触发菜单打开设置 → 读写一个数值 → 收尾」，每步打印它
+  看到了什么。演示用本仓自己的 `demo_app` 而不是 gallery：控件都有
+  `objectName`，路径可从源码推；同时暴露了两个真坑——开模态对话框的动作必须
+  `trigger(blocking=False)`，以及 `setParent` 会让 funq 的兄弟序号与添加顺序
+  相反（设置对话框那两个没有 objectName 的页面正好撞上）
 - **Linux / WSL 构建入口 `scripts/build_ninja.sh`**：与 Windows 侧的
   `scripts/build_ninja.bat` 同一套参数（`-t` / `-m` / `-p` / `-c` / `-h`
   以及旧式位置参数），qt-libui 仓内亦有对应的一份。与 .bat 有两处刻意
@@ -64,6 +72,11 @@
 
 ### 变更
 
+- **设置对话框的两个页面补上 `objectName`**（`settingsPageLog` /
+  `settingsPageLogFormat`）。页面原本是裸 `QWidget`，funq 只能退回「类名 +
+  同名兄弟的序号」定位，而那个序号与添加顺序**相反**——`setParent` 会把子
+  对象插到 `children()` 列表前面，页面又是先 `new` 再 `addWidget` reparent
+  进去的，实测「日志」页反而叫 `QWidget-1`，路径无法从源码推
 - **funq 不再查找 Qt Quick**（`patches/funq/0006`）：上游把它写成
   `OPTIONAL_COMPONENTS Quick`，但 Qt5 的 `Qt5Config.cmake` 是按包级
   REQUIRED 逐个组件去查找的，根本不看 CMake 为可选组件写下的

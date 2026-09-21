@@ -82,6 +82,7 @@ external/   外部源码仓库（git submodule）：qt-libui 通用 UI 部件
 cmake/      构建脚本模块（版本、运行脚本、测试宏、符号归档、打包）
 scripts/    构建与打包入口脚本
 tests/      单元测试
+examples/   funq 手动分离运行示例（两个终端各起一边）
 docs/       文档
 config/     随构建拷贝到输出目录的配置样例
 ```
@@ -133,6 +134,7 @@ Windows 侧的 `build/ninja-<类型>-<架构>` 分开——WSL 与 Windows 常�
 | [发布指南](docs/guide/发布指南.md) | 打 tag、逐架构打包、产物说明、常见问题 |
 | [构建配置与崩溃排查](docs/guide/构建配置与崩溃排查.md) | 各构建配置的差异、符号归档与崩溃转储解析 |
 | [funq 注入式 UI 测试](docs/guide/funq注入式UI测试.md) | 零侵入的界面回归：注入被测进程、用 Python 写用例、控件路径怎么查 |
+| [funq 手动分离运行示例](examples/funq/README.md) | 两个终端各起一边，拿本仓的 demo_app 走一遍 funq 的 server / client 分工 |
 
 ## 许可证
 

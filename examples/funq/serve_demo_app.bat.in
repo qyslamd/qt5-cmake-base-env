@@ -1,0 +1,19 @@
+@echo off
+rem 终端 1 —— server 侧。
+rem
+rem 起 demo_app 并把 libFunq 注入进去（Windows 走 CreateRemoteThread +
+rem LoadLibrary），libFunq 在被测进程里开一个 TCP 服务等着客户端连。
+rem
+rem 这个窗口会被占住：runner 启动完被测程序就一直 wait 着它。Ctrl+C 结束，
+rem 被测程序也跟着结束。
+rem
+rem 本文件由 CMake 生成到构建目录，不入库。
+
+set "PATH=@QT_BIN_DIR@;%PATH%"
+set "PYTHONPATH=@FUNQ_CLIENT_DIR@;@FUNQ_SERVER_DIR@;%PYTHONPATH%"
+
+echo demo_app 即将启动并被注入，libFunq 监听 localhost:@FUNQ_DEMO_PORT@
+echo 另一个终端跑 run_demo_client 接上它。Ctrl+C 结束。
+echo.
+
+"@PYTHON_EXECUTABLE@" -m funq_server.runner --port @FUNQ_DEMO_PORT@ "@DEMO_APP_EXE@"

@@ -89,6 +89,11 @@ void SettingsDialog::addCategoryPage(const QString& name, QWidget* page) {
 
 QWidget* SettingsDialog::createLogPage() {
   auto* page = new QWidget(this);
+  // 页面必须设 objectName。funq 的控件路径靠它定位，没有就退回「类名 +
+  // 同名兄弟的序号」，而序号按 children() 顺序数——这些页面是先 new 出来、
+  // 再被 addWidget reparent 进去的，setParent 会把子对象插到列表前面，
+  // 序号与添加顺序正好相反（实测「日志」页成了 QWidget-1，路径没法推）
+  page->setObjectName(QStringLiteral("settingsPageLog"));
   auto* layout = new QVBoxLayout(page);
   layout->setContentsMargins(20, 16, 20, 16);
   layout->setSpacing(12);
@@ -130,6 +135,8 @@ QWidget* SettingsDialog::createLogPage() {
 
 QWidget* SettingsDialog::createLogFormatPage() {
   auto* page = new QWidget(this);
+  // 同上：objectName 是 funq 定位控件的依据
+  page->setObjectName(QStringLiteral("settingsPageLogFormat"));
   auto* layout = new QVBoxLayout(page);
   layout->setContentsMargins(20, 16, 20, 16);
   layout->setSpacing(12);
