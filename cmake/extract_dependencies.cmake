@@ -10,6 +10,8 @@ set(DEPENDENCY_ARCHIVES
     "spdlog-1.17.0.tar.gz"
     "Inno Setup 6.zip"
     "QXlsx-1.5.0.tar.gz"
+    "funq-master.tar.gz"
+    "QtTesting.tar.gz"
 )
 
 # 检测tar解压命令是否可用

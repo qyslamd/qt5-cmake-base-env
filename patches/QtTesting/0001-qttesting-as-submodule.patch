@@ -1,0 +1,81 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 436662a..fd71546 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -2,6 +2,8 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.12)
+ 
+ PROJECT(QtTesting)
+ 
++set(QtTesting_QT_VERSION "5" CACHE STRING "Compile QtTesting use Qt5" FORCE)
++
+ IF(NOT DEFINED QtTesting_QT_VERSION)
+   SET(QtTesting_QT_VERSION "6" CACHE STRING "Expected Qt version")
+   MARK_AS_ADVANCED(QtTesting_QT_VERSION)
+@@ -13,7 +15,30 @@ IF(NOT (QtTesting_QT_VERSION VERSION_EQUAL "5" OR
+ ENDIF()
+ 
+ set(qt_imported_targets)
+-FIND_PACKAGE(Qt${QtTesting_QT_VERSION} REQUIRED COMPONENTS Core Widgets Gui)
++
++# make qt target names
++set(_qt_targets
++    Qt${QtTesting_QT_VERSION}::Core
++    Qt${QtTesting_QT_VERSION}::Widgets
++    Qt${QtTesting_QT_VERSION}::Gui
++)
++
++set(_qt_need_find FALSE)
++foreach(_t IN LISTS _qt_targets)
++    if(NOT TARGET "${_t}")
++        set(_qt_need_find TRUE)
++        break()
++    endif()
++endforeach()
++
++if(_qt_need_find)
++    find_package(Qt${QtTesting_QT_VERSION} REQUIRED COMPONENTS Core Widgets Gui)
++endif()
++
++unset(_qt_targets)
++unset(_qt_need_find)
++unset(_t)
++
+ SET(qt_imported_targets Qt${QtTesting_QT_VERSION}::Core Qt${QtTesting_QT_VERSION}::Widgets Qt${QtTesting_QT_VERSION}::Gui)
+ 
+ IF(NOT DEFINED QT_TESTING_WITH_PYTHON)
+@@ -90,10 +115,6 @@ set(ui_files
+ set(rc_files
+   Resources/QtTesting.qrc)
+ 
+-set(CMAKE_AUTOMOC 1)
+-set(CMAKE_AUTOUIC 1)
+-set(CMAKE_AUTORCC 1)
+-
+ SET(QtTesting_SOURCES
+   pq3DViewEventPlayer.cxx
+   pq3DViewEventTranslator.cxx
+@@ -268,8 +289,14 @@ else ()
+   target_compile_definitions(qttesting PRIVATE QT_NO_KEYWORDS)
+ 
+   # Set library name to include custom prefixes/suffixes.
+-  set_property(TARGET qttesting
+-    PROPERTY OUTPUT_NAME ${QT_TESTING_CUSTOM_LIBRARY_PREFIX}qttesting${QT_TESTING_CUSTOM_LIBRARY_SUFFIX})
++  set_target_properties(qttesting PROPERTIES
++    AUTOMOC ON
++    AUTOUIC ON
++    AUTORCC ON
++    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
++    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
++    OUTPUT_NAME ${QT_TESTING_CUSTOM_LIBRARY_PREFIX}qttesting${QT_TESTING_CUSTOM_LIBRARY_SUFFIX}
++    )
+ 
+   TARGET_LINK_LIBRARIES(qttesting PRIVATE
+     ${qt_imported_targets}
+@@ -307,6 +334,7 @@ IF(BUILD_TESTING)
+   add_subdirectory(Testing)
+ ENDIF()
+ 
++set(QtTesting_INSTALL_NO_DEVELOPMENT TRUE CACHE BOOL "..." FORCE)
+ IF(NOT QtTesting_INSTALL_NO_DEVELOPMENT)
+   export(TARGETS qttesting FILE ${QtTesting_BINARY_DIR}/QtTestingExports.cmake)
+ 

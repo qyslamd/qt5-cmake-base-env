@@ -112,6 +112,9 @@ if (EXISTS "cmake/extract_dependencies.cmake")
     include(cmake/extract_dependencies.cmake)
 endif()
 
+# 对解压出来的第三方源码应用补丁（详见 cmake/patch_dependencies.cmake）
+include(cmake/patch_dependencies.cmake)
+
 # 运行脚本生成宏（configure_run_script），供 app 与 tests 使用
 include(cmake/run_app.cmake)
 
@@ -185,6 +188,13 @@ add_subdirectory(3rdparty/QCustomPlot)
 
 # QXlsx Excel读写库
 add_subdirectory(3rdparty/QXlsx-1.5.0/QXlsx)
+
+# QtTesting GUI测试库
+add_subdirectory(3rdparty/QtTesting)
+
+# funq GUI测试库：归档与解压登记已就位，但尚未接入构建，
+# 启用时取消下面一行的注释
+# add_subdirectory(3rdparty/funq-master/server)
 
 #-------------------------------------------------------------------------------
 # 外部源码仓库（git submodule）

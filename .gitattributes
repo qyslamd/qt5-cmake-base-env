@@ -25,6 +25,12 @@
 *.bat.in text eol=crlf
 *.sh.in  text eol=lf
 
+# 补丁文件：钉死为 LF。git apply 按行匹配上下文，行尾必须确定，
+# 否则同一份补丁在不同平台上检出的行尾不同，能否应用就成了运气。
+# 注意补丁的目标（3rdparty 下解压出的源码）是 CRLF，与这里的 LF 不一致；
+# 实测 git apply 能容忍这种差异，但那是它的实现细节，不能当作约定依赖
+*.patch text eol=lf
+
 # 二进制文件：禁用行尾转换与差异比较（转换会破坏内容）
 *.ico      binary
 *.png      binary
