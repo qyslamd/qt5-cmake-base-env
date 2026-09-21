@@ -2,6 +2,7 @@
 #include <QDialog>
 #include <QFile>
 #include <QIcon>
+#include <QTimer>
 
 #include <qt-libui/splash_screen.h>
 
@@ -16,6 +17,9 @@
 #include "dialogs/login_dialog.h"
 #include "logger/logger.h"
 #include "mainwindow.h"
+#ifdef APP_ENABLE_QT_TESTING
+#include "qttesting/testing_support.h"
+#endif
 
 int main(int argc, char* argv[]) {
   QApplication app(argc, argv);
@@ -26,11 +30,23 @@ int main(int argc, char* argv[]) {
   app.setWindowIcon(QIcon(":/resources/icons/icon.ico"));
   app.setApplicationVersion(getProjectVersionAll());
 
+  // UI 测试回放入口：--play <脚本>（详见 src/app/qttesting/ui_test_support.h）
+  QString ui_test_script;
+  {
+    const QStringList app_args = QCoreApplication::arguments();
+    const int play_index = app_args.indexOf(QStringLiteral("--play"));
+    if (play_index >= 0 && play_index + 1 < app_args.size()) {
+      ui_test_script = app_args.at(play_index + 1);
+    }
+  }
+
   // 单实例检测：appKey 随 applicationName 走，互斥体名由 CMake 提供
   // （与安装脚本同源），第二实例转发参数后退出
   SingleInstance single_instance(QCoreApplication::applicationName(),
                                  QString::fromLatin1(APP_MUTEX_NAME));
-  if (single_instance.isAppAlreadyRunning()) {
+  // 回放模式不与已运行的实例串门：否则会被当成第二实例转发参数后直接以 0
+  // 退出，ctest 看到的是"通过"，而脚本一个事件都没跑
+  if (ui_test_script.isEmpty() && single_instance.isAppAlreadyRunning()) {
     single_instance.connectToExistingInstance(QCoreApplication::arguments());
     return 0;
   }
@@ -59,16 +75,23 @@ int main(int argc, char* argv[]) {
     LOG_INFO("MAIN", "崩溃捕获模块初始化完成");
   }
 
-  // 登录成功前不创建主窗口
-  LoginDialog login;
-  if (login.exec() != QDialog::Accepted) {
-    LOG_INFO("MAIN", "未登录，退出程序");
-    GlobalExceptionHandler::instance().shutdown();
-    Logger::shutdown();
-    return 0;
+  // 登录成功前不创建主窗口。回放模式跳过登录：录制入口在主窗口菜单里，
+  // 也就是录制总是从「已登录」状态开始；回放只有从同一状态起步，脚本里
+  // 记录的控件才存在
+  if (ui_test_script.isEmpty()) {
+    LoginDialog login;
+    if (login.exec() != QDialog::Accepted) {
+      LOG_INFO("MAIN", "未登录，退出程序");
+      GlobalExceptionHandler::instance().shutdown();
+      Logger::shutdown();
+      return 0;
+    }
+    LOG_INFO("MAIN", "登录成功，当前用户: {}",
+             AuthService::instance().currentUser().user_name_.toStdString());
+  } else {
+    LOG_INFO("MAIN", "UI 测试回放模式，跳过登录: {}",
+             ui_test_script.toStdString());
   }
-  LOG_INFO("MAIN", "登录成功，当前用户: {}",
-           AuthService::instance().currentUser().user_name_.toStdString());
 
   // 启动阶段：Splash 覆盖主界面创建过程。各步骤之间插入
   // processEvents 保证进度条实时刷新；模板使用者可在步骤之间加入
@@ -108,6 +131,26 @@ int main(int argc, char* argv[]) {
   splash.finish();
 
   w.show();
+
+#ifdef APP_ENABLE_QT_TESTING
+  // 该对象随主窗口一起析构；回放模式下不挂菜单（没人点），改为立即回放
+  auto* ui_test = new UiTestSupport(&w);
+  if (ui_test_script.isEmpty()) {
+    // BUILD_QT_TESTING 打开的构建带「测试 → 录制/回放」菜单
+    ui_test->attachMenu(&w);
+  } else {
+    // 窗口已显示再回放，事件才有落点；播完即退出，退出码就是测试结果
+    QTimer::singleShot(0, &w, [ui_test, ui_test_script]() {
+      const bool played = ui_test->playFile(ui_test_script);
+      QCoreApplication::exit(played ? 0 : 1);
+    });
+  }
+#else
+  if (!ui_test_script.isEmpty()) {
+    LOG_WARN("MAIN", "--play 需要 BUILD_QT_TESTING=ON 的构建，已忽略: {}",
+             ui_test_script.toStdString());
+  }
+#endif
 
   // 第二实例请求激活：Windows 在 SingleInstance 内走 HWND 置前，
   // 其余平台依赖本信号完成 Qt 层的显示与激活

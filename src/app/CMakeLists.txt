@@ -41,6 +41,16 @@ set(TARGET_SRCS
     log_output_panel.h
     )
 
+# UI 测试录制/回放（QtTesting）：仅 BUILD_QT_TESTING 打开的构建包含这部分。
+# 开关见顶层 CMakeLists.txt
+if(BUILD_QT_TESTING)
+    list(APPEND TARGET_SRCS
+        qttesting/testing_support.cpp
+        qttesting/testing_support.h
+        qttesting/qttesting_xml.h
+        )
+endif()
+
 add_executable(${TARGET_NAME} WIN32 ${TARGET_SRCS})
 
 #=======================================
@@ -68,6 +78,12 @@ target_link_libraries(${TARGET_NAME} PRIVATE
     Qt5::Core
     Qt5::Gui
 )
+
+# 编译期开关：main.cpp 据此决定是否接线 UI 测试（菜单与 --play）
+if(BUILD_QT_TESTING)
+    target_link_libraries(${TARGET_NAME} PRIVATE qttesting)
+    target_compile_definitions(${TARGET_NAME} PRIVATE APP_ENABLE_QT_TESTING)
+endif()
 
 set_target_properties(${TARGET_NAME} PROPERTIES
     AUTOMOC ON

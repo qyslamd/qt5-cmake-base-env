@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  UI 回放冒烟脚本：不含任何事件。
+
+  它验证的是回放链路本身——demo_app 能带 --play 启动、QtTesting 能装载
+  脚本、播完能按结果退出。真实的回归脚本用「测试 → 录制事件」录出来后
+  放到本目录，文件名自取，并在 tests/app/CMakeLists.txt 里登记一条 add_test。
+
+  事件格式（录制端产出，回放端解析见 src/app/qttesting/qttesting_xml.h）：
+    动作事件：<event widget="/对象名路径" command="set_string" arguments="文本"/>
+    校验事件：<event widget="/对象名路径" property="checked" arguments="true"/>
+-->
+<events>
+</events>

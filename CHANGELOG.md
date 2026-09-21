@@ -27,6 +27,15 @@
 - `.clang-tidy`：静态分析规则，与 `.clangd` 配合在编辑器内实时提示
 - `README.md`：仓库入口，含特性、环境要求、快速开始与文档索引
 - 发布流程文档与 `CHANGELOG.md`
+- **UI 测试接入（QtTesting）**：新增 `BUILD_QT_TESTING` 开关（默认 ON，各构建
+  类型通用；QtTesting 是静态库，开了会整套链进 exe，准备发布包时可关掉）。
+  带该开关的构建在主窗口挂出「测试 → 录制事件/回放事件」菜单；回放走
+  `demo_app --play <脚本>`，播完按结果设退出码，可直接接进 ctest。回放模式
+  跳过登录：录制入口在主窗口菜单里，录制总是从已登录状态开始，回放需从同一
+  状态起步。接线代码在 `src/app/qttesting/`，`tests/app/` 下有一条冒烟用例
+- `qttesting_xml.h` 的校验事件回放补齐：上游 `Examples/TestingDemo.cxx` 的源端
+  只读 `command` 并把事件类型写死为动作事件，导致录下的校验事件回放时既不带
+  命令也不报错。现按 `property` 属性对称解析，还原成 CHECK_EVENT
 
 ### 变更
 
