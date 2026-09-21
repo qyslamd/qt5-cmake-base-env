@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul
 rem 终端 2 —— client 侧。
 rem
 rem 只连 TCP、只发消息，不启动任何程序、也不需要 Qt 的 DLL 路径。

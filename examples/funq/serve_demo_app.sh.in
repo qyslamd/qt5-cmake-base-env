@@ -13,6 +13,14 @@
 PYTHONPATH="@FUNQ_CLIENT_DIR@:@FUNQ_SERVER_DIR@${PYTHONPATH:+:$PYTHONPATH}"
 export PYTHONPATH
 
+# 先确认被测程序没在跑。Linux 侧的 runner 连存活检查都没有，已有实例时会
+# 静默地"成功"返回，什么提示都没有——这里提前把话说清楚
+if ! "@PYTHON_EXECUTABLE@" "@INSTANCE_PROBE_PY@" --name @APP_APP_NAME@; then
+    echo
+    echo "未启动。关掉正在运行的 demo_app 后重跑本脚本。"
+    exit 1
+fi
+
 echo "demo_app 即将启动并被注入，libFunq 监听 localhost:@FUNQ_DEMO_PORT@"
 echo "另一个终端跑 run_demo_client 接上它。Ctrl+C 结束。"
 echo

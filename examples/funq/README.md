@@ -117,6 +117,39 @@ client.widget(path="MainWindow::settingsDialog::settingsCloseButton").click()
 
 写这些脚本时把「收尾」放在 `finally` 里，能少踩很多次。
 
+## 单实例：程序本体只允许一个
+
+`demo_app` 开了单实例检测，**注入和回放都不例外**。所以跑之前先关掉正在运行
+的 demo_app。两个启动器都会抢先把话说清楚：
+
+```text
+$ serve_demo_app.bat
+已有实例在运行：\\.\pipe\QtCMakeAppDemo
+程序本体只允许一个实例，所以不会再起一个去注入——那样 runner 只会报一句
+看不出原因的错。两条路：
+  1. 关掉正在运行的那个，再跑本脚本所在的启动器；
+  2. 如果它已经被注入过，直接用 funq 客户端连上它。
+```
+
+**为什么这事要单列一条。** funq 的 runner 是「先起进程、再注入」，而被测程序
+自己有单实例检测——已有实例时，新起的那个进程会转发参数后立刻退出：
+
+| 平台 | runner 的反应 |
+|---|---|
+| Windows | 睡 1 秒后 `poll()` 发现进程没了，抛 `The process has finished with an error ...` |
+| Linux | **连存活检查都没有**，静默地"成功"返回 |
+
+两种都不说真实原因，会把人往"注入失败 / DLL 不匹配"上带。所以启动器里加了
+一步前置探测（`check_no_instance.py`），判据复用被测程序**自己的单实例端点**
+——Windows 是命名管道 `\\.\pipe\<应用名>`，Linux 是 `<临时目录>/<应用名>` 的
+unix socket，不按进程名扫（那样会误判崩溃残留）。
+
+探测只是**提前告知**，被测程序自己的检测仍然是权威：探不到就照常启动，绝不拦。
+
+**回放那条同理**，但 ctest 是直接拉 exe、没有 Python 参与，所以由程序自己拒绝：
+退出码 **2**（与"回放失败"的 1 分开，一眼看出是环境问题而不是脚本问题），并在
+stderr 说明原因。
+
 ## 换成你自己的程序
 
 1. `serve_*.bat.in` / `serve_*.sh.in` 里的 `@DEMO_APP_EXE@` 换成你的程序
@@ -129,6 +162,7 @@ client.widget(path="MainWindow::settingsDialog::settingsCloseButton").click()
 
 ## 前置条件
 
+- **被测程序没在运行**（见上一节）
 - 构建过（`scripts/build_ninja.bat` / `build_ninja.sh`），且 `BUILD_FUNQ` 为 ON
 - Python 3.8+，不需要 `pip install` 任何东西——funq 的客户端与服务端源码就在
   `3rdparty/funq-master/{client,server}` 里，由启动脚本挂到 `PYTHONPATH` 上

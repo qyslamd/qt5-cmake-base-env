@@ -30,6 +30,8 @@ endif()
 set(FUNQ_CLIENT_DIR "${CMAKE_SOURCE_DIR}/3rdparty/funq-master/client")
 set(FUNQ_SERVER_DIR "${CMAKE_SOURCE_DIR}/3rdparty/funq-master/server")
 set(DEMO_CLIENT_PY "${CMAKE_CURRENT_SOURCE_DIR}/funq_client_demo.py")
+# 起进程之前先探一下被测程序在不在跑（判据复用它的单实例端点）
+set(INSTANCE_PROBE_PY "${CMAKE_CURRENT_SOURCE_DIR}/check_no_instance.py")
 
 # 被测程序的产物路径。这里不能用 $<TARGET_FILE:...>——configure_file 在配置
 # 阶段展开，生成器表达式要到生成阶段才有值。顶层已把运行时输出统一到

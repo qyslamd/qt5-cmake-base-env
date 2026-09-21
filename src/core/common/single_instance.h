@@ -17,7 +17,12 @@ class SingleInstance : public QObject {
   Q_OBJECT
 
  public:
-  // appKey 用于本地套接字名与共享内存键。
+  // appKey 用于本地套接字名与共享内存键。注意它同时是**进程外可见**的端点：
+  // Windows 落在 \\.\pipe\<appKey>（命名管道），Linux 落在 <临时目录>/<appKey>
+  // （unix socket，Qt 用 QDir::tempPath()，故受 TMPDIR 影响——探测方与被探测
+  // 方必须在同一个 TMPDIR 下）。examples/funq/check_no_instance.py 正是靠连这个
+  // 端点来判断"程序是不是已经在跑"，改 appKey 会同时影响它。
+  //
   // mutexName 为 Windows 命名互斥体名，由调用方传入而非内部按约定拼接：
   // 该名字必须与安装脚本的 MyAppMutex 完全一致，两边各自推导会静默失配。
   // 取值见 cmake/app_info.h.in 的 APP_MUTEX_NAME（含 x64/x86 架构后缀）。

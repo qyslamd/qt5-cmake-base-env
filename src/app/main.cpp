@@ -1,4 +1,7 @@
+#include <cstdio>
+
 #include <QApplication>
+#include <QByteArray>
 #include <QDialog>
 #include <QFile>
 #include <QIcon>
@@ -44,11 +47,32 @@ int main(int argc, char* argv[]) {
   // （与安装脚本同源），第二实例转发参数后退出
   SingleInstance single_instance(QCoreApplication::applicationName(),
                                  QString::fromLatin1(APP_MUTEX_NAME));
-  // 回放模式不与已运行的实例串门：否则会被当成第二实例转发参数后直接以 0
-  // 退出，ctest 看到的是"通过"，而脚本一个事件都没跑
-  if (ui_test_script.isEmpty() && single_instance.isAppAlreadyRunning()) {
-    single_instance.connectToExistingInstance(QCoreApplication::arguments());
-    return 0;
+  if (single_instance.isAppAlreadyRunning()) {
+    if (ui_test_script.isEmpty()) {
+      // 普通启动的第二实例：把命令行转交给首实例，自己退出
+      single_instance.connectToExistingInstance(QCoreApplication::arguments());
+      return 0;
+    }
+    // 回放不豁免单实例：程序本体只允许一个实例，测试也不例外。
+    //
+    // 这里必须"明确失败"，两条路都不能走：
+    //   转发后以 0 退出 —— ctest 看到"通过"，而脚本一个事件都没跑
+    //   跳过检测起第二个 —— 两个实例抢同一份日志与配置（日志那份已经炸过）
+    //
+    // 退出码 2 与"回放失败"（1）分开，便于一眼看出是环境问题而非脚本问题。
+    //
+    // 此刻 Logger 还没 init，只能直接写 stderr。不能用 qWarning()：Qt 在
+    // Windows 上默认不往管道写（它怕死锁），而 ctest 与各种重定向场景恰恰
+    // 就是管道——消息会静默丢掉。
+    //
+    // 走 QStringLiteral 再转 UTF-8，而不是直接把中文写进 fprintf 的窄字面量：
+    // 后者会让 MSVC 报 C4819（窄字面量要落到执行字符集上），而前者是 UTF-16，
+    // 不涉及这个问题
+    const QByteArray message =
+        QStringLiteral("已有实例在运行，UI 测试回放要求独占：请先关闭程序再跑。")
+            .toUtf8();
+    std::fprintf(stderr, "%s\n", message.constData());
+    return 2;
   }
   single_instance.startListening();
 

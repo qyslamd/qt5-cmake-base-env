@@ -21,6 +21,14 @@ import argparse
 import sys
 import time
 
+# Windows 下 stdout 不是控制台时（重定向、管道），Python 按系统区域编码输出
+# （中文机器上是 GBK），而启动器已经把控制台切到 UTF-8——显式钉死 UTF-8，
+# 免得窗口里正常、重定向后变乱码
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
+
 # funq 的客户端包。自动化用例那边由 CMake 把路径塞进环境变量，这里手工跑，
 # 所以自己找一下；找不到就报一句人话，别丢一个 ImportError 让人猜
 try:
