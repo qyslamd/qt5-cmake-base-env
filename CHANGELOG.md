@@ -111,6 +111,14 @@
 
 ### 修复
 
+- **回放模式撞上已运行的实例会 abort**：`Logger::init()` 里滚动文件 sink 用
+  `rotate_on_open=true` 构造，一建就轮转一次日志、要把 `<应用名>.log` 改名成
+  `.1.log`。另一个实例正开着这个文件时 Windows 拒绝改名，spdlog 抛异常而无人
+  接管，随即 `std::terminate` → `abort`——进程连一行日志都写不出来（退出码 3，
+  并弹一个 CRT 错误框）。平时跑不出来，是因为第二个实例早在 `SingleInstance`
+  那层就被挡回去了，而 UI 测试回放**有意**绕过那层（否则会被当成第二实例转发
+  参数后以 0 退出，ctest 看到"通过"而事件一个没跑）。现在文件 sink 的构造包了
+  降级：先退到带进程号的独立文件，再不行就不写文件，控制台与界面 sink 照常
 - **Linux 侧 AppImage 打包会无限期挂住**：`appimagetool` 产出 AppImage 前要
   嵌入一份 type2 runtime，而这份东西此前没随仓库提供，它便自己去 GitHub 的
   release CDN 拉——那条线路国内常常不可达，且**这个下载没有超时**。表现是
