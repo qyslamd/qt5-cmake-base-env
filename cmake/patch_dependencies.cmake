@@ -41,8 +41,11 @@ function(apply_patch_to_dir src_dir patch_file)
     set(_saved_ceiling "$ENV{GIT_CEILING_DIRECTORIES}")
     set(ENV{GIT_CEILING_DIRECTORIES} "${src_parent}")
 
+    # core.autocrlf=false：git apply 默认按开发者本机的 autocrlf 决定写盘
+    # 行尾（实测 autocrlf=true 时会把被补丁修改的整个文件写成 CRLF），
+    # 这会让产物行尾随各人配置漂移。补丁钉死 LF，这里也要钉死
     execute_process(
-        COMMAND "${GIT_EXECUTABLE}" apply "${patch_file}"
+        COMMAND "${GIT_EXECUTABLE}" -c core.autocrlf=false apply "${patch_file}"
         WORKING_DIRECTORY "${src_dir}"
         RESULT_VARIABLE result
         OUTPUT_VARIABLE out
