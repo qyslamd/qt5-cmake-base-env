@@ -10,6 +10,19 @@
 
 ### 新增
 
+- **Linux / WSL 构建入口 `scripts/build_ninja.sh`**：与 Windows 侧的
+  `scripts/build_ninja.bat` 同一套参数（`-t` / `-m` / `-p` / `-c` / `-h`
+  以及旧式位置参数），qt-libui 仓内亦有对应的一份。与 .bat 有两处刻意
+  差异：只做本机架构（没有 `-a`，交叉编译不在支持范围内），没有
+  windeployqt（没有 `-d`；Linux 侧打包即 `-p` → `make_appimage`）。
+  脚本不走 CMakePresets——预设的 `binaryDir` 恰好与 Windows 侧同名，
+  WSL 共享同一棵源码树时会直接覆盖对方的 CMakeCache——改用
+  `build/linux-ninja-<类型>`
+- **funq 注入式 UI 测试接通 Linux / WSL**：包装脚本、注入库暂存与用例接线都
+  按平台分了岔——Windows 用 `funq_attach.bat` + `libFunq.dll`（启动后
+  `CreateRemoteThread` 注入），Linux 用 `funq_attach.sh` + `libFunq.so`
+  （`LD_PRELOAD`，库的构造器先于 `main()` 加载）。`test_gallery_funq` 两侧
+  是同一条用例，五个用例在两平台都过
 - **Linux 侧 AppImage 打包**：新增 `make_appimage` 目标与
   `scripts/make_appimage.sh`（由 `cmake/make_appimage.sh.in` 生成，与
   Windows 侧的 `make_installer.bat` 对应）。应用标识、版本号、图标全部由
@@ -51,6 +64,12 @@
 
 ### 变更
 
+- **funq 不再查找 Qt Quick**（`patches/funq/0006`）：上游把它写成
+  `OPTIONAL_COMPONENTS Quick`，但 Qt5 的 `Qt5Config.cmake` 是按包级
+  REQUIRED 逐个组件去查找的，根本不看 CMake 为可选组件写下的
+  `Qt5_FIND_REQUIRED_<模块>`——于是在只装了 `qtbase5-dev` 的 Linux 上
+  直接报错而不是降级。libFunq 里 Quick 相关的代码本就由 `QT_QUICK_LIB`
+  保护，去掉这个组件即整体编译掉
 - **通用 UI 部件抽为独立库**：`src/libui`（40 文件 / 3196 行）与
   `examples/libui_gallery` 迁出本仓，成为独立仓库 `qt-libui`，本仓改为
   引用外部库（机制随后改为 submodule 源码内嵌，见下条）。目标名由
@@ -79,6 +98,13 @@
 
 ### 修复
 
+- **Linux 侧 AppImage 打包会无限期挂住**：`appimagetool` 产出 AppImage 前要
+  嵌入一份 type2 runtime，而这份东西此前没随仓库提供，它便自己去 GitHub 的
+  release CDN 拉——那条线路国内常常不可达，且**这个下载没有超时**。表现是
+  进程 CPU 为 0、停在 `do_sys_poll`，日志末行是 `Downloading runtime file
+  from ...`，看着像卡在压缩，实际是干等（实测约 8 KB/s）。现把
+  `runtime-x86_64` 一并入库，`make_appimage.sh` 显式 `--runtime-file` 指过去，
+  并在前置检查里拦住缺失的情况——与当初把三个工具入库是同一个决策
 - **`dist/` 未被忽略**：打包输出目录此前靠 `*.exe`/`*.pdb` 规则被动覆盖，
   而 AppImage 与无扩展名的 Linux 符号文件不在任何扩展名规则内，打包后会
   污染 `git status`。现整目录忽略

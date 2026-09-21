@@ -1,0 +1,24 @@
+diff --git a/server/CMakeLists.txt b/server/CMakeLists.txt
+--- a/server/CMakeLists.txt
++++ b/server/CMakeLists.txt
+@@ -89,10 +89,14 @@
+ # Find Qt
+-find_package(
+-  ${QT}
+-  REQUIRED COMPONENTS Core Gui Network Widgets Test
+-  OPTIONAL_COMPONENTS Quick
+-)
++# 本仓只用 Qt Widgets，不要 Quick。上游把它写成 OPTIONAL_COMPONENTS，但 Qt5
++# 的 Qt5Config.cmake 是按包级 REQUIRED 逐个组件去查找的，根本不看 CMake 为
++# 可选组件写下的 Qt5_FIND_REQUIRED_<模块>，于是没装 Qt Quick 开发包时这里
++# 直接报错而不是降级。libFunq 里 Quick 相关的代码全由 QT_QUICK_LIB 保护
++# （该宏由 Qt5::Quick 的 INTERFACE 定义提供），不找这个组件即整体编译掉
++find_package(
++  ${QT}
++  REQUIRED COMPONENTS Core Gui Network Widgets Test
++)
+ set(QT_VERSION "${${QT}_VERSION}")
+-set(WITH_QTQUICK "${${QT}Quick_FOUND}")
++set(WITH_QTQUICK FALSE)
+ message(STATUS "Building with Qt ${QT_VERSION}")
+ message(STATUS "QtQuick found: ${WITH_QTQUICK}")

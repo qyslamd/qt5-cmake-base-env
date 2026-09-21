@@ -11,8 +11,8 @@
 #   5. 归档未 strip 的可执行文件：崩溃日志里只有裸地址，事后 addr2line 必须
 #      用与打包那一刻一致的未 strip 二进制，对应 Windows 侧的符号归档
 #
-# 三个打包工具随仓库提供在 3rdparty/appimage-tools/，无需联网。脚本会导出
-# APPIMAGE_EXTRACT_AND_RUN，让它们免 FUSE 自解包运行，容器与 CI 同样可用。
+# 三个打包工具与 type2 runtime 随仓库提供在 3rdparty/appimage-tools/，无需联网。
+# 脚本会导出 APPIMAGE_EXTRACT_AND_RUN，让工具免 FUSE 自解包运行，容器与 CI 同样可用。
 #
 # Qt 由 configure 时定位到的 qmake 注入（与工程链接的是同一套）；要改用别的
 # Qt，导出 QMAKE 覆盖即可：
@@ -41,6 +41,8 @@ BIN_DIR="$BUILD_DIR/bin"
 EXE_NAME="${TARGET_NAME}"
 # 工具的架构后缀与 APPIMAGE_ARCH 同源：仓库里放的就是这个架构的一套
 TOOL_SUFFIX="$APPIMAGE_ARCH"
+# appimagetool 产出 AppImage 时要嵌入的 type2 runtime，同样随仓库提供
+RUNTIME_FILE="$TOOLS_DIR/runtime-${TOOL_SUFFIX}"
 
 die() {
     echo "错误：$*" >&2
@@ -65,6 +67,12 @@ for tool in linuxdeploy linuxdeploy-plugin-qt appimagetool; do
     # Windows 侧克隆时权限位可能丢失，这里补一次
     chmod +x "$tool_path" 2>/dev/null || true
 done
+
+# type2 runtime：appimagetool 必须把它嵌进 AppImage。不给 --runtime-file 时它会
+# 自己从 GitHub 的 release CDN 拉，而那条线路国内常常不可达——且这个下载没有
+# 超时，卡住时进程 CPU 为 0、看着像在压缩，实际是干等。故与三个工具一样入库
+[ -f "$RUNTIME_FILE" ] || die "缺少 $RUNTIME_FILE（type2 runtime 随仓库提供，
+见 3rdparty/appimage-tools/README.md）"
 
 # ---- 3. 铺 AppDir ----
 rm -rf "$APP_DIR"
@@ -108,7 +116,9 @@ strip --strip-unneeded "$APP_DIR/usr/bin/$EXE_NAME"
 mkdir -p "$OUTPUT_DIR"
 APPIMAGE_FILE="$OUTPUT_DIR/${APP_NAME}-${APPIMAGE_ARCH}-${APP_VERSION}.AppImage"
 ARCH="$APPIMAGE_ARCH" VERSION="$APP_VERSION" \
-    "$TOOLS_DIR/appimagetool-${TOOL_SUFFIX}.AppImage" -n "$APP_DIR" "$APPIMAGE_FILE"
+    "$TOOLS_DIR/appimagetool-${TOOL_SUFFIX}.AppImage" -n \
+    --runtime-file "$RUNTIME_FILE" \
+    "$APP_DIR" "$APPIMAGE_FILE"
 
 # ---- 6. 归档未 strip 的可执行文件（Windows 侧由 make_symbols 目标负责）----
 mkdir -p "$SYMBOLS_DIR"

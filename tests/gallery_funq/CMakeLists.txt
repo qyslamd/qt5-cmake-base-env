@@ -38,8 +38,23 @@ set(FUNQ_CLIENT_DIR "${CMAKE_SOURCE_DIR}/3rdparty/funq-master/client")
 set(FUNQ_SERVER_DIR "${CMAKE_SOURCE_DIR}/3rdparty/funq-master/server")
 
 configure_file(funq.conf.in "${CMAKE_CURRENT_BINARY_DIR}/funq.conf" @ONLY)
-configure_file(funq_attach.bat.in
-    "${CMAKE_CURRENT_BINARY_DIR}/funq_attach.bat" @ONLY)
+
+# 注入器包装脚本：Windows 是 .bat，Linux 是 .sh（内容都是「转交给 funq
+# runner」，见各自的 .in）。funq 客户端把它当可执行文件直接 exec，所以
+# .sh 必须带 +x 位——Windows 的 .bat 靠扩展名关联，没这一步
+if(WIN32)
+    set(FUNQ_ATTACH_NAME funq_attach.bat)
+    configure_file(funq_attach.bat.in
+        "${CMAKE_CURRENT_BINARY_DIR}/${FUNQ_ATTACH_NAME}" @ONLY)
+else()
+    set(FUNQ_ATTACH_NAME funq_attach.sh)
+    configure_file(funq_attach.sh.in
+        "${CMAKE_CURRENT_BINARY_DIR}/${FUNQ_ATTACH_NAME}" @ONLY)
+    file(CHMOD "${CMAKE_CURRENT_BINARY_DIR}/${FUNQ_ATTACH_NAME}"
+        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                    GROUP_READ GROUP_EXECUTE
+                    WORLD_READ WORLD_EXECUTE)
+endif()
 
 add_test(NAME test_gallery_funq
     COMMAND "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/run_funq_tests.py")
@@ -55,7 +70,7 @@ add_test(NAME test_gallery_funq
 # 写进 ENVIRONMENT 会被拆散
 set(GALLERY_TEST_ENV
     "FUNQ_CONF=${CMAKE_CURRENT_BINARY_DIR}/funq.conf"
-    "FUNQ_ATTACH_EXE=${CMAKE_CURRENT_BINARY_DIR}/funq_attach.bat"
+    "FUNQ_ATTACH_EXE=${CMAKE_CURRENT_BINARY_DIR}/${FUNQ_ATTACH_NAME}"
     "FUNQ_CLIENT_DIR=${FUNQ_CLIENT_DIR}"
     "FUNQ_SERVER_DIR=${FUNQ_SERVER_DIR}"
     "FUNQ_QT_BIN=${QT_BIN_DIR}")

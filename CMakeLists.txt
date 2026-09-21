@@ -216,17 +216,23 @@ if(BUILD_FUNQ)
     # patches/funq/ 的补丁改为默认不编，且其 Qt 查找锁定到 Qt5
     add_subdirectory(3rdparty/funq-master/server)
 
-    # 注入用的库要放在 funq_server 包目录里、且叫 libFunq.dll —— runner.py 的
-    # _find_library 只管这一个位置与这一个名字，而 MSVC 产出的是 Funq.dll。
+    # 注入用的库要放在 funq_server 包目录里、且名字与 runner.py 的
+    # _find_library 一致（Windows 是 libFunq.dll，Linux 是 libFunq.so）——它
+    # 只管那一个位置与那一个名字，而 MSVC 产出的是 Funq.dll，所以要拷一份改名。
     # 用 ALL 目标而非 POST_BUILD：解压产物被删除重建（补丁重放）时对象文件
-    # 未必重编，POST_BUILD 不会再触发，DLL 就悄悄消失了
-    if(WIN32 AND TARGET Funq)
+    # 未必重编，POST_BUILD 不会再触发，库就悄悄消失了
+    if(TARGET Funq)
+        if(WIN32)
+            set(FUNQ_INJECTOR_STAGE_NAME "libFunq.dll")
+        else()
+            set(FUNQ_INJECTOR_STAGE_NAME "libFunq.so")
+        endif()
         add_custom_target(stage_funq_injector ALL
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "$<TARGET_FILE:Funq>"
-                "${CMAKE_SOURCE_DIR}/3rdparty/funq-master/server/funq_server/libFunq.dll"
+                "${CMAKE_SOURCE_DIR}/3rdparty/funq-master/server/funq_server/${FUNQ_INJECTOR_STAGE_NAME}"
             DEPENDS Funq
-            COMMENT "Staging libFunq.dll next to funq_server (injector dependency)")
+            COMMENT "Staging ${FUNQ_INJECTOR_STAGE_NAME} next to funq_server (injector dependency)")
     endif()
 else()
     message(STATUS "BUILD_FUNQ=OFF，跳过 funq（注入式 UI 测试不可用）")

@@ -25,41 +25,54 @@ Python 3.10+ 也已无法运行：依赖被移除的 `imp` 模块）。
 ## 跑测试
 
 ```bat
-:: 只跑 funq 用例
+:: Windows：只跑 funq 用例
 ctest --test-dir build\ninja-debug-x64 -R test_gallery_funq --output-on-failure
-
-:: 全套（含单元测试与 QtTesting 回放）
-ctest --test-dir build\ninja-debug-x64 --output-on-failure
 ```
 
-单次约 10 秒：每个用例都要拉起一次程序并等注入完成（funq 在启动后固定
-`sleep 1` 秒再注入，见 `funq_server/runner_win.py` 的注释）。
+```bash
+# Linux / WSL（构建见 scripts/build_ninja.sh）
+ctest --test-dir build/linux-ninja-debug -R test_gallery_funq --output-on-failure
+```
+
+去掉 `-R` 就是全套（含单元测试与 QtTesting 回放）。
+
+每个用例都要拉起一次程序并等注入完成。Windows 侧一轮约 10 秒（funq 在启动后
+固定 `sleep 1` 秒才注入，见 `funq_server/runner_win.py` 的注释）；Linux 侧走
+`LD_PRELOAD`，没有这段固定等待，实测一轮约 5 秒。若某一轮明显变长，多半是有
+用例卡在连接超时上，不是正常耗时。
 
 ## 机制
 
 ```text
 FunqTestCase（用例）
-   │  按 funq.conf 拉起被测程序：cmd = [funq_attach.bat] + [libui_gallery.exe]
+   │  按 funq.conf 拉起被测程序：cmd = [funq_attach] + [libui_gallery]
    ▼
-funq_attach.bat → python -m funq_server.runner
-   │  启动程序 → sleep 1s → 检查进程存活 → CreateRemoteThread + LoadLibrary
+funq_attach.bat / funq_attach.sh → python -m funq_server.runner
+   │  Windows：启动程序 → sleep 1s → 检查进程存活
+   │           → CreateRemoteThread + LoadLibrary（runner_win.py）
+   │  Linux  ：把 libFunq.so 塞进 LD_PRELOAD 再 exec（runner_linux.py）
    ▼
-libFunq.dll（注入进 gallery 进程，在里面起 JSON 服务）
+libFunq.dll / libFunq.so（注入进 gallery 进程，在里面起 JSON 服务）
    ▲
    │  TCP：按控件路径操作界面、读属性
    └─ Python 客户端
 ```
 
+`runner.py` 按平台自己分派到 `runner_win.py` / `runner_linux.py`，所以这一层
+没有平台差异；有差异的是包装脚本（`.bat` / `.sh`）与注入库的放置。
+
 三处看起来绕但都有原因的设计：
 
-- **`funq_attach.bat` 包装**：funq 客户端构造的命令是 `[attach_exe] + [被测程序]`
-  （`funq/client.py` 的 `_start_test_process`），所以 `attach_exe` 必须是"吃下后续
-  参数再转交 funq runner"的可执行文件；直接拿 `python.exe` 当它是错的，那会把被测
-  程序当成脚本名。
-- **`libFunq.dll` 被拷到 `funq_server/` 目录**：runner 的 `_find_library` 只认那一个
-  位置、那一个名字，而 MSVC 产出的是 `Funq.dll`。拷贝由顶层 `CMakeLists.txt` 的
-  `stage_funq_injector` 目标完成（用 `ALL` 目标而非 `POST_BUILD`：解压产物被删除
-  重建时对象文件未必重编，`POST_BUILD` 不会再触发，DLL 就悄悄消失了）。
+- **`funq_attach` 包装脚本**：funq 客户端构造的命令是 `[attach_exe] + [被测程序]`
+  （`funq/client.py` 的 `_start_test_process`），所以 `attach_exe` 必须是「吃下后续
+  参数再转交 funq runner」的可执行文件；直接拿 `python.exe` / `python3` 当它是错的，
+  那会把被测程序当成脚本名。Linux 侧还有个额外要求：客户端是拿它当可执行文件
+  `Popen` 的，所以 CMake 生成 `.sh` 后要补 `+x` 位。
+- **注入库被拷到 `funq_server/` 目录并改名**：runner 的 `_find_library` 只认那一个
+  位置、那一个名字（Windows 是 `libFunq.dll`，Linux 是 `libFunq.so`），而 MSVC 产出
+  的是 `Funq.dll`。拷贝由顶层 `CMakeLists.txt` 的 `stage_funq_injector` 目标完成
+  （用 `ALL` 目标而非 `POST_BUILD`：解压产物被删除重建时对象文件未必重编，
+  `POST_BUILD` 不会再触发，库就悄悄消失了）。
 - **`funq_bootstrap.py` 手工注册应用配置**：funq 原本由它的 nose 插件负责读
   `funq.conf` 并把配置注册给测试基类，nose 不可用后由该脚本用 funq 自带的公开接口
   （`ApplicationRegistry.register_from_conf` + `register_funq_app_registry`）补上。
@@ -74,9 +87,29 @@ libFunq.dll（注入进 gallery 进程，在里面起 JSON 服务）
 `addWidget(splitter)` 挪到了 `QSplitter` 下。**所以路径不能读源码推**。
 
 ```bat
-set FUNQ_CONF=build\ninja-debug-x64\tests\gallery_funq\funq.conf
+:: Windows，从仓库根目录执行
+set D=build\ninja-debug-x64\tests\gallery_funq
+set FUNQ_CONF=%CD%\%D%\funq.conf
+set FUNQ_ATTACH_EXE=%CD%\%D%\funq_attach.bat
+set FUNQ_CLIENT_DIR=%CD%\3rdparty\funq-master\client
+set FUNQ_SERVER_DIR=%CD%\3rdparty\funq-master\server
 python tests\gallery_funq\probe_widgets.py SwitchButton
 ```
+
+```bash
+# Linux / WSL，同样从仓库根目录执行
+D=build/linux-ninja-debug/tests/gallery_funq
+FUNQ_CONF=$PWD/$D/funq.conf \
+FUNQ_ATTACH_EXE=$PWD/$D/funq_attach.sh \
+FUNQ_CLIENT_DIR=$PWD/3rdparty/funq-master/client \
+FUNQ_SERVER_DIR=$PWD/3rdparty/funq-master/server \
+python3 tests/gallery_funq/probe_widgets.py SwitchButton
+```
+
+四个环境变量都要给：探针靠 `FUNQ_CONF` / `FUNQ_ATTACH_EXE` 拉起程序并注入，靠
+后两个把 funq 的包挂到 `sys.path` 上（探针不走 `run_funq_tests.py` 那条路，
+没有别的地方替它加）。`ctest` 跑用例时这几项由 CMake 在 `add_test` 里注入，
+手工调用才要自己设。
 
 探针会拉起程序、注入、把路径含该关键字的控件全部打印出来。改完界面后重新跑一遍，
 把新路径更新到 `gallery.alias`。
@@ -111,13 +144,34 @@ python tests\gallery_funq\probe_widgets.py SwitchButton
 taskkill /F /IM libui_gallery.exe
 ```
 
+```bash
+pkill -f libui_gallery
+```
+
+Linux 侧走不到「库被占用删不掉」那一段——允许删除正在使用的文件——但残留进程
+一样占着显示连接与端口，仍要清掉。
+
 **构建类型与位数必须一致。** Debug 的 `libFunq.dll` 链 `Qt5Cored.dll`，注入 Debug 的
 gallery 才有同一套 Qt 运行时；拿 Release 的库注入 Debug 的程序会在一个进程里加载
 两套 Qt。位数同理（`runner_win.py` 走 `CreateRemoteThread`，32 位注不进 64 位进程）。
 
-**需要桌面环境。** 测试要真实窗口与事件循环，纯 CI 容器里跑不了。
+**需要桌面环境。** 测试要真实窗口与事件循环，纯 CI 容器里跑不了；WSL 下靠 WSLg。
 
-## Linux / WSL 侧
+## 平台差异
 
-机制换成 `LD_PRELOAD`（`funq_server/runner_linux.py`），Python 侧代码完全一样。当前
-只做了 Windows 侧：包装脚本与 `libFunq.so` 的暂存需要另配。
+| | Windows | Linux / WSL |
+|---|---|---|
+| 包装脚本 | `funq_attach.bat` | `funq_attach.sh`（生成后补 `+x` 位） |
+| 注入方式 | 启动程序 → `sleep 1` → `CreateRemoteThread` + `LoadLibrary` | 进程启动前设 `LD_PRELOAD`，随构造器一起加载 |
+| 注入库 | `libFunq.dll` | `libFunq.so` |
+| 注入时机 | 被测程序已在运行 | 构造器跑在 `main()` 之前，库内线程自旋等 `QCoreApplication` 就绪 |
+
+两侧的包装脚本都由 CMake 生成到构建目录，模板分别是
+`tests/gallery_funq/funq_attach.bat.in` 与 `funq_attach.sh.in`。
+
+**全新编出来的第一次运行可能卡在连接超时。** 实测出现过一次：刚编完的二进制
+第一次被拉起时，funq 客户端 10 秒的连接预算（`client.py` 的 `wait_for`）没等到
+服务端起来，抛了 `ConnectionRefusedError`，之后每轮都过。怀疑是首次加载要摊开
+Debug 构建的可执行文件与几十兆 Qt 库（冷页缓存），但没有确证。要留余量可在
+`funq.conf` 里加 `timeout_connection = 30`——`client.py` 支持这一项，默认 10 秒；
+注意它同时是后续每次 socket 操作的超时，放宽意味着真卡住时要多等。

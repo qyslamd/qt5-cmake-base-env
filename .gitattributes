@@ -45,6 +45,8 @@
 *.tar.gz   binary
 *.zip      binary
 *.AppImage binary
+# AppImage 的 type2 runtime：无扩展名的 ELF，规则抓不到，显式标二进制
+3rdparty/appimage-tools/runtime-* binary
 
 # SVG 是文本格式，保留行尾归一化与可读的 diff
 *.svg text

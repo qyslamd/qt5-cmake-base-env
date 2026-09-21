@@ -107,14 +107,23 @@ scripts\build_ninja.bat -t relwithdebinfo -p
 
 `scripts\build_ninja.bat -h` 可查看全部参数。
 
-Linux 侧（AppImage）：
+Linux 侧对应 `scripts/build_ninja.sh`，参数与 .bat 一致：
 
 ```bash
-cmake --preset ninja-relwithdebinfo-x64
-cmake --build --preset ninja-relwithdebinfo-x64-build
-# 打 AppImage + 归档未 strip 的可执行文件到 dist/
-cmake --build --preset ninja-relwithdebinfo-x64-build --target make_appimage
+# 构建（默认 debug）
+scripts/build_ninja.sh
+
+# 仅构建主程序
+scripts/build_ninja.sh -t debug -m demo_app
+
+# 发布打包：出 AppImage + 归档符号到 dist/
+scripts/build_ninja.sh -t relwithdebinfo -p
 ```
+
+两处差异：Linux 侧只做本机架构（没有 `-a`），也没有 windeployqt（没有
+`-d`，部署即打包，用 `-p`）。构建目录为 `build/linux-ninja-<类型>`，与
+Windows 侧的 `build/ninja-<类型>-<架构>` 分开——WSL 与 Windows 常共用同一
+棵源码树，同名会互相覆盖 CMakeCache。
 
 ## 文档
 
