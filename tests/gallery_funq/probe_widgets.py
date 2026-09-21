@@ -1,0 +1,96 @@
+"""控件路径探针：启动被测程序，打印它的控件路径（可按关键字过滤）。
+
+背景：gallery 的控件没有 objectName，funq 的路径由「类名 + 同名兄弟的序号
+后缀」拼成（见 3rdparty/funq-master/server/libFunq/objectpath.cpp 的
+rawObjectName），而序号取决于子对象的创建顺序——所以路径不能靠读源码推，
+只能从运行中的进程里查。注意控件还可能被布局/分裂器重新挂载父对象
+（gallery 的 QTabWidget 就被 addWidget(splitter) 挪到了 QSplitter 下）。
+
+用的是 funq 客户端自带的接口：
+  * FunqClient.widgets_list() 返回嵌套树，子控件在 "children" 键下
+    （服务端 recursive_list_widget 的实现如此），不是扁平字典；
+  * FunqClient.widget(path=...) 按路径取单个控件及其属性。
+
+用法：
+    set FUNQ_CONF=<构建目录>/funq.conf
+    python probe_widgets.py [关键字]        # 列出路径含该关键字的控件
+    python probe_widgets.py --props 路径... # 查指定路径的属性
+"""
+
+import configparser
+import os
+import sys
+
+# funq 的两个包目录由 CMake 注入到环境变量（见 tests/gallery_funq/CMakeLists.txt）
+for _key in ("FUNQ_CLIENT_DIR", "FUNQ_SERVER_DIR"):
+    _dir = os.environ.get(_key)
+    if _dir and _dir not in sys.path:
+        sys.path.insert(0, _dir)
+
+from funq.client import ApplicationContext, ApplicationRegistry
+
+# 打印属性时只看这几项，够用来写断言
+INTERESTING = ("visible", "enabled", "text", "value", "count",
+               "currentIndex", "checked", "active")
+
+
+def flatten(tree, prefix=""):
+    """把 widgets_list() 的嵌套树摊成路径列表。"""
+    paths = []
+    for name, node in tree.items():
+        path = "%s::%s" % (prefix, name) if prefix else name
+        paths.append(path)
+        paths.extend(flatten(node.get("children", {}), path))
+    return paths
+
+
+def main():
+    conf = os.environ.get("FUNQ_CONF")
+    if not conf or not os.path.isfile(conf):
+        raise SystemExit("请先设置 FUNQ_CONF 指向 funq.conf：%r" % conf)
+
+    registry = ApplicationRegistry()
+    parser = configparser.ConfigParser()
+    parser.read(conf, encoding="utf-8")
+    registry.register_from_conf(parser, _GlobalOptions(conf))
+    config = registry.config("gallery")
+
+    ctx = ApplicationContext(config)
+    try:
+        args = sys.argv[1:]
+        if args and args[0] == "--props":
+            for path in args[1:]:
+                try:
+                    props = ctx.funq.widget(path=path).properties()
+                    brief = {k: props[k] for k in INTERESTING if k in props}
+                    print("%s\n    %s" % (path, brief))
+                except Exception as exc:  # noqa: BLE001 - 探针就是要显示失败原因
+                    print("%s\n    查询失败: %s" % (path, exc))
+            return
+
+        keyword = args[0] if args else ""
+        paths = [p for p in flatten(ctx.funq.widgets_list()) if keyword.lower()
+                 in p.lower()]
+        for path in paths:
+            print(path)
+        print("\n共 %d 个路径（过滤词: %r）" % (len(paths), keyword))
+    finally:
+        ctx.terminate()
+
+
+class _GlobalOptions(object):
+    """funq 原本由 nose 插件提供的全局选项对象，这里手工给出等价物。"""
+
+    def __init__(self, conf_path):
+        self.funq_conf = conf_path
+        self.funq_attach_exe = os.environ["FUNQ_ATTACH_EXE"]
+        self.funq_gkit = "default"
+        self.funq_gkit_file = None
+        self.funq_trace_tests = None
+        self.funq_trace_tests_encoding = None
+        self.funq_screenshot_folder = None
+        self.funq_snooze_factor = None
+
+
+if __name__ == "__main__":
+    main()

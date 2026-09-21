@@ -123,6 +123,7 @@ cmake --build --preset ninja-relwithdebinfo-x64-build --target make_appimage
 | [模板使用指南](docs/guide/模板使用指南.md) | 必改项、目录结构、单元测试、扩展指引、Linux 构建 |
 | [发布指南](docs/guide/发布指南.md) | 打 tag、逐架构打包、产物说明、常见问题 |
 | [构建配置与崩溃排查](docs/guide/构建配置与崩溃排查.md) | 各构建配置的差异、符号归档与崩溃转储解析 |
+| [funq 注入式 UI 测试](docs/guide/funq注入式UI测试.md) | 零侵入的界面回归：注入被测进程、用 Python 写用例、控件路径怎么查 |
 
 ## 许可证
 

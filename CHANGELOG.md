@@ -27,6 +27,18 @@
 - `.clang-tidy`：静态分析规则，与 `.clangd` 配合在编辑器内实时提示
 - `README.md`：仓库入口，含特性、环境要求、快速开始与文档索引
 - 发布流程文档与 `CHANGELOG.md`
+- **注入式 UI 测试（funq）**：新增 `BUILD_FUNQ` 开关与一套 funq 接线。被测程序是
+  qt-libui 的 gallery 示例（`BUILD_LIBUI_GALLERY` 开关，默认随 gallery 编出来），
+  测试时把 `libFunq` 注入进程，用 Python 写用例操作控件并断言属性——被测程序
+  零侵入。用例在 `tests/gallery_funq/`，已接进 ctest（`test_gallery_funq`）；
+  同目录的 `probe_widgets.py` 用来从运行中的进程里查控件路径
+- **funq 的 Python 侧脱离 nose**：上游靠 nose 插件读 `funq.conf` 并注册应用配置，
+  而 nose 在 Python 3.10+ 已无法运行。现由 `tests/gallery_funq/funq_bootstrap.py`
+  用 funq 自带的公开接口补上，`patches/funq/0004` 则删掉那个永远不会被用到的插件。
+  前置条件因此简化为「有一个 Python 3.8+ 解释器」，不需要 pip 安装任何包
+- 文档新增[funq 注入式 UI 测试](docs/guide/funq注入式UI测试.md)：机制、控件路径的
+  查法、两个常见坑（不可见控件的 `wait_active`、状态复位）与排错（残留进程会让
+  下次构建删不掉解压目录）
 - **UI 测试接入（QtTesting）**：新增 `BUILD_QT_TESTING` 开关（默认 ON，各构建
   类型通用；QtTesting 是静态库，开了会整套链进 exe，准备发布包时可关掉）。
   带该开关的构建在主窗口挂出「测试 → 录制事件/回放事件」菜单；回放走

@@ -1,0 +1,16 @@
+diff --git a/client/funq/aliases.py b/client/funq/aliases.py
+index 5494598..65f70fb 100644
+--- a/client/funq/aliases.py
++++ b/client/funq/aliases.py
+@@ -87,7 +87,10 @@ class HooqAliases(dict):
+         self = cls()
+         if gkit_file:
+             set_gkit_aliases(self, gkit_file, gkit)
+-        with open(path) as f:
++        # 别名文件由使用者编写，可能含非 ASCII 字符。不指定编码时 Python
++        # 在 Windows 上按本地代码页解码（中文系统为 GBK），UTF-8 的别名
++        # 文件会直接 UnicodeDecodeError
++        with open(path, encoding='utf-8') as f:
+             num_line = 0
+             for line in f:
+                 line = line.strip()

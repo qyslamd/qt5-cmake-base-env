@@ -215,6 +215,19 @@ if(BUILD_FUNQ)
     # 该库自带的三个测试目标（player_tester / testLibFunq / testProtocole）已由
     # patches/funq/ 的补丁改为默认不编，且其 Qt 查找锁定到 Qt5
     add_subdirectory(3rdparty/funq-master/server)
+
+    # 注入用的库要放在 funq_server 包目录里、且叫 libFunq.dll —— runner.py 的
+    # _find_library 只管这一个位置与这一个名字，而 MSVC 产出的是 Funq.dll。
+    # 用 ALL 目标而非 POST_BUILD：解压产物被删除重建（补丁重放）时对象文件
+    # 未必重编，POST_BUILD 不会再触发，DLL 就悄悄消失了
+    if(WIN32 AND TARGET Funq)
+        add_custom_target(stage_funq_injector ALL
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:Funq>"
+                "${CMAKE_SOURCE_DIR}/3rdparty/funq-master/server/funq_server/libFunq.dll"
+            DEPENDS Funq
+            COMMENT "Staging libFunq.dll next to funq_server (injector dependency)")
+    endif()
 else()
     message(STATUS "BUILD_FUNQ=OFF，跳过 funq（注入式 UI 测试不可用）")
 endif()
@@ -225,8 +238,16 @@ endif()
 
 # qt-libui 通用 UI 部件。以 submodule 引入并源码内嵌，随本仓一次构建：
 # 库内按「非顶层构建」处理——不读它自己的 local.cmake（Qt 由本仓解析）、
-# 不编 gallery 示例、不登记 install 规则，只提供 qt-libui::libui 目标。
+# 不登记 install 规则，只提供 qt-libui::libui 目标。
 # 克隆本仓后若该目录为空，先执行 git submodule update --init --recursive
+#
+# gallery 示例是本仓 funq UI 测试的被测程序（控件多，适合当靶场）。它默认
+# 只在 qt-libui 作为顶层项目时编，本仓把 qt-libui 当子模块，故在此显式打开
+option(BUILD_LIBUI_GALLERY
+    "构建 qt-libui 的 gallery 示例（funq UI 测试的被测程序）" ON)
+if(BUILD_LIBUI_GALLERY)
+    set(BUILD_EXAMPLES ON)
+endif()
 add_subdirectory(external/qt-libui)
 
 #-------------------------------------------------------------------------------

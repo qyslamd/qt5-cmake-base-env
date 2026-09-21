@@ -1,0 +1,17 @@
+# funq 的别名表：友好名 = 控件路径。用例里可以写 widget('switch_button')
+# 而不是一长串路径。
+#
+# 路径不能靠读源码推：gallery 的控件没有 objectName，funq 用「类名 + 同名
+# 兄弟的序号后缀」拼路径，而布局与分裂器还会改变父子关系。改完界面后请用
+# probe_widgets.py 重新打印路径并更新这里：
+#
+#     set FUNQ_CONF=<构建目录>/tests/gallery_funq/funq.conf
+#     python tests/gallery_funq/probe_widgets.py SwitchButton
+#
+# 路径里的 qt_tabwidget_stackedwidget 是 Qt 给 QTabWidget 内部堆叠窗口起的
+# objectName，不是本仓的命名。
+
+appearance_combo = GalleryWindow::QComboBox
+tabs = GalleryWindow::QSplitter::QTabWidget
+buttons_page = GalleryWindow::QSplitter::QTabWidget::qt_tabwidget_stackedwidget::ButtonsDemoPage
+switch_button = GalleryWindow::QSplitter::QTabWidget::qt_tabwidget_stackedwidget::ButtonsDemoPage::QGroupBox::SwitchButton

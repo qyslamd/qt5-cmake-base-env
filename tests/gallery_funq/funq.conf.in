@@ -1,0 +1,13 @@
+# funq 的应用配置：告诉 funq 要拉起哪个程序、在哪个目录、用哪个端口。
+# 由 CMake 按本机构建目录生成到 build 下（见同目录 CMakeLists.txt），不入库。
+#
+# funq_port = 0 表示由 funq 自己挑一个空闲端口。
+
+[gallery]
+executable = @GALLERY_EXE@
+cwd = @GALLERY_DIR@
+funq_port = 0
+aliases = @GALLERY_ALIAS@
+executable_stdout = NULL
+executable_stderr = NULL
+screenshot_on_error = 0

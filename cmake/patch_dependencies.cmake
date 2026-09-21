@@ -82,6 +82,10 @@ apply_patch_to_dir("${3RDPARTY_DIR}/funq-master"
     "${PATCHES_DIR}/funq/0002-qt5-only.patch")
 apply_patch_to_dir("${3RDPARTY_DIR}/funq-master"
     "${PATCHES_DIR}/funq/0003-msvc-warnings.patch")
+apply_patch_to_dir("${3RDPARTY_DIR}/funq-master"
+    "${PATCHES_DIR}/funq/0004-drop-nose-plugin.patch")
+apply_patch_to_dir("${3RDPARTY_DIR}/funq-master"
+    "${PATCHES_DIR}/funq/0005-alias-file-encoding.patch")
 
 apply_patch_to_dir("${3RDPARTY_DIR}/QXlsx-1.5.0"
     "${PATCHES_DIR}/QXlsx/0001-qt5-only.patch")

@@ -1,0 +1,13 @@
+@echo off
+rem funq 的「注入器」入口：funq 客户端会把被测程序交给它启动，由它把
+rem libFunq.dll 注入进去（见 funq_server/runner.py 与 runner_win.py）。
+rem
+rem 为什么需要这个包装：客户端构造的命令是 [attach_exe] + [被测程序] + 参数
+rem （见 funq/client.py 的 _start_test_process），所以 attach_exe 必须是一个
+rem 「吃下后续参数并转交给 funq runner」的可执行文件——python.exe 直接当
+rem attach_exe 用是不行的（它会把被测程序当成脚本名）。
+rem
+rem 本文件由 CMake 生成到 build 下，不入库。
+
+set "PYTHONPATH=@FUNQ_CLIENT_DIR@;@FUNQ_SERVER_DIR@;%PYTHONPATH%"
+"@PYTHON_EXECUTABLE@" -m funq_server.runner %*
