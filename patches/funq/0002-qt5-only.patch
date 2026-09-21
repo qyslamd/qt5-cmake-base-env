@@ -1,0 +1,18 @@
+diff --git a/server/CMakeLists.txt b/server/CMakeLists.txt
+index 0375167..0973e3e 100644
+--- a/server/CMakeLists.txt
++++ b/server/CMakeLists.txt
+@@ -44,8 +44,11 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
+ 
+ # If Qt version is not explicitly specified, automatically determine it
+ if(NOT QT_MAJOR_VERSION)
+-  find_package(Qt NAMES Qt5 Qt6 REQUIRED COMPONENTS Core)
+-  set(QT_MAJOR_VERSION ${Qt_VERSION_MAJOR})
++  # 本仓只用 Qt5：上游这里做的是版本无关查找（包名 Qt，认 Qt_DIR），
++  # 与本仓 local.cmake 只提供 Qt5_DIR 的写法对不上。直接看 Qt5，
++  # 宿主已经解析过它，Qt5_DIR 就在缓存里
++  find_package(Qt5 REQUIRED COMPONENTS Core)
++  set(QT_MAJOR_VERSION 5)
+ endif()
+ set(QT "Qt${QT_MAJOR_VERSION}")
+ 

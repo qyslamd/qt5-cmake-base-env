@@ -196,26 +196,28 @@ add_subdirectory(3rdparty/QXlsx-1.5.0/QXlsx)
 option(BUILD_QT_TESTING "启用 QtTesting UI 录制/回放" ON)
 
 if(BUILD_QT_TESTING)
-    # QtTesting 的 CMakeLists 里 include(CTest) 会 option(BUILD_TESTING ON)，
-    # 于是它自带的 9 个上游用例（Testing/）会被注册进本仓的 ctest 套件。那些
-    # 用例按 ParaView 的运行环境写的，实测全部超时，会拖死整轮 ctest，故关掉。
-    #
-    # 关不掉的坑：该工程声明的最低版本是 3.12，CMP0077（option() 是否尊重同名
-    # 普通变量）对它而言处于"未显式设置"状态，普通变量会被 option() 的缓存值
-    # 盖掉。故先把该策略默认值设为 NEW，让下面这行 OFF 真正生效；
-    # 引入后撤销，不留给本仓其它部分
-    set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
-    set(BUILD_TESTING OFF)
+    # 该库自带的 9 个上游用例已由 patches/QtTesting/ 的补丁关掉（它们按
+    # ParaView 的运行环境编写，实测全部超时，会拖死整轮 ctest），此处不必
+    # 再在宿主侧绕它的 BUILD_TESTING
     add_subdirectory(3rdparty/QtTesting)
-    unset(BUILD_TESTING)
-    unset(CMAKE_POLICY_DEFAULT_CMP0077)
 else()
     message(STATUS "BUILD_QT_TESTING=OFF，跳过 QtTesting（UI 录制/回放不可用）")
 endif()
 
-# funq GUI测试库：归档与解压登记已就位，但尚未接入构建，
-# 启用时取消下面一行的注释
-# add_subdirectory(3rdparty/funq-master/server)
+# funq GUI测试库：同样是 UI 测试工具，但用法与 QtTesting 不同——它不链进
+# 被测程序，而是在测试运行时把 Funq.dll 注入进去（Windows 走 CreateRemoteThread，
+# Linux 走 LD_PRELOAD），详见 3rdparty/funq-master/server/funq_server/runner_*.py。
+# 产物落在 bin/Funq.dll 与 lib/FunqStatic.lib，没有任何目标链接它们。
+# 开关 BUILD_FUNQ 默认 ON，不需要时（例如准备发布包）用 -DBUILD_FUNQ=OFF 关掉
+option(BUILD_FUNQ "构建 funq GUI 测试库（注入式，产物供测试运行时使用）" ON)
+
+if(BUILD_FUNQ)
+    # 该库自带的三个测试目标（player_tester / testLibFunq / testProtocole）已由
+    # patches/funq/ 的补丁改为默认不编，且其 Qt 查找锁定到 Qt5
+    add_subdirectory(3rdparty/funq-master/server)
+else()
+    message(STATUS "BUILD_FUNQ=OFF，跳过 funq（注入式 UI 测试不可用）")
+endif()
 
 #-------------------------------------------------------------------------------
 # 外部源码仓库（git submodule）

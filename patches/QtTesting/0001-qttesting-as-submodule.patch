@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 436662a..fd71546 100644
+index 436662a..d2148e7 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -2,6 +2,8 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.12)
@@ -71,7 +71,21 @@ index 436662a..fd71546 100644
  
    TARGET_LINK_LIBRARIES(qttesting PRIVATE
      ${qt_imported_targets}
-@@ -307,6 +334,7 @@ IF(BUILD_TESTING)
+@@ -302,11 +329,19 @@ if (BUILD_EXAMPLES)
+   add_subdirectory(Examples)
+ endif ()
+ 
+-include(CTest)
+-IF(BUILD_TESTING)
++# 自带的单元测试按 ParaView 那套运行环境编写，作为子项目引入时其 9 个
++# add_test 会挂住宿主的 ctest。故用带前缀的开关，默认不编；需要时用
++# -DQtTesting_BUILD_TESTS=ON 显式打开。
++# 不用 BUILD_TESTING：那是 CTest 的通用开关，宿主项目几乎必然为 ON，
++# 而本工程声明的最低 CMake 版本是 3.12，CMP0077 对它而言未显式设置，
++# option() 会连宿主设的同名普通变量一起盖掉——补在这里比在宿主侧绕开干净
++option(QtTesting_BUILD_TESTS "Build QtTesting's own unit tests" OFF)
++IF(QtTesting_BUILD_TESTS)
++  enable_testing()
    add_subdirectory(Testing)
  ENDIF()
  

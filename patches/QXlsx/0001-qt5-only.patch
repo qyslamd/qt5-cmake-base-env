@@ -1,0 +1,16 @@
+diff --git a/QXlsx/CMakeLists.txt b/QXlsx/CMakeLists.txt
+index 5e16bdd..62df26e 100644
+--- a/QXlsx/CMakeLists.txt
++++ b/QXlsx/CMakeLists.txt
+@@ -14,7 +14,10 @@ set(CMAKE_AUTOMOC ON)
+ include(GNUInstallDirs)
+ 
+ if(NOT DEFINED QT_VERSION_MAJOR)
+-    find_package(QT NAMES Qt6 Qt5 COMPONENTS Core Gui REQUIRED)
++    # 本仓只用 Qt5：上游这里做的是版本无关查找（包名 QT，认 QT_DIR），
++    # 与本仓 local.cmake 只提供 Qt5_DIR 的写法对不上。直接定为 5，
++    # 让下面那句 find_package(Qt5 ...) 走宿主已解析好的 Qt5_DIR
++    set(QT_VERSION_MAJOR 5)
+ endif()
+ find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Core Gui REQUIRED)
+ set(EXPORT_NAME QXlsxQt${QT_VERSION_MAJOR})

@@ -1,0 +1,67 @@
+diff --git a/server/CMakeLists.txt b/server/CMakeLists.txt
+index 5028c1f..0375167 100644
+--- a/server/CMakeLists.txt
++++ b/server/CMakeLists.txt
+@@ -8,7 +8,9 @@ endif()
+ project(funq LANGUAGES CXX)
+ 
+ # Global options
+-option(BUILD_TESTS "Build tests." OFF)
++# BUILD_TESTS 太通用：作为子项目引入时会读到宿主同名选项的值（宿主的
++# 单元测试开关通常为 ON），于是下面三个测试目标被连带加进来。改名带前缀
++option(FUNQ_BUILD_TESTS "Build funq's own tests." OFF)
+ option(BUILD_DISALLOW_WARNINGS
+        "Disallow compiler warnings during build (build with -Werror)." OFF
+ )
+@@ -16,7 +18,10 @@ option(BUILD_DISALLOW_WARNINGS
+ # Create a release build by default
+ # (Code based on https://blog.kitware.com/cmake-and-the-default-build-type/)
+ set(default_build_type "Release")
+-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
++# 作为子项目时不掺和宿主的构建类型：下面的赋值带 CACHE 与 FORCE，
++# 一旦触发会把宿主选定的 Debug/RelWithDebInfo 在缓存里改成 Release
++if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR
++   AND NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+   # Set the build type
+   message(
+     STATUS
+@@ -91,7 +96,7 @@ message(STATUS "QtQuick found: ${WITH_QTQUICK}")
+ 
+ # Add subprojects
+ add_subdirectory(libFunq)
+-if(BUILD_TESTS)
++if(FUNQ_BUILD_TESTS)
+   add_subdirectory(player_tester)
+   add_subdirectory(tests/libFunq)
+   add_subdirectory(tests/protocole)
+diff --git a/server/tests/libFunq/CMakeLists.txt b/server/tests/libFunq/CMakeLists.txt
+index 5fd769a..8508f6a 100644
+--- a/server/tests/libFunq/CMakeLists.txt
++++ b/server/tests/libFunq/CMakeLists.txt
+@@ -9,11 +9,11 @@ add_executable(
+ )
+ target_include_directories(
+   testLibFunq PUBLIC
+-  "${CMAKE_SOURCE_DIR}/libFunq"
++  "${CMAKE_CURRENT_SOURCE_DIR}/../../libFunq"
+ )
+ target_compile_options(
+   testLibFunq PUBLIC
+-  "-DSOURCE_DIR=\"${CMAKE_SOURCE_DIR}/tests/libFunq/\""
++  "-DSOURCE_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/\""
+ )
+ target_link_libraries(
+   testLibFunq PUBLIC
+diff --git a/server/tests/protocole/CMakeLists.txt b/server/tests/protocole/CMakeLists.txt
+index 3966cd8..282d13f 100644
+--- a/server/tests/protocole/CMakeLists.txt
++++ b/server/tests/protocole/CMakeLists.txt
+@@ -9,7 +9,7 @@ add_executable(
+ )
+ target_include_directories(
+   testProtocole PUBLIC
+-  "${CMAKE_SOURCE_DIR}/libFunq"
++  "${CMAKE_CURRENT_SOURCE_DIR}/../../libFunq"
+ )
+ target_link_libraries(
+   testProtocole PUBLIC
