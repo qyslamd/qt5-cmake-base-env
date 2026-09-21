@@ -9,13 +9,13 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "demo_app (x64 Debug)",
+            "name": "demo_app (x64 RelWithDebInfo)",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/ninja-debug-x64/bin/demo_app.exe",
+            "program": "${workspaceFolder}/build/ninja-relwithdebinfo-x64/bin/demo_app.exe",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build/ninja-debug-x64/bin",
+            "cwd": "${workspaceFolder}/build/ninja-relwithdebinfo-x64/bin",
             "environment": [
                 {
                     "name": "PATH",
@@ -30,13 +30,13 @@
             "internalConsoleOptions": "openOnFirstSessionStart"
         },
         {
-            "name": "test_core_crashhandler (x64 Debug)",
+            "name": "test_core_crashhandler (x64 RelWithDebInfo)",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/ninja-debug-x64/bin/tests/test_core_crashhandler.exe",
+            "program": "${workspaceFolder}/build/ninja-relwithdebinfo-x64/bin/tests/test_core_crashhandler.exe",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build/ninja-debug-x64/bin",
+            "cwd": "${workspaceFolder}/build/ninja-relwithdebinfo-x64/bin",
             "environment": [
                 {
                     "name": "PATH",
