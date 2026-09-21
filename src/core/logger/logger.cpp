@@ -3,11 +3,17 @@
 #include <spdlog/async.h>
 #include <spdlog/sinks/rotating_file_sink.h>
 
+#include <cstdio>
+#include <exception>
+#include <memory>
+#include <vector>
+
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
 #include <QObject>
 #include <QStandardPaths>
+#include <QStringList>
 // stdout_color_sink 在 Windows 上映射为 wincolor，其余平台映射为 ansicolor
 #include <spdlog/sinks/stdout_color_sinks.h>
 
@@ -108,16 +114,39 @@ void Logger::init() {
   s_console_sink_ = console_sink;
 #endif
 
-  // 滚动文件 sink；文件名随 applicationName 走，避免模板产物互相覆盖
+  // 滚动文件 sink；文件名随 applicationName 走，避免模板产物互相覆盖。
+  //
+  // 构造时的 rotate_on_open 会立刻轮转一次，而轮转要重命名日志文件——若另一个
+  // 实例正开着它（Windows 不允许重命名被占用的文件），spdlog 会抛异常。正常
+  // 路径下第二个实例早在 SingleInstance 那层就被挡回去了，但 UI 测试回放是有意
+  // 绕过那层的，于是会撞上：异常没人接 → std::terminate → abort，进程连一行
+  // 日志都来不及写。日志建不起来不该把主程序带走，所以这里降级处理：先退到
+  // 带进程号的独立文件，再不行就不写文件（控制台与界面 sink 照常）
   QString app_name = QCoreApplication::applicationName();
   if (app_name.isEmpty()) {
     app_name = QStringLiteral("app");
   }
-  QString log_path = log_dir + "/" + app_name + ".log";
-  auto file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
-      log_path.toStdString(), max_file_size, max_file_count, true);
-  file_sink->set_level(spdlog::level::debug);
-  s_file_sink_ = file_sink;
+  spdlog::sink_ptr file_sink;
+  const QStringList candidates = {
+      log_dir + "/" + app_name + ".log",
+      log_dir + "/" + app_name + "-" +
+          QString::number(QCoreApplication::applicationPid()) + ".log",
+  };
+  for (const QString& candidate : candidates) {
+    try {
+      file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
+          candidate.toStdString(), max_file_size, max_file_count, true);
+      break;
+    } catch (const std::exception& e) {
+      // 此刻 Logger 还没起来，只能直接写 stderr
+      std::fprintf(stderr, "日志文件不可用（%s）：%s\n", e.what(),
+                   candidate.toUtf8().constData());
+    }
+  }
+  if (file_sink) {
+    file_sink->set_level(spdlog::level::debug);
+    s_file_sink_ = file_sink;
+  }
 
   // 启动期历史日志缓冲（环形 5000 条）。UI 日志面板出现后回放。
   // 必须先于 QtConsoleSink 创建，让首条日志即能 push 到 history。
@@ -131,12 +160,15 @@ void Logger::init() {
   // 三个 sink 已建齐，按配置统一设置 pattern
   ApplyPatternToSinks();
 
-  // 注册默认 logger，所有模块共用
+  // 注册默认 logger，所有模块共用。文件 sink 可能因上面降级而不存在
+  std::vector<spdlog::sink_ptr> sinks;
 #ifndef NDEBUG
-  std::vector<spdlog::sink_ptr> sinks = {console_sink, file_sink, qt_sink};
-#else
-  std::vector<spdlog::sink_ptr> sinks = {file_sink, qt_sink};
+  sinks.push_back(console_sink);
 #endif
+  if (file_sink) {
+    sinks.push_back(file_sink);
+  }
+  sinks.push_back(qt_sink);
   auto default_logger = std::make_shared<spdlog::async_logger>(
       "default", sinks.begin(), sinks.end(), spdlog::thread_pool(),
       spdlog::async_overflow_policy::block);
