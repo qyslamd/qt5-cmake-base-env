@@ -1,0 +1,48 @@
+diff --git a/server/libFunq/WindowsInjector.h b/server/libFunq/WindowsInjector.h
+index 77af949..b02365f 100644
+--- a/server/libFunq/WindowsInjector.h
++++ b/server/libFunq/WindowsInjector.h
+@@ -35,7 +35,10 @@ knowledge of the CeCILL v2.1 license and that you accept its terms.
+ #ifndef WINDOWSINJECTOR_H
+ #define WINDOWSINJECTOR_H
+ 
+-#define WIN32_LEAN_AND_MEAN
++// 无条件重定义会与调用方（如本仓顶层）的同名定义冲突，报 C4005
++#ifndef WIN32_LEAN_AND_MEAN
++#  define WIN32_LEAN_AND_MEAN
++#endif
+ #include <Windows.h>
+ 
+ extern "C" int __stdcall DllMain(HINSTANCE, DWORD fdwReason, LPVOID);
+diff --git a/server/libFunq/funq.cpp b/server/libFunq/funq.cpp
+index c40156f..350e4a8 100644
+--- a/server/libFunq/funq.cpp
++++ b/server/libFunq/funq.cpp
+@@ -32,6 +32,12 @@ The fact that you are presently reading this means that you have had
+ knowledge of the CeCILL v2.1 license and that you accept its terms.
+ */
+ 
++// C4996：getenv 是可移植的 C 接口，MSVC 建议的 _dupenv_s 在其它平台没有
++// 等价物，故按它自己的提示关掉本文件的这条告警
++#if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
++#  define _CRT_SECURE_NO_WARNINGS
++#endif
++
+ #include "funq.h"
+ 
+ #include "pick.h"
+diff --git a/server/libFunq/player.cpp b/server/libFunq/player.cpp
+index d41f004..fb88ace 100644
+--- a/server/libFunq/player.cpp
++++ b/server/libFunq/player.cpp
+@@ -948,7 +948,9 @@ QtJson::JsonObject Player::headerview_click(
+     if (ctx.hasError()) {
+         return ctx.lastError;
+     }
+-    int logicalIndex;
++    // 初值只为消除 MSVC 的 C4701 误报：字符串分支里由循环赋值且未找到时
++    // 已提前 return，非字符串分支直接赋值，不存在未赋值的到达路径
++    int logicalIndex = 0;
+     QVariant indexOrName = command["indexOrName"];
+     if (indexOrName.type() == QVariant::String) {
+         QString name = indexOrName.toString();

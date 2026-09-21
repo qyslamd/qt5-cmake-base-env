@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## 项目概述
-这是一个基于Qt/C++的学习研究项目，项目采用CMake构建系统，仅支持 Windows。
+这是一个基于Qt/C++的学习研究项目，项目采用CMake构建系统，支持windows和WSL2 Ubuntu Focal(验证过)。
 
 ## 常用命令
 ### 构建项目
