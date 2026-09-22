@@ -21,6 +21,8 @@ set(TARGET_SRCS
     res.qrc
     mainwindow.cpp
     mainwindow.h
+    guidance_app_flows.cpp
+    guidance_app_flows.h
     log_window.cpp
     log_window.h
     dialogs/about_dialog.cpp
@@ -71,6 +73,7 @@ target_include_directories(${TARGET_NAME}
 )
 
 target_link_libraries(${TARGET_NAME} PRIVATE
+    ${APP_TARGET_PREFIX}_guidance
     ${APP_TARGET_PREFIX}_core
     qt-libui::libui
     qcustomplot

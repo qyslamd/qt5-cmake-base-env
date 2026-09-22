@@ -265,7 +265,7 @@ add_subdirectory(src)
 
 # funq 的手动分离运行示例（两个终端各起一边）。依赖上面建出来的 demo_app
 # 目标，所以放在 src 之后。不需要时删掉这一行即可
-add_subdirectory(examples/funq)
+add_subdirectory(examples)
 
 # 单元测试（仅在配置了 BUILD_TESTS 时启用）
 option(BUILD_TESTS "Build unit tests" ON)

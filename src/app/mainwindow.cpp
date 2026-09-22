@@ -22,17 +22,22 @@ void MainWindow::initUi() {
   setWindowTitle(QCoreApplication::applicationName());
   setMinimumSize(800, 600);
 
+  // objectName 供功能引导按名字定位（引导只能高亮 QWidget，菜单项是 QAction
+  // 指不了，所以指到菜单标题上）
   auto* file_menu = menuBar()->addMenu(QStringLiteral("文件(&F)"));
+  file_menu->setObjectName(QStringLiteral("menuFile"));
   file_menu->addAction(QStringLiteral("退出(&Q)"), this, &QWidget::close,
                        QKeySequence::Quit);
 
   auto* tool_menu = menuBar()->addMenu(QStringLiteral("工具(&T)"));
+  tool_menu->setObjectName(QStringLiteral("menuTool"));
   tool_menu->addAction(QStringLiteral("日志窗口(&L)"), this,
                        &MainWindow::onShowLogWindow);
   tool_menu->addAction(QStringLiteral("设置(&S)"), this,
                        &MainWindow::onShowSettings);
 
   auto* help_menu = menuBar()->addMenu(QStringLiteral("帮助(&H)"));
+  help_menu->setObjectName(QStringLiteral("menuHelp"));
   help_menu->addAction(QStringLiteral("关于(&A)"), this,
                        &MainWindow::onShowAbout);
 

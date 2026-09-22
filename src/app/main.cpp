@@ -1,3 +1,6 @@
+#include <guidance_controller.h>
+#include <guidance_support.h>
+
 #include <cstdio>
 
 #include <QApplication>
@@ -6,7 +9,6 @@
 #include <QFile>
 #include <QIcon>
 #include <QTimer>
-
 #include <qt-libui/splash_screen.h>
 
 #include "AppInfo.h"
@@ -18,8 +20,10 @@
 #include "config/config_manager.h"
 #include "crashhandler/crash_handler.h"
 #include "dialogs/login_dialog.h"
+#include "guidance_app_flows.h"
 #include "logger/logger.h"
 #include "mainwindow.h"
+
 #ifdef APP_ENABLE_QT_TESTING
 #include "qttesting/testing_support.h"
 #endif
@@ -69,18 +73,25 @@ int main(int argc, char* argv[]) {
     // 后者会让 MSVC 报 C4819（窄字面量要落到执行字符集上），而前者是 UTF-16，
     // 不涉及这个问题
     const QByteArray message =
-        QStringLiteral("已有实例在运行，UI 测试回放要求独占：请先关闭程序再跑。")
+        QStringLiteral(
+            "已有实例在运行，UI 测试回放要求独占：请先关闭程序再跑。")
             .toUtf8();
     std::fprintf(stderr, "%s\n", message.constData());
     return 2;
   }
   single_instance.startListening();
 
-  // 加载全局样式
-  QFile style_file(QStringLiteral(":/resources/styles/default.qss"));
-  if (style_file.open(QIODevice::ReadOnly)) {
-    app.setStyleSheet(QString::fromUtf8(style_file.readAll()));
+  // 全局样式：主样式在前，模块样式在后（后加载的可覆盖前者）。
+  // 用 QString 累加而不是 QByteArray——后者 += QString 在 Qt5.15 已废弃
+  QString style_sheet;
+  for (const auto& path : {QStringLiteral(":/resources/styles/default.qss")}) {
+    QFile file(path);
+    if (file.open(QIODevice::ReadOnly)) {
+      style_sheet += QString::fromUtf8(file.readAll());
+      file.close();
+    }
   }
+  app.setStyleSheet(style_sheet);
 
   // 配置管理必须先于 Logger 初始化（Logger 读取日志配置）
   ConfigManager::instance();
@@ -155,6 +166,15 @@ int main(int argc, char* argv[]) {
   splash.finish();
 
   w.show();
+
+  // 功能引导：控制器驱动演示层（遮罩 + 高亮 + 气泡），support 挂菜单入口并
+  // 对接外部（funq 桥接见 GuidanceSupport）。两者都挂到主窗口下随窗口销毁，
+  // 注意 controller 要先建——support 的构造依赖它
+  auto* guidance_controller = new GuidanceController(&w);
+  guidance_controller->setViewport(&w);
+  guidance_controller->addFlow(BuildTemplateTourFlow(&w));
+  auto* guidance_support = new GuidanceSupport(guidance_controller, &w);
+  guidance_support->attachMenu(&w);
 
 #ifdef APP_ENABLE_QT_TESTING
   // 该对象随主窗口一起析构；回放模式下不挂菜单（没人点），改为立即回放
