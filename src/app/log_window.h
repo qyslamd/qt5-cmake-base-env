@@ -3,6 +3,8 @@
 
 #include <QDialog>
 
+class QPushButton;
+
 class LogOutputPanel;
 
 // 日志窗口：把 LogOutputPanel 装进独立窗口，供菜单随时唤出。
@@ -18,6 +20,7 @@ class LogWindow : public QDialog {
   void initSignals();
 
   LogOutputPanel* panel_ = nullptr;
+  QPushButton* close_btn_ = nullptr;
 };
 
 #endif  // FILE_APP_LOG_WINDOW_H_
