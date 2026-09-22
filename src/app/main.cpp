@@ -58,6 +58,8 @@
 #include "mainwindow.h"
 
 #ifdef APP_ENABLE_QT_TESTING
+#include <pqEventDispatcher.h>
+
 #include "qttesting/testing_support.h"
 #endif
 
@@ -69,6 +71,10 @@ namespace {
 struct LaunchOptions {
   // 非空 = UI 测试回放模式（跳过登录，播完即退出，退出码就是测试结果）
   QString ui_test_script;
+  // --slow 的原始文本。留着不解析成数字，是因为校验不通过时要报一句人话，
+  // 而 ParseCommandLine 跑在 Logger::init() 之前——那里 LOG_WARN 是空转的。
+  // 解析与报错都放到 SetupUiTesting 里做（那儿 Logger 已经起来了）
+  QString slow_text;
 };
 
 LaunchOptions ParseCommandLine(QApplication& app) {
@@ -85,10 +91,19 @@ LaunchOptions ParseCommandLine(QApplication& app) {
       QStringLiteral("脚本"));
   parser.addOption(play_option);
 
+  const QCommandLineOption slow_option(
+      QStringLiteral("slow"),
+      QStringLiteral("回放时每条事件之间等待的毫秒数。只对人看着回放有用，"
+                     "给 CI 跑不要加"),
+      QStringLiteral("毫秒"));
+  parser.addOption(slow_option);
+
   parser.process(app);
 
   LaunchOptions opts;
   opts.ui_test_script = parser.value(play_option);
+
+  opts.slow_text = parser.value(slow_option);
   return opts;
 }
 
@@ -182,6 +197,24 @@ void AttachHostFeatures(SingleInstance& instance, MainWindow& window) {
 // 「可删」——不需要录制回放时整段拿掉
 void SetupUiTesting(MainWindow& window, const LaunchOptions& opts) {
 #ifdef APP_ENABLE_QT_TESTING
+  // --slow：放慢回放，方便人看着它一步步走。
+  //
+  // 用 setEventPlaybackDelay 而不是往脚本里插 pause 事件：pause 是 sleep，
+  // 等待期间不处理事件、界面会冻住（库头文件原话 "the application will appear
+  // frozen"）；这个 setter 走的是 processEventsAndWait，界面照常刷新。
+  // 详见 docs/guide/模板使用指南.md 的「放慢回放」
+  if (!opts.slow_text.isEmpty()) {
+    bool ok = false;
+    const int slow_ms = opts.slow_text.toInt(&ok);
+    if (!ok || slow_ms <= 0) {
+      LOG_WARN("MAIN", "--slow 需要一个正整数毫秒数，已忽略: {}",
+               opts.slow_text.toStdString());
+    } else {
+      pqEventDispatcher::setEventPlaybackDelay(slow_ms);
+      LOG_INFO("MAIN", "回放节流：每条事件之间等 {} ms", slow_ms);
+    }
+  }
+
   // 该对象随主窗口一起析构；回放模式下不挂菜单（没人点），改为立即回放
   auto* ui_test = new UiTestSupport(&window);
   if (opts.ui_test_script.isEmpty()) {
@@ -198,6 +231,9 @@ void SetupUiTesting(MainWindow& window, const LaunchOptions& opts) {
   if (!opts.ui_test_script.isEmpty()) {
     LOG_WARN("MAIN", "--play 需要 BUILD_QT_TESTING=ON 的构建，已忽略: {}",
              opts.ui_test_script.toStdString());
+  }
+  if (!opts.slow_text.isEmpty()) {
+    LOG_WARN("MAIN", "--slow 只在 BUILD_QT_TESTING=ON 的构建里有效，已忽略");
   }
 #endif
 }

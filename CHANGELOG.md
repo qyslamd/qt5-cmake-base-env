@@ -10,6 +10,23 @@
 
 ### 新增
 
+- **录制改用库自带的控制面板，校验模式可用**：原先自己弹 `QFileDialog` 拿文件名、
+  再调 `recordTests(文件名)`——那条路会**绕过** `pqRecordEventsDialog`，连带把
+  「校验模式」（鼠标划过的控件显示绿/红框）与暂停/继续一起绕过去。现在走
+  `recordTests()`，面板出来。两个坑记在文档里：文件名仍得宿主先给（那个面板不带
+  文件选择）；`recordTests()` 不能紧接着 `setActiveWindow()` 调用——库用
+  `QApplication::activeWindow()` 决定要不要弹面板，而刚关掉的文件对话框还没把激活
+  交还回来，得延后一轮
+- **回放支持 `--slow` 放慢**：`demo_app --play sb.xml --slow 500`，每条事件之间
+  等 500 ms，方便人看着回放一步步走。默认是 100 ms（编译期量
+  `QT_TESTING_EVENT_PLAYBACK_DELAY`），十几条事件的脚本三四秒就跑完，人眼跟不上。
+  走的是 `pqEventDispatcher::setEventPlaybackDelay()`——库公开的静态 setter，
+  内部是 `processEventsAndWait`，等待期间照常处理事件、界面正常刷新。
+  **不要往脚本里插 `pause` 事件**：那个命令的实现是 `SleeperThread::msleep`，
+  头文件原话 "no events will be processed and the application will appear frozen"，
+  等待期间界面冻住，而且插了延时就得维护第二份脚本。详见
+  [模板使用指南](docs/guide/模板使用指南.md) 的「放慢回放」
+
 - **引导接入 funq：脚本执行的每一步在屏幕上看得见**：把引导的演示层当成 funq 的
   可视化层——脚本走到哪个控件，遮罩就高亮到哪个，同一套渲染层平时给用户当新手
   引导、跑脚本时给自动化当"看得见的光标"。实现上给演示层加了**被动模式**（按钮
@@ -171,6 +188,10 @@
 
 ### 修复
 
+- **QtTesting 控制面板的图标全丢了**：`pqRecordEventsDialog` / `pqPlayBackEventsDialog`
+  的按钮全靠在 `QtTesting.qrc` 里，而静态库的 qrc 符号没人引用就不会被链进来——
+  面板上是一排**空白按钮**，其中「校验模式」那个更是**只有图标没有文字**，看着像
+  没有功能。补上一次显式引用（`Q_INIT_RESOURCE(QtTesting)`）后图标回来
 - **回放模式撞上已运行的实例会 abort**：`Logger::init()` 里滚动文件 sink 用
   `rotate_on_open=true` 构造，一建就轮转一次日志、要把 `<应用名>.log` 改名成
   `.1.log`。另一个实例正开着这个文件时 Windows 拒绝改名，spdlog 抛异常而无人
