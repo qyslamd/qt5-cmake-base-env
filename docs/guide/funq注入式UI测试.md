@@ -78,6 +78,16 @@ libFunq.dll / libFunq.so（注入进 gallery 进程，在里面起 JSON 服务�
   的是 `Funq.dll`。拷贝由顶层 `CMakeLists.txt` 的 `stage_funq_injector` 目标完成
   （用 `ALL` 目标而非 `POST_BUILD`：解压产物被删除重建时对象文件未必重编，
   `POST_BUILD` 不会再触发，库就悄悄消失了）。
+- **注入库必须与被测程序同一构建配置**，所以暂存时按配置分名
+  （`libFunq-debug.dll` / `libFunq-relwithdebinfo.dll` / …），由 `funq_attach`
+  与 `serve_demo_app` 通过 `--library` 显式指定。不分名的后果很贵：暂存位置在
+  源码树里只有一个，后一次构建会把前一次覆盖掉，于是「在 debug 目录跑测试，
+  但上一次全量构建是 relwithdebinfo」就变成往 Debug 程序里注入 Release 库——
+  Qt 的 debug 二进制（`Qt5Cored`）与 release（`Qt5Core`）互不兼容，表现为
+  `LoadLibraryW` 返回 0，或走 runner 时超时并报一句
+  `WaitForSingleObject() returned 258`（既有 x86/x64 混用的提示，与真实原因无关）。
+  无后缀的那份仍然保留，供手工 `python -m funq_server.runner` 使用——那条路
+  没有人告诉它该用哪份，只能沿用"最后一次构建"的旧行为
 - **`funq_bootstrap.py` 手工注册应用配置**：funq 原本由它的 nose 插件负责读
   `funq.conf` 并把配置注册给测试基类，nose 不可用后由该脚本用 funq 自带的公开接口
   （`ApplicationRegistry.register_from_conf` + `register_funq_app_registry`）补上。

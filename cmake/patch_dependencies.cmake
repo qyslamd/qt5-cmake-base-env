@@ -44,8 +44,14 @@ function(apply_patch_to_dir src_dir patch_file)
     # core.autocrlf=false：git apply 默认按开发者本机的 autocrlf 决定写盘
     # 行尾（实测 autocrlf=true 时会把被补丁修改的整个文件写成 CRLF），
     # 这会让产物行尾随各人配置漂移。补丁钉死 LF，这里也要钉死
+    # --ignore-whitespace：补丁在 .gitattributes 里钉死为 LF，而个别上游源码是
+    # CRLF（SARibbon 的 CMakeLists 就是），行尾不一致会让 git apply 按行匹配失败
+    # 直接报 "patch does not apply"。实测该开关可让 LF 补丁落到 CRLF 目标上。
+    # 代价：补丁新增/修改的那些行按补丁的行尾（LF）写盘，目标文件因此成为
+    # 混合行尾——CMake 两者都认，且该文件是解压产物、每次解压重新生成，可接受
     execute_process(
-        COMMAND "${GIT_EXECUTABLE}" -c core.autocrlf=false apply "${patch_file}"
+        COMMAND "${GIT_EXECUTABLE}" -c core.autocrlf=false apply --ignore-whitespace
+                "${patch_file}"
         WORKING_DIRECTORY "${src_dir}"
         RESULT_VARIABLE result
         OUTPUT_VARIABLE out
@@ -88,9 +94,23 @@ apply_patch_to_dir("${3RDPARTY_DIR}/funq-master"
     "${PATCHES_DIR}/funq/0005-alias-file-encoding.patch")
 apply_patch_to_dir("${3RDPARTY_DIR}/funq-master"
     "${PATCHES_DIR}/funq/0006-drop-qtquick-component.patch")
+apply_patch_to_dir("${3RDPARTY_DIR}/funq-master"
+    "${PATCHES_DIR}/funq/0007-runner-library-argument.patch")
 
 apply_patch_to_dir("${3RDPARTY_DIR}/QXlsx-1.5.0"
     "${PATCHES_DIR}/QXlsx/0001-qt5-only.patch")
+
+apply_patch_to_dir("${3RDPARTY_DIR}/SARibbon-2.5.7"
+    "${PATCHES_DIR}/SARibbon/0001-qt5-only.patch")
+apply_patch_to_dir("${3RDPARTY_DIR}/SARibbon-2.5.7"
+    "${PATCHES_DIR}/SARibbon/0002-bump-cmake-minimum-version.patch")
+apply_patch_to_dir("${3RDPARTY_DIR}/SARibbon-2.5.7"
+    "${PATCHES_DIR}/SARibbon/0003-frameless-as-in-tree-target.patch")
+apply_patch_to_dir("${3RDPARTY_DIR}/SARibbon-2.5.7"
+    "${PATCHES_DIR}/SARibbon/0004-drop-install-export.patch")
+
+apply_patch_to_dir("${3RDPARTY_DIR}/qwindowkit-1.5.0"
+    "${PATCHES_DIR}/QWindowKit/0001-qmsetup-source-dir.patch")
 
 message(STATUS "Patches applied.")
 message(STATUS "")

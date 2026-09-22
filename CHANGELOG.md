@@ -234,6 +234,17 @@
   追加空条目；Windows 上空条目意味着搜索当前目录
 - Debug 配置此前可以打包，但其产物依赖调试版 C 运行时（不在 VC++
   可再发行包内），在用户机器上无法启动。现于打包前拦截
+- **注入的 funq 库可能与被测程序不同构建配置**：暂存目录在源码树里只有一个
+  （`3rdparty/funq-master/server/funq_server/`），而后一次构建会覆盖前一次留下的
+  库。于是"在 debug 目录跑测试、但上一次全量构建是 relwithdebinfo"就成了往
+  Debug 程序里注入 Release 库——Qt 的 debug 二进制（`Qt5Cored`）与 release
+  （`Qt5Core`）互不兼容，现场只有 `LoadLibraryW` 返回 0 或
+  `WaitForSingleObject() returned 258`（附带一句误导人的"Maybe x86/x64 mismatch"）。
+  现改为**按构建类型分名暂存**（`libFunq-debug.dll` / `libFunq-relwithdebinfo.dll`），
+  并给 funq 的 runner 加 `--library`（`patches/funq/0007`），由 `funq_attach` 与
+  `serve_demo_app` 两个包装脚本显式传入本构建目录对应的那一份；无后缀那份仍保留，
+  供手工 `python -m funq_server.runner` 使用（沿用"最后一次构建说了算"的旧行为，
+  文档已写明）
 - **Linux 侧 Debug 打包被拒时，提示里给的是 Windows 的命令**：
   `check_package_config.cmake` 的 Linux 分支打印 `cmake --preset
   ninja-relwithdebinfo-x64 ...`，而 Linux 侧根本不用 preset（原因见

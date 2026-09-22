@@ -25,4 +25,6 @@ echo "demo_app 即将启动并被注入，libFunq 监听 localhost:@FUNQ_DEMO_PO
 echo "另一个终端跑 run_demo_client 接上它。Ctrl+C 结束。"
 echo
 
-exec "@PYTHON_EXECUTABLE@" -m funq_server.runner --port @FUNQ_DEMO_PORT@ "@DEMO_APP_EXE@"
+# --library 显式指定本构建目录对应的那份注入库（暂存目录在源码树里、多配置
+# 构建会互相覆盖，库与被测程序配置不一致时只会报一句看不出原因的话）
+exec "@PYTHON_EXECUTABLE@" -m funq_server.runner --port @FUNQ_DEMO_PORT@ --library "@FUNQ_INJECTOR_LIBRARY@" "@DEMO_APP_EXE@"

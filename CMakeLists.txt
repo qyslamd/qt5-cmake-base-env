@@ -221,18 +221,48 @@ if(BUILD_FUNQ)
     # 只管那一个位置与那一个名字，而 MSVC 产出的是 Funq.dll，所以要拷一份改名。
     # 用 ALL 目标而非 POST_BUILD：解压产物被删除重建（补丁重放）时对象文件
     # 未必重编，POST_BUILD 不会再触发，库就悄悄消失了
+    #
+    # 除了无后缀那份，再按**构建类型**存一份带后缀的（libFunq-debug.dll /
+    # libFunq-relwithdebinfo.dll …）。理由：暂存位置在源码树里、只有一个，而
+    # 构建目录有多个配置，不分名的话后一次构建会覆盖前一次；拿另一个配置的
+    # 被测程序去注入就是错配——Debug 的 Qt 二进制（Qt5Cored）与 Release
+    # （Qt5Core）互不兼容，表现为 LoadLibrary 失败或目标进程被拖住，而报错
+    # 只有一句看不出原因的 "WaitForSingleObject() returned 258"。
+    # 带后缀的那份由构建系统的脚本与测试显式传给 runner（--library），
+    # 无后缀那份留给手工调用 python -m funq_server.runner（沿用旧行为）
     if(TARGET Funq)
         if(WIN32)
             set(FUNQ_INJECTOR_STAGE_NAME "libFunq.dll")
         else()
             set(FUNQ_INJECTOR_STAGE_NAME "libFunq.so")
         endif()
+        set(FUNQ_INJECTOR_STAGE_DIR
+            "${CMAKE_SOURCE_DIR}/3rdparty/funq-master/server/funq_server")
+
+        string(TOLOWER "${CMAKE_BUILD_TYPE}" FUNQ_CONFIG_SUFFIX)
+        if(NOT FUNQ_CONFIG_SUFFIX STREQUAL "")
+            get_filename_component(FUNQ_INJECTOR_STEM "${FUNQ_INJECTOR_STAGE_NAME}" NAME_WE)
+            get_filename_component(FUNQ_INJECTOR_EXT "${FUNQ_INJECTOR_STAGE_NAME}" EXT)
+            set(FUNQ_INJECTOR_CONFIGURED_NAME
+                "${FUNQ_INJECTOR_STEM}-${FUNQ_CONFIG_SUFFIX}${FUNQ_INJECTOR_EXT}")
+        else()
+            # 多配置生成器（VS）下 CMAKE_BUILD_TYPE 为空，配置名要到生成期才
+            # 知道，故退回无后缀名字——与改动前一致
+            set(FUNQ_INJECTOR_CONFIGURED_NAME "${FUNQ_INJECTOR_STAGE_NAME}")
+        endif()
+        # 供消费方（tests/gallery_funq 的注入器包装、examples/funq 的 serve 脚本）
+        # 经 configure_file 注入到生成的脚本里
+        set(FUNQ_INJECTOR_LIBRARY
+            "${FUNQ_INJECTOR_STAGE_DIR}/${FUNQ_INJECTOR_CONFIGURED_NAME}")
+
         add_custom_target(stage_funq_injector ALL
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:Funq>" "${FUNQ_INJECTOR_LIBRARY}"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "$<TARGET_FILE:Funq>"
-                "${CMAKE_SOURCE_DIR}/3rdparty/funq-master/server/funq_server/${FUNQ_INJECTOR_STAGE_NAME}"
+                "${FUNQ_INJECTOR_STAGE_DIR}/${FUNQ_INJECTOR_STAGE_NAME}"
             DEPENDS Funq
-            COMMENT "Staging ${FUNQ_INJECTOR_STAGE_NAME} next to funq_server (injector dependency)")
+            COMMENT "Staging ${FUNQ_INJECTOR_CONFIGURED_NAME}（+ 无后缀那份）next to funq_server")
     endif()
 else()
     message(STATUS "BUILD_FUNQ=OFF，跳过 funq（注入式 UI 测试不可用）")

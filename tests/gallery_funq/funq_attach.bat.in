@@ -8,6 +8,10 @@ rem 「吃下后续参数并转交给 funq runner」的可执行文件——pyth
 rem attach_exe 用是不行的（它会把被测程序当成脚本名）。
 rem
 rem 本文件由 CMake 生成到 build 下，不入库。
+rem
+rem --library 显式指定本构建目录对应的那份注入库：暂存目录在源码树里、
+rem 只有一个，多个配置的构建会互相覆盖；不指定就成了"谁最后构建谁说了算"，
+rem 而库与被测程序配置不一致时只会报一句看不出原因的话
 
 set "PYTHONPATH=@FUNQ_CLIENT_DIR@;@FUNQ_SERVER_DIR@;%PYTHONPATH%"
-"@PYTHON_EXECUTABLE@" -m funq_server.runner %*
+"@PYTHON_EXECUTABLE@" -m funq_server.runner --library "@FUNQ_INJECTOR_LIBRARY@" %*

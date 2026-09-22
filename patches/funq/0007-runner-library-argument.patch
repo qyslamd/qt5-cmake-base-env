@@ -1,0 +1,30 @@
+diff --git a/server/funq_server/runner.py b/server/funq_server/runner.py
+index 3dcb955..f5c4e3a 100644
+--- a/server/funq_server/runner.py
++++ b/server/funq_server/runner.py
+@@ -76,6 +76,12 @@ class Runner(object):
+         parser.add_argument('--port', type=int,
+                             help="Specify funq port.")
+         parser.add_argument('command', nargs=argparse.REMAINDER)
++        parser.add_argument(
++            '--library', type=str,
++            help="Path of the funq injector library. Defaults to the one "
++                 "staged next to funq_server, which is whichever build "
++                 "configuration was built last - pass this explicitly "
++                 "when the tested program does not come from that same build.")
+         return parser.parse_args(argv)
+ 
+     def _find_library(self):
+@@ -108,7 +114,11 @@ class Runner(object):
+         if opts.host is not None:
+             env['FUNQ_HOST'] = str(opts.host)
+ 
+-        library_path = self._find_library()
++        # --library 优先：库必须与被测程序同一构建配置（Debug 的 Qt 二进制与
++        # Release 互不兼容，混用会让 LoadLibrary 失败或把进程拖住），而暂存
++        # 位置只能放下"最后一次构建"的那一份。构建系统的脚本与本仓的测试都
++        # 显式传这个参数（见 CMakeLists.txt 的 stage_funq_injector）
++        library_path = opts.library or self._find_library()
+         if not os.path.isfile(library_path):
+             raise RuntimeError("Unable to find funq library %r" % library_path)
+ 
