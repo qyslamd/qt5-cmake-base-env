@@ -118,6 +118,16 @@ QVariant GuidanceSupport::showHighlight(const QVariant& params) {
     return result;
   }
 
+  // 不可见的控件不给高亮：它的几何是未初始化的，画出来的框会跑到屏幕角落去。
+  // 踩过——菜单栏里的 QMenu 从没显示过，报出来是 (0,0,100x30)，遮罩被铺到了
+  // 屏幕左上角一个 124x54 的小方块上。宁可报失败，也不要画一个假的框
+  if (!target->isVisible() || target->size().isEmpty()) {
+    result["ok"] = false;
+    result["message"] =
+        QStringLiteral("目标不可见或尺寸为空，不给高亮: %1").arg(path);
+    return result;
+  }
+
   // 被动模式：只显示、不交互，推进全由外部脚本给（设计与取舍见
   // docs/plan/guidance接入funq.md）
   presentation_->setPassiveMode(true);
@@ -126,6 +136,29 @@ QVariant GuidanceSupport::showHighlight(const QVariant& params) {
 
   result["ok"] = true;
   result["message"] = QStringLiteral("高亮 %1").arg(path);
+  // 把算出来的数字一并回报：高亮/遮罩算在哪儿，出问题时只能靠这个定位
+  const QRect rect = presentation_->highlightRect();
+  const QRect overlay = presentation_->geometry();
+  result["rect"] = QStringLiteral("%1,%2 %3x%4")
+                       .arg(rect.x())
+                       .arg(rect.y())
+                       .arg(rect.width())
+                       .arg(rect.height());
+  result["overlay"] = QStringLiteral("%1,%2 %3x%4")
+                          .arg(overlay.x())
+                          .arg(overlay.y())
+                          .arg(overlay.width())
+                          .arg(overlay.height());
+  result["host"] = target->window() == nullptr
+                       ? QStringLiteral("(无)")
+                       : QStringLiteral("%1 %2,%3 %4x%5")
+                             .arg(target->window()->objectName().isEmpty()
+                                      ? target->window()->metaObject()->className()
+                                      : target->window()->objectName())
+                             .arg(target->window()->mapToGlobal(QPoint(0, 0)).x())
+                             .arg(target->window()->mapToGlobal(QPoint(0, 0)).y())
+                             .arg(target->window()->width())
+                             .arg(target->window()->height());
   return result;
 }
 

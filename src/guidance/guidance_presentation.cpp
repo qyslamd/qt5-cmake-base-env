@@ -1,5 +1,6 @@
 #include "guidance_presentation.h"
 
+#include <QApplication>
 #include <QEasingCurve>
 #include <QHBoxLayout>
 #include <QHideEvent>
@@ -10,6 +11,7 @@
 #include <QPainterPath>
 #include <QPropertyAnimation>
 #include <QPushButton>
+#include <QScreen>
 #include <QShowEvent>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -30,6 +32,9 @@ GuidancePresentation::GuidancePresentation(QWidget* parent)
   // 独立顶层窗口（不设 Qt 父子，宿主由 SetHost 记）：无边框、不进任务栏，
   // 半透明让宿主内容透出（遮罩底色自绘）
   setWindowFlags(Qt::Tool | Qt::FramelessWindowHint);
+  // 顶层窗口也要有名字：funq 对没名字的顶层只能编"类名-序号"，连"遮罩显没显示"
+  // 都没法查
+  setObjectName(QStringLiteral("guidanceOverlay"));
   setAttribute(Qt::WA_TranslucentBackground);
   setAutoFillBackground(false);
   initUi();
@@ -279,13 +284,27 @@ void GuidancePresentation::setInteractive(bool interactive) {
   bubble_widget_->setVisible(isVisible() && bubble_visible_);
 }
 
-void GuidancePresentation::SetHost(QWidget* host) {
+void GuidancePresentation::SetHost(QWidget* host, bool inflate) {
   host_ = host;
   if (host == nullptr) {
     return;
   }
-  // 没有 Qt 父子关系，几何得按屏幕坐标自己算：铺满宿主的客户区
-  setGeometry(QRect(host->mapToGlobal(QPoint(0, 0)), host->size()));
+
+  // 没有 Qt 父子关系，几何得按屏幕坐标自己算：铺满宿主的客户区（可再外扩）
+  QRect area(host->mapToGlobal(QPoint(0, 0)), host->size());
+  if (inflate) {
+    area = area.adjusted(-kHostMargin, -kHostMargin, kHostMargin, kHostMargin);
+    // 裁到屏幕可用区：既不会把遮罩伸到屏幕外，也顺带处理了"宿主已占满屏幕"
+    const QScreen* screen = QApplication::screenAt(area.center());
+    if (screen == nullptr) {
+      screen = QApplication::primaryScreen();
+    }
+    if (screen != nullptr) {
+      area = area.intersected(screen->availableGeometry());
+    }
+  }
+
+  setGeometry(area);
   raise();
 }
 
@@ -336,7 +355,8 @@ void GuidancePresentation::showHighlight(QWidget* target, const QString& title,
   // 主窗口上、根本盖不到那个控件
   QWidget* target_window = target->window();
   if (target_window != nullptr) {
-    SetHost(target_window);
+    // 目标就是窗口本身时让遮罩外扩，否则高亮会盖满整块遮罩、阴影被掏空
+    SetHost(target_window, /*inflate=*/target == target_window);
   }
 
   ApplyWidgetHighlight(target);

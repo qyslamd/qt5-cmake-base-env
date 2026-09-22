@@ -46,18 +46,27 @@ class GuidancePresentation : public QWidget {
   // 气泡开关：关掉就只剩高亮框，没有文案
   void setBubbleVisible(bool visible);
 
-  // 跟随一个宿主窗口：把遮罩铺满它并置顶。
+  // 跟随一个宿主窗口：把遮罩铺到它上面并置顶。
   //
   // 演示层刻意**不设 Qt 父子**：模态对话框关闭时宿主被销毁，父子关系会把
   // 演示层一起带走；而作为某个窗口的子控件，也永远盖不到同为顶层窗口的模态
   // 框之上。所以改用 QPointer 记住宿主 + 手动 setGeometry/raise 管理层级
-  void SetHost(QWidget* host);
+  //
+  // inflate=true 时遮罩往外扩一圈 kHostMargin。高亮目标**就是宿主窗口本身**
+  // 时要传它：那种情况下高亮框会等于整块遮罩，而遮罩是"整块挖掉高亮区"画的，
+  // 阴影会被整块掏空，屏幕上只剩气泡。扩出去的部分按屏幕可用区裁掉——宿主
+  // 已经占满屏幕时自然就扩不动了，不必单独判全屏
+  void SetHost(QWidget* host, bool inflate = false);
 
   // 外部驱动的高亮：不经主题/步骤，直接指一个控件、说一句话。
   // 桥接层配合 setPassiveMode(true) 使用
   void showHighlight(QWidget* target, const QString& title,
                      const QString& text);
   void clearHighlight();
+
+  // 最近一次高亮的矩形（遮罩坐标系）。桥接层回报给脚本侧核对：高亮和遮罩
+  // 到底算在了哪儿，是"看不见"这类问题唯一能拿到的数字
+  QRect highlightRect() const { return highlightRect_; }
 
  protected:
   void setTitle(const QString& title);
@@ -123,6 +132,8 @@ class GuidancePresentation : public QWidget {
   QPixmap pixmap_;
   int margin_ = 10;
   int borderWidth_ = 3;
+  // 遮罩比宿主窗口外扩的像素数，见 SetHost
+  const int kHostMargin = 24;
 
   // 搞动画的
   bool use_anime_ = true;

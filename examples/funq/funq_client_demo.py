@@ -141,7 +141,13 @@ class Guidance(object):
         result = self._target().call_slot(
             slot_name="showHighlight",
             params={"path": path, "title": title, "text": text})
-        if not result.get("ok"):
+        if result.get("ok"):
+            # 把算出来的几何打出来：高亮框算在哪儿、遮罩铺在哪儿。这类
+            # "看不见 / 位置不对"的问题，只有这几个数字能自查
+            print("    [引导] 高亮框 %s | 遮罩 %s | 宿主 %s"
+                  % (result.get("rect"), result.get("overlay"),
+                     result.get("host")))
+        else:
             print("    [引导] %s" % result.get("message"))
         # 停一会儿再往下走，让这一步在屏幕上看得到
         if self._dwell > 0:
@@ -215,9 +221,8 @@ def main():
     print("坑在这里：trigger(blocking=True) 会一直等到动作做完，而「设置」")
     print("开的是模态对话框、自己不会返回——所以必须 blocking=False。")
     guide.highlight(MAIN_TITLE, "进主窗口了", "登录成功后主窗口才创建")
-    # 高亮「工具」菜单本身：菜单项是 QAction 不是 QWidget，引导指不了它
-    guide.highlight("MainWindow::QMenuBar::menuTool", "工具菜单",
-                    "「设置」在这个菜单下，下面就从这里触发它")
+    # 这里刻意不高亮「工具」菜单：菜单项是 QAction 不是 QWidget，指不了；
+    # 而菜单栏里的 QMenu 从没显示过、没有有效几何，指它会把遮罩画到屏幕角落
     action = client.action(path=SETTINGS_ACTION)
     print("拿到的动作：%r" % action.properties().get("text"))
     action.trigger(blocking=False)
