@@ -27,7 +27,9 @@ GuidancePresentation::GuidancePresentation(QWidget* parent)
       prev_btn_(new QPushButton(QStringLiteral("上一步"), bubble_widget_)),
       next_btn_(new QPushButton(QStringLiteral("下一步"), bubble_widget_)),
       count_down_timer_(new QTimer(this)) {
-  // 覆盖 viewport 的半透明遮罩，让主窗口内容透出（遮罩底色自绘）。
+  // 独立顶层窗口（不设 Qt 父子，宿主由 SetHost 记）：无边框、不进任务栏，
+  // 半透明让宿主内容透出（遮罩底色自绘）
+  setWindowFlags(Qt::Tool | Qt::FramelessWindowHint);
   setAttribute(Qt::WA_TranslucentBackground);
   setAutoFillBackground(false);
   initUi();
@@ -261,13 +263,101 @@ void GuidancePresentation::setInteractive(bool interactive) {
   // 气泡要保持可点，不能留在被穿透的子树里：reparent 到遮罩的父级
   // （viewport）。遮罩铺满 viewport 且原点一致，坐标系不变。
   // 实操模式关掉时挂回遮罩，恢复讲解式的父子结构
-  QWidget* new_parent = interactive ? parentWidget() : this;
-  if (new_parent != nullptr) {
-    bubble_widget_->setParent(new_parent);
+  if (interactive) {
+    // 气泡不能留在被穿透的子树里（那样点不到），也不能挂回宿主窗口——遮罩是
+    // 独立顶层窗口，挂在宿主上会被它压在下面，看着像蒙了层阴影。给它自己的
+    // 顶层窗口身份，与遮罩平级，靠 raise 压在遮罩之上
+    bubble_widget_->setParent(nullptr);
+    bubble_widget_->setWindowFlags(Qt::Tool | Qt::FramelessWindowHint);
+    bubble_widget_->setAttribute(Qt::WA_TranslucentBackground);
+  } else {
+    bubble_widget_->setParent(this);
+    bubble_widget_->setWindowFlags(Qt::Widget);
   }
   bubble_widget_->raise();
   // setParent 会把控件隐藏，需要显式恢复（此时遮罩已 show）
-  bubble_widget_->setVisible(isVisible());
+  bubble_widget_->setVisible(isVisible() && bubble_visible_);
+}
+
+void GuidancePresentation::SetHost(QWidget* host) {
+  host_ = host;
+  if (host == nullptr) {
+    return;
+  }
+  // 没有 Qt 父子关系，几何得按屏幕坐标自己算：铺满宿主的客户区
+  setGeometry(QRect(host->mapToGlobal(QPoint(0, 0)), host->size()));
+  raise();
+}
+
+void GuidancePresentation::setPassiveMode(bool passive) {
+  passive_mode_ = passive;
+  // 被动模式是"只显示、不交互"：按钮全隐（没有下一步可点），倒计时一律停
+  // ——推进由外部给，不由这里超时决定
+  skip_btn_->setVisible(!passive);
+  prev_btn_->setVisible(!passive);
+  next_btn_->setVisible(!passive);
+  if (passive) {
+    count_down_timer_->stop();
+  }
+}
+
+void GuidancePresentation::setBubbleVisible(bool visible) {
+  bubble_visible_ = visible;
+  if (bubble_widget_ != nullptr) {
+    bubble_widget_->setVisible(visible && isVisible());
+  }
+}
+
+QPoint GuidancePresentation::BubbleOrigin() const {
+  // 气泡挂在遮罩上时用遮罩局部坐标；实操模式下它被提到独立顶层窗口，坐标
+  // 就是屏幕坐标，得补上遮罩自己的屏幕原点
+  if (bubble_widget_ == nullptr || bubble_widget_->parentWidget() == this) {
+    return QPoint(0, 0);
+  }
+  return mapToGlobal(QPoint(0, 0));
+}
+
+void GuidancePresentation::ApplyWidgetHighlight(QWidget* target) {
+  if (target == nullptr) {
+    highlightRect_ = QRect();
+    return;
+  }
+  const QPoint global_pos = target->mapToGlobal(QPoint(0, 0));
+  highlightRect_ = QRect(mapFromGlobal(global_pos), target->size());
+}
+
+void GuidancePresentation::showHighlight(QWidget* target, const QString& title,
+                                         const QString& text) {
+  if (target == nullptr) {
+    return;
+  }
+
+  // 目标可能在别的顶层窗口里（比如模态对话框）：遮罩得跟过去，否则它铺在
+  // 主窗口上、根本盖不到那个控件
+  QWidget* target_window = target->window();
+  if (target_window != nullptr) {
+    SetHost(target_window);
+  }
+
+  ApplyWidgetHighlight(target);
+  anime_highlight_rect_ = highlightRect_;
+  pixmap_ = QPixmap();
+
+  setTitle(title);
+  setText(text);
+  // 外部驱动：不走动画、也不碰倒计时（被动模式下它本来就是停的）
+  changeBubblePosition();
+  update();
+
+  show();
+  raise();
+}
+
+void GuidancePresentation::clearHighlight() {
+  highlightRect_ = QRect();
+  anime_highlight_rect_ = QRect();
+  pixmap_ = QPixmap();
+  hide();
 }
 
 void GuidancePresentation::showEvent(QShowEvent* event) {
@@ -282,7 +372,7 @@ void GuidancePresentation::showEvent(QShowEvent* event) {
   // raise，半透明遮罩就会叠在气泡上（点击穿透所以按钮还能点，但看着
   // 像被阴影盖住，第二次运行起偶发）
   if (bubble_widget_ != nullptr) {
-    bubble_widget_->setVisible(true);
+    bubble_widget_->setVisible(bubble_visible_);
     bubble_widget_->raise();
   }
   QWidget::showEvent(event);
@@ -414,6 +504,11 @@ void GuidancePresentation::drawHighlight(QPainter* painter) {
 }
 
 void GuidancePresentation::mousePressEvent(QMouseEvent* event) {
+  // 被动模式：由外部驱动（funq 脚本），点哪儿都不该把它关掉
+  if (passive_mode_) {
+    return;
+  }
+
   // 高亮目标区域：引导期间目标不响应鼠标，点击仅拦截不退出。
   QRect target_rect = use_anime_ ? anime_highlight_rect_ : highlightRect_;
   if (target_rect.adjusted(-margin_, -margin_, margin_, margin_)
@@ -436,11 +531,12 @@ void GuidancePresentation::changeBubblePosition() {
     const QSize bubble_size = bubble_widget_->size();
     const int centered_x = (width() - bubble_size.width()) / 2;
     const int centered_y = (height() - bubble_size.height()) / 2;
+    const QPoint centered = BubbleOrigin() + QPoint(centered_x, centered_y);
     if (!use_anime_) {
-      bubble_widget_->move(centered_x, centered_y);
+      bubble_widget_->move(centered);
     } else {
       anime_bubble_->setStartValue(bubble_widget_->pos());
-      anime_bubble_->setEndValue(QPoint(centered_x, centered_y));
+      anime_bubble_->setEndValue(centered);
       anime_bubble_->start();
     }
     return;
@@ -518,11 +614,12 @@ void GuidancePresentation::changeBubblePosition() {
   y = qMax(margin,
            qMin(y, viewportSize.height() - bubbleSize.height() - margin));
 
+  const QPoint target_pos = BubbleOrigin() + QPoint(x, y);
   if (!use_anime_) {
-    bubble_widget_->move(x, y);
+    bubble_widget_->move(target_pos);
   } else {
     anime_bubble_->setStartValue(bubble_widget_->pos());
-    anime_bubble_->setEndValue(QPoint(x, y));
+    anime_bubble_->setEndValue(target_pos);
     anime_bubble_->start();
   }
   position_ = bestPos;

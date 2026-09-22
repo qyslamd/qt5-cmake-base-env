@@ -1,20 +1,68 @@
 #include "guidance_support.h"
 
 #include <QAction>
+#include <QApplication>
 #include <QMainWindow>
 #include <QMenu>
 #include <QMenuBar>
+#include <QString>
+#include <QWidget>
+#include <QtDebug>
 
 #include "guidance_controller.h"
 #include "guidance_homepage.h"
 #include "guidance_presentation.h"
 
+namespace {
+
+// funq 的路径形如 "MainWindow::settingsDialog::settingsCloseButton"，取最后
+// 一段当 objectName，用 Qt 的 findChild 找。
+//
+// 刻意不用 funq 的 ObjectPath：那会让 guidance 库链上 funq，为了一句高亮把整个
+// 库绑上去不值得。代价是只认最后一段——重名控件会命中第一个
+QWidget* ResolveWidget(const QString& path) {
+  const int sep = path.lastIndexOf(QStringLiteral("::"));
+  const QString name = sep >= 0 ? path.mid(sep + 2) : path;
+  if (name.isEmpty()) {
+    return nullptr;
+  }
+
+  // 控件可能在任何顶层窗口里（主窗口、设置对话框……），逐个找
+  const QWidgetList tops = QApplication::topLevelWidgets();
+  for (QWidget* top : tops) {
+    if (top == nullptr) {
+      continue;
+    }
+    if (top->objectName() == name) {
+      return top;
+    }
+    if (auto* found = top->findChild<QWidget*>(name)) {
+      return found;
+    }
+  }
+  return nullptr;
+}
+
+}  // namespace
+
 GuidanceSupport::GuidanceSupport(GuidanceController* controller,
-                                 QObject* parent)
-    : QObject(parent),
+                                 QWidget* parent)
+    : QWidget(parent),
       controller_(controller),
       presentation_(controller != nullptr ? controller->presentation()
-                                          : nullptr) {}
+                                          : nullptr) {
+  // funq 靠 objectName 定位到本对象再 call_slot。
+  //
+  // 做成独立顶层窗口而不是挂在主窗口下：脚本第一步（登录）就跑在主窗口**还不
+  // 存在**的时候，挂上去的话那几步没法高亮。Tool 标志让它不进任务栏，
+  // 0 尺寸 + 不挡鼠标，用户看不见它——它只是 funq 的落脚点。
+  // show() 不能省：funq 客户端默认等控件 visible 才返回，不 show 会一直超时
+  setWindowFlags(Qt::Tool | Qt::FramelessWindowHint);
+  setObjectName(QStringLiteral("guidanceBridge"));
+  resize(0, 0);
+  setAttribute(Qt::WA_TransparentForMouseEvents);
+  show();
+}
 
 void GuidanceSupport::attachMenu(QMainWindow* window) {
   if (window == nullptr) {
@@ -50,54 +98,48 @@ void GuidanceSupport::attachMenu(QMainWindow* window) {
   });
 }
 
-void GuidanceSupport::showHighlight(const QString& path, const QString& title,
-                                    const QString& text) {
-  // 桥接层尚未实现（设计见下方注释）。形参先显式吞掉：声明里有它们，/W4 下
-  // 不吞会报 C4100
-  Q_UNUSED(path);
-  Q_UNUSED(title);
-  Q_UNUSED(text);
+QVariant GuidanceSupport::showHighlight(const QVariant& params) {
+  QVariantMap result;
+  if (presentation_ == nullptr) {
+    result["ok"] = false;
+    result["message"] = QStringLiteral("演示层尚未就绪");
+    return result;
+  }
 
-  // TODO:
-  /*
-if (!presentation_)
-return;
+  const QVariantMap args = params.toMap();
+  const QString path = args.value(QStringLiteral("path")).toString();
+  QWidget* target = ResolveWidget(path);
+  if (target == nullptr) {
+    // 解析失败要说出来：脚本里写错一个 objectName 是常事，静默没有任何反馈
+    // 会让人以为"桥接根本没通"
+    result["ok"] = false;
+    result["message"] = QStringLiteral("按路径找不到控件: %1").arg(path);
+    qWarning() << "引导桥接：按路径找不到控件" << path;
+    return result;
+  }
 
-// 切到主线程（funq 的 onMessageReceived 本来就在主线程，
-// 但防御性转一下，万一将来 socket 线程变了）
-QMetaObject::invokeMethod(
-presentation_,
-[=]() {
-QObject* obj = ObjectPath::findObject(path);
-QWidget* target = qobject_cast<QWidget*>(obj);
-if (!target) {
-qWarning() << "GuidanceBridge: path not found:" << path;
-return;
-}
-presentation_->showHighlight(target, title, text);
+  // 被动模式：只显示、不交互，推进全由外部脚本给（设计与取舍见
+  // docs/plan/guidance接入funq.md）
+  presentation_->setPassiveMode(true);
+  presentation_->showHighlight(target, args.value(QStringLiteral("title")).toString(),
+                               args.value(QStringLiteral("text")).toString());
 
-// 模态对话框打开时，主窗口被挡，高亮看不见。showHighlight 里判断目标的归属窗口
-QWidget* target_window = target->window();
-QWidget* current_parent = qobject_cast<QWidget*>(presentation_->parent());
-
-if (target_window && target_window != current_parent) {
-    presentation_->setParent(target_window);
-    presentation_->setGeometry(target_window->rect());
+  result["ok"] = true;
+  result["message"] = QStringLiteral("高亮 %1").arg(path);
+  return result;
 }
 
-// 坑：模态对话框关闭时，presentation 的父级被销毁，presentation 跟着销毁。你的
-// presentation 由 controller 持有、setParent 之后会被 Qt
-// 的父子机制接管析构——这是个陷阱。
-// presentation 的父级始终设为 nullptr，用 QPointer 追踪当前 host，host 销毁时把
-// presentation 重新挂回主窗口。或者更简单——presentation 不做 Qt 父子，用
-// raise() +
-// setGeometry 手动管理层级。
+QVariant GuidanceSupport::hideHighlight(const QVariant& params) {
+  Q_UNUSED(params);
 
-},
-Qt::QueuedConnection);
-*/
-}
-
-void GuidanceSupport::hideHighlight() {
-  // TODO: 与 showHighlight 同批实现（funq -> 演示层 的清理侧）
+  QVariantMap result;
+  if (presentation_ == nullptr) {
+    result["ok"] = false;
+    result["message"] = QStringLiteral("演示层尚未就绪");
+    return result;
+  }
+  presentation_->clearHighlight();
+  result["ok"] = true;
+  result["message"] = QStringLiteral("已清除高亮");
+  return result;
 }

@@ -2,6 +2,7 @@
 #include <guidance_support.h>
 
 #include <cstdio>
+#include <memory>
 
 #include <QApplication>
 #include <QByteArray>
@@ -110,6 +111,16 @@ int main(int argc, char* argv[]) {
     LOG_INFO("MAIN", "崩溃捕获模块初始化完成");
   }
 
+  // 功能引导：控制器驱动演示层（遮罩 + 高亮 + 气泡），support 既挂菜单入口、
+  // 又是 funq 的桥接对象。
+  //
+  // **放在登录之前**：funq 脚本的第一步就跑在登录对话框上，那时主窗口还不存在，
+  // 挂到主窗口下的话那几步没法高亮。桥接对象因此是独立顶层窗口，没有 Qt 父级，
+  // 由这里的 unique_ptr 持有（控制器挂在 app 下）
+  auto* guidance_controller = new GuidanceController(&app);
+  auto guidance_support =
+      std::make_unique<GuidanceSupport>(guidance_controller, nullptr);
+
   // 登录成功前不创建主窗口。回放模式跳过登录：录制入口在主窗口菜单里，
   // 也就是录制总是从「已登录」状态开始；回放只有从同一状态起步，脚本里
   // 记录的控件才存在
@@ -167,13 +178,10 @@ int main(int argc, char* argv[]) {
 
   w.show();
 
-  // 功能引导：控制器驱动演示层（遮罩 + 高亮 + 气泡），support 挂菜单入口并
-  // 对接外部（funq 桥接见 GuidanceSupport）。两者都挂到主窗口下随窗口销毁，
-  // 注意 controller 要先建——support 的构造依赖它
-  auto* guidance_controller = new GuidanceController(&w);
+  // 主窗口出来之后才能接的部分：viewport 与主题（主题要靠 findChild 找到主
+  // 窗口里的控件），以及菜单入口
   guidance_controller->setViewport(&w);
   guidance_controller->addFlow(BuildTemplateTourFlow(&w));
-  auto* guidance_support = new GuidanceSupport(guidance_controller, &w);
   guidance_support->attachMenu(&w);
 
 #ifdef APP_ENABLE_QT_TESTING

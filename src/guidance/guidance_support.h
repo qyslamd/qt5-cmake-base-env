@@ -1,9 +1,10 @@
 #ifndef FILE_GUIDANCE_SUPPORT_H_
 #define FILE_GUIDANCE_SUPPORT_H_
 
-#include <QObject>
 #include <QPointer>
 #include <QString>
+#include <QVariant>
+#include <QWidget>
 
 class QMainWindow;
 class GuidancePresentation;
@@ -68,21 +69,31 @@ findObject 到。
 
 接实际脚本：把 funq_client_demo.py 的每一步加上 highlight 调用。
 */
-class GuidanceSupport : public QObject {
+class GuidanceSupport : public QWidget {
   Q_OBJECT
 
  public:
   // controller 由调用方持有，本类只引用它：演示层挂在 controller 里，
-  // 主题也由它管理，所以依赖一个对象就够，不必分别传进来
+  // 主题也由它管理，所以依赖一个对象就够，不必分别传进来。
+  //
+  // 基类是 QWidget 而不是 QObject，这是 funq 的要求：它按 path 定位之后要
+  // qobject_cast<QWidget*>（WidgetLocatorContext），纯 QObject 会被判成
+  // NotAWidget；而且客户端默认还要等控件 visible。本类没有任何界面，做成
+  // 0 尺寸、不挡鼠标的一块占位控件
   explicit GuidanceSupport(GuidanceController* controller,
-                           QObject* parent = nullptr);
+                           QWidget* parent = nullptr);
 
   // 在主窗口菜单栏挂 引导 菜单
   void attachMenu(QMainWindow* window);
 
-  Q_INVOKABLE void showHighlight(const QString& path, const QString& title,
-                                 const QString& text);
-  Q_INVOKABLE void hideHighlight();
+  // funq 桥接。签名受 funq 限制：它固定按 QMetaObject::invokeMethod(
+  // obj, name, DirectConnection, Q_RETURN_ARG(QVariant), Q_ARG(QVariant))
+  // 调用，所以**必须**是"单个 QVariant 进、QVariant 出"——拆成多个形参
+  // invokeMethod 匹配不上，会直接返回 NoMethodInvoked。
+  // 参数用 map：{"path": ..., "title": ..., "text": ...}
+  // 返回 {"ok": bool, "message": str}，脚本侧可据此判断
+  Q_INVOKABLE QVariant showHighlight(const QVariant& params);
+  Q_INVOKABLE QVariant hideHighlight(const QVariant& params);
 
  private:
   GuidanceController* controller_ = nullptr;

@@ -3,6 +3,7 @@
 
 #include <QColor>
 #include <QPixmap>
+#include <QPointer>
 #include <QWidget>
 
 class QEvent;
@@ -33,10 +34,30 @@ class GuidancePresentation : public QWidget {
                 bool canPrev,
                 bool canNext);
   void setIsAutoMode(bool autoMode);
-  // 实操模式：遮罩子树对鼠标穿透（点击落到下层真实控件，页签/滚动条
-  // 均可操作，点遮罩空白不再退出），气泡 reparent 到 viewport 保持可点。
-  // 默认关闭 = 讲解式（目标不响应、点空白退出），原行为不变
+  // 实操模式：遮罩对鼠标穿透（点击落到下层真实控件，页签/滚动条均可操作，
+  // 点遮罩空白不再退出），气泡改挂顶层窗口保持可点。
+  // 默认关闭 = 讲解式（目标不响应、点空白退出）
   void setInteractive(bool interactive);
+
+  // 被动模式：只显示、不交互，由外部驱动（funq 桥接用）。
+  // 三个按钮全隐、倒计时一律停、点遮罩空白不退出
+  void setPassiveMode(bool passive);
+
+  // 气泡开关：关掉就只剩高亮框，没有文案
+  void setBubbleVisible(bool visible);
+
+  // 跟随一个宿主窗口：把遮罩铺满它并置顶。
+  //
+  // 演示层刻意**不设 Qt 父子**：模态对话框关闭时宿主被销毁，父子关系会把
+  // 演示层一起带走；而作为某个窗口的子控件，也永远盖不到同为顶层窗口的模态
+  // 框之上。所以改用 QPointer 记住宿主 + 手动 setGeometry/raise 管理层级
+  void SetHost(QWidget* host);
+
+  // 外部驱动的高亮：不经主题/步骤，直接指一个控件、说一句话。
+  // 桥接层配合 setPassiveMode(true) 使用
+  void showHighlight(QWidget* target, const QString& title,
+                     const QString& text);
+  void clearHighlight();
 
  protected:
   void setTitle(const QString& title);
@@ -110,6 +131,14 @@ class GuidancePresentation : public QWidget {
   QPropertyAnimation* anime_bubble_;
   QRect anime_highlight_rect_;
 
+  // 控件 → 遮罩坐标系的高亮矩形。updateUi 的 QWidget* 分支与外部驱动的
+  // 高亮（showHighlight）共用同一套算法，避免两处算出不同的框
+  void ApplyWidgetHighlight(QWidget* target);
+
+  // 气泡 move() 的坐标原点：气泡挂在遮罩上时是遮罩局部坐标，改挂顶层窗口
+  // 之后是屏幕坐标，两处定位都要带上这个偏移
+  QPoint BubbleOrigin() const;
+
   // 自动执行用的
   bool auto_mode_ = false;
   // 实操模式（见 setInteractive）：遮罩子树穿透，气泡挂在 viewport 上
@@ -125,6 +154,12 @@ class GuidancePresentation : public QWidget {
   qreal time_percent_ = 0.0;
   // 本次自动倒计时已走的 tick 数；每次开始/停止都复位，避免续接上次残留值。
   int count_down_tick_ = 0;
+
+  // 遮罩跟随的宿主窗口。不设 Qt 父子，所以用 QPointer 防悬空
+  QPointer<QWidget> host_;
+  // 被动模式（外部驱动）与气泡开关，见对应 setter
+  bool passive_mode_ = false;
+  bool bubble_visible_ = true;
 };
 
  

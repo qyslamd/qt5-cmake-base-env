@@ -6,6 +6,10 @@
     终端 1（server 侧）  <构建目录>/examples/funq/serve_demo_app.bat
     终端 2（client 侧）  <构建目录>/examples/funq/run_demo_client.bat
 
+每走一步，引导会在屏幕上高亮出脚本正操作的控件并停留一会儿（`--dwell` 调，
+默认 1.2 秒，设 0 关掉）。脚本本身是毫秒级的，不歇一下根本看不清——这是
+**演示**才需要的节奏，真跑自动化时关掉。
+
 两边对应 funq 的两个包，谁也不依赖谁：
 
     funq_server  注入器 + libFunq，跑在被测程序那一侧
@@ -54,9 +58,10 @@ LOGIN_HINT = "loginDialog::loginContent::loginForm::loginHint"
 MAIN_WINDOW = "MainWindow"
 MAIN_TITLE = "MainWindow::QWidget::pagePlaceholderTitle"
 
-# 菜单项是 QAction，不是 QWidget，所以路径里带的是序号后缀（它们没有
-# objectName）。「工具」菜单的第三个动作就是「设置」
-SETTINGS_ACTION = "MainWindow::QMenuBar::QMenu-1::QAction-2"
+# 菜单项是 QAction 不是 QWidget，但 funq 一样能按路径取（client.action）。
+# 这里全靠 objectName：不给名字的话 funq 会退回「类名 + 同名兄弟序号」
+# （QMenu-1::QAction-2），那种合成名字既不稳定，引导桥接也解析不了
+SETTINGS_ACTION = "MainWindow::QMenuBar::menuTool::actionSettings"
 
 SETTINGS_DIALOG = "MainWindow::settingsDialog"
 SETTINGS_CLOSE = "MainWindow::settingsDialog::settingsCloseButton"
@@ -72,6 +77,10 @@ SETTINGS_CLOSE = "MainWindow::settingsDialog::settingsCloseButton"
 SETTINGS_PAGE_LOG = "MainWindow::settingsDialog::settingsPageStack::settingsPageLog"
 SETTINGS_RETAIN_DAYS = (
     SETTINGS_PAGE_LOG + "::settingsCard::settingsRow-1::QSpinBox")
+
+# 每次高亮后的默认停留秒数。**只在这里定义一份**——类和命令行各写一个默认值时，
+# 命令行那个恒定有值，会把类默认值悄悄盖掉（踩过）
+DEFAULT_DWELL = 3.0
 
 GOOD_USER = "admin"
 GOOD_PASSWORD = "123"
@@ -100,12 +109,58 @@ def exists(client, path):
         return False
 
 
+# 桥接对象是独立顶层窗口（不是主窗口的子控件）——脚本第一步就跑在登录
+# 对话框上，那时主窗口还没创建。见 docs/plan/guidance接入funq.md
+BRIDGE = "guidanceBridge"
+
+
+class Guidance(object):
+    """funq -> guidance 的薄封装：脚本走到哪一步，屏幕上就高亮到哪一步。
+
+    底层是 guidanceBridge 上的两个槽，见 docs/plan/guidance接入funq.md。
+    高亮失败不会中断脚本——它只是可视化，不该把用例拖垮。
+
+    `dwell` 是每次高亮后的停留秒数。funq 没有慢放开关（它只有"等条件"的
+    wait_for_properties，挡不住高亮一闪而过），而脚本本身是毫秒级的——不歇
+    一下，下一步立刻把上一步的高亮覆盖掉，人根本看不见。真正跑自动化时把它
+    设成 0。
+    """
+
+    def __init__(self, client, dwell=DEFAULT_DWELL):
+        self._client = client
+        self._dwell = dwell
+        self._bridge = None
+
+    def _target(self):
+        if self._bridge is None:
+            # 主窗口出来之前桥接对象还不存在，到这里才去拿
+            self._bridge = self._client.widget(path=BRIDGE, timeout=10.0)
+        return self._bridge
+
+    def highlight(self, path, title, text):
+        result = self._target().call_slot(
+            slot_name="showHighlight",
+            params={"path": path, "title": title, "text": text})
+        if not result.get("ok"):
+            print("    [引导] %s" % result.get("message"))
+        # 停一会儿再往下走，让这一步在屏幕上看得到
+        if self._dwell > 0:
+            time.sleep(self._dwell)
+        return result
+
+    def clear(self):
+        return self._target().call_slot(slot_name="hideHighlight", params={})
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--host", default="localhost",
                         help="libFunq 监听的地址（默认 localhost）")
     parser.add_argument("--port", type=int, default=9000,
                         help="libFunq 监听的端口（默认 9000）")
+    parser.add_argument("--dwell", type=float, default=DEFAULT_DWELL,
+                        help="每次高亮后停留的秒数（默认 1.2；设 0 关掉，"
+                             "想看清时调大）")
     opts = parser.parse_args()
 
     banner(1, "连上去")
@@ -118,6 +173,10 @@ def main():
                          "确认另一个终端里的 serve_demo_app 还在跑。\n" % exc)
         return 1
     print("连上了。注意：整个过程 client 没启动过任何程序。")
+    # 高亮助手：脚本每走一步，屏幕上就指到对应控件（失败不影响用例）
+    print("每次高亮会停留 %.1f 秒（--dwell 可调），否则一步接一步全糊在一起。"
+          % opts.dwell)
+    guide = Guidance(client, dwell=opts.dwell)
 
     banner(2, "看一眼登录界面上有什么")
     print("登录对话框在 funq 眼里长这样：")
@@ -125,9 +184,11 @@ def main():
     print("    %s" % LOGIN_PASSWORD)
     print("    %s" % LOGIN_BUTTON)
     print("    %s   <- 提示文字在这里" % LOGIN_HINT)
+    guide.highlight(LOGIN_USERNAME, "用户名", "脚本接下来要动这个控件")
 
     banner(3, "故意输错密码")
     client.widget(path=LOGIN_USERNAME).set_property("text", GOOD_USER)
+    guide.highlight(LOGIN_PASSWORD, "密码", "这一步故意填错")
     client.widget(path=LOGIN_PASSWORD).set_property("text", BAD_PASSWORD)
     client.widget(path=LOGIN_BUTTON).click()
     # 界面的反应不是同步的：点击只是把事件投进 Qt 队列，得给它一点时间
@@ -136,9 +197,11 @@ def main():
     print("输错后，提示文字 = %r" % hint)
     print("此时主窗口在不在：%s（应该不在）" % exists(client, MAIN_WINDOW))
     assert hint == "用户名或密码错误", "提示文字与预期不符：%r" % hint
+    guide.highlight(LOGIN_HINT, "看提示", "提示文字变了：登录失败")
     print("断言通过：登录失败这条路走对了。")
 
     banner(4, "换正确密码，进主窗口")
+    guide.highlight(LOGIN_PASSWORD, "换对密码", "这次能进主窗口")
     client.widget(path=LOGIN_PASSWORD).set_property("text", GOOD_PASSWORD)
     client.widget(path=LOGIN_BUTTON).click()
     # 登录成功后主窗口才创建，等一下它出来
@@ -151,15 +214,25 @@ def main():
     print("菜单动作是 QAction，用 client.action() 取，trigger() 触发。")
     print("坑在这里：trigger(blocking=True) 会一直等到动作做完，而「设置」")
     print("开的是模态对话框、自己不会返回——所以必须 blocking=False。")
+    guide.highlight(MAIN_TITLE, "进主窗口了", "登录成功后主窗口才创建")
+    # 高亮「工具」菜单本身：菜单项是 QAction 不是 QWidget，引导指不了它
+    guide.highlight("MainWindow::QMenuBar::menuTool", "工具菜单",
+                    "「设置」在这个菜单下，下面就从这里触发它")
     action = client.action(path=SETTINGS_ACTION)
     print("拿到的动作：%r" % action.properties().get("text"))
     action.trigger(blocking=False)
     client.widget(path=SETTINGS_DIALOG, timeout=10.0)
     print("设置对话框出现了：%s" % SETTINGS_DIALOG)
+    guide.highlight(SETTINGS_DIALOG, "设置对话框",
+                    "它盖住了主窗口，高亮得跟过来才看得见")
 
     banner(6, "在设置对话框里读一个值")
     print("目标：%s" % SETTINGS_RETAIN_DAYS)
     print("（「日志」页的『保留天数』）")
+    # 高亮「日志」页本身：那个 QSpinBox 没有 objectName，funq 的路径是
+    # 合成名（settingsRow-1::QSpinBox），引导解析不了
+    guide.highlight(SETTINGS_PAGE_LOG, "日志页",
+                    "下面读的『保留天数』就在这一页里")
     spin = client.widget(path=SETTINGS_RETAIN_DAYS)
     before = spin.properties()["value"]
     print("当前 value = %s" % before)
@@ -175,6 +248,7 @@ def main():
     print("  复原 value = %s" % spin.properties()["value"])
 
     banner(7, "收尾")
+    guide.clear()
     client.widget(path=SETTINGS_CLOSE).click()
     time.sleep(0.5)
     print("设置对话框还在不在：%s（应该不在）" % exists(client, SETTINGS_DIALOG))

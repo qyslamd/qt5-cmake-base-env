@@ -22,24 +22,29 @@ void MainWindow::initUi() {
   setWindowTitle(QCoreApplication::applicationName());
   setMinimumSize(800, 600);
 
-  // objectName 供功能引导按名字定位（引导只能高亮 QWidget，菜单项是 QAction
-  // 指不了，所以指到菜单标题上）
+  // objectName 供功能引导与 funq 按名字定位。
+  // 动作也要名字：不给的话 funq 会拿"类名-序号"当路径（QMenu-1::QAction-2），
+  // 那种合成名字既不稳定、引导侧也解析不了（它按 objectName 找）
   auto* file_menu = menuBar()->addMenu(QStringLiteral("文件(&F)"));
   file_menu->setObjectName(QStringLiteral("menuFile"));
-  file_menu->addAction(QStringLiteral("退出(&Q)"), this, &QWidget::close,
-                       QKeySequence::Quit);
+  auto* quit_action = file_menu->addAction(QStringLiteral("退出(&Q)"), this,
+                                           &QWidget::close, QKeySequence::Quit);
+  quit_action->setObjectName(QStringLiteral("actionQuit"));
 
   auto* tool_menu = menuBar()->addMenu(QStringLiteral("工具(&T)"));
   tool_menu->setObjectName(QStringLiteral("menuTool"));
-  tool_menu->addAction(QStringLiteral("日志窗口(&L)"), this,
-                       &MainWindow::onShowLogWindow);
-  tool_menu->addAction(QStringLiteral("设置(&S)"), this,
-                       &MainWindow::onShowSettings);
+  auto* log_action = tool_menu->addAction(QStringLiteral("日志窗口(&L)"), this,
+                                          &MainWindow::onShowLogWindow);
+  log_action->setObjectName(QStringLiteral("actionLogWindow"));
+  auto* settings_action = tool_menu->addAction(QStringLiteral("设置(&S)"), this,
+                                               &MainWindow::onShowSettings);
+  settings_action->setObjectName(QStringLiteral("actionSettings"));
 
   auto* help_menu = menuBar()->addMenu(QStringLiteral("帮助(&H)"));
   help_menu->setObjectName(QStringLiteral("menuHelp"));
-  help_menu->addAction(QStringLiteral("关于(&A)"), this,
-                       &MainWindow::onShowAbout);
+  auto* about_action = help_menu->addAction(QStringLiteral("关于(&A)"), this,
+                                            &MainWindow::onShowAbout);
+  about_action->setObjectName(QStringLiteral("actionAbout"));
 
   // 占位中央控件：模板使用者替换为自己的业务界面
   auto* central = new QWidget(this);

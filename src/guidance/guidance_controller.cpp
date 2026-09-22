@@ -48,9 +48,9 @@ void GuidanceController::clearFlows() {
 void GuidanceController::execute() {
   isRunning_ = true;
 
-  presentation_->setParent(viewport_);
-  presentation_->setGeometry(viewport_->rect());
+  // 先 show 再摆位：SetHost 内部要 raise()，对已映射的窗口才有效
   presentation_->show();
+  presentation_->SetHost(viewport_);
 
   // 主题级 enterFunc 在 startOne/startAll 直启路径此前从不执行（只有
   // 跨主题前进/回退才调），上层挂在这上的状态编排会被静默跳过——统一
@@ -136,15 +136,14 @@ void GuidanceController::startOne(GuidanceFlow* const flow, bool autoMode) {
 }
 
 void GuidanceController::updateOverlayGeometry() {
-  if (viewport_ != nullptr) {
-    presentation_->setGeometry(viewport_->rect());
-  }
+  // 几何由演示层自己按宿主算（它不设 Qt 父子，坐标是屏幕坐标系）
+  presentation_->SetHost(viewport_);
 }
 
 void GuidanceController::stop() {
   isRunning_ = false;
 
-  presentation_->setParent(nullptr);
+  // 本来就没有 Qt 父子关系（见 GuidancePresentation::SetHost），隐藏即可
   presentation_->hide();
 }
 
