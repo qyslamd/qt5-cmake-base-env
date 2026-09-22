@@ -34,8 +34,16 @@ constexpr char kTermCrashPrefix[] = "\n程序崩溃 (";
 constexpr char kTermCrashMid[] = ")\n崩溃日志已写入: ";
 constexpr char kTermCrashSuffix[] = "\n使用 addr2line 解析调用栈地址。\n";
 
+// write 在信号处理器里失败也没法补救，只能尽力而为——这里把"有意忽略返回值"
+// 显式写出来。不能省：-O1 起 _FORTIFY_SOURCE 会给 write 加上
+// warn_unused_result，不显式忽略就是一条告警，而发布用的恰恰是优化构建
+inline void writeRaw(int fd, const void* data, size_t len) {
+  const ssize_t written = write(fd, data, len);
+  (void)written;
+}
+
 /// 用 write 输出 C 字符串字面量，自动推导长度
-inline void writeStr(int fd, const char* s) { write(fd, s, strlen(s)); }
+inline void writeStr(int fd, const char* s) { writeRaw(fd, s, strlen(s)); }
 }  // namespace
 
 // 静态成员定义
@@ -213,7 +221,7 @@ void LinuxCrashHandler::doCrashDump(int signum, siginfo_t* info) {
   char header[512];
   size_t headerLen = formatSignalHeader(header, sizeof(header), signum, info);
   if (headerLen > 0) {
-    write(fd, header, headerLen);
+    writeRaw(fd, header, headerLen);
   }
 
   // 5. 写入帧数信息
@@ -221,12 +229,13 @@ void LinuxCrashHandler::doCrashDump(int signum, siginfo_t* info) {
   int frameLen = snprintf(frameInfo, sizeof(frameInfo),
                           "=== 调用栈 (%d 帧) ===\n", frames);
   if (frameLen > 0) {
-    write(fd, frameInfo, static_cast<size_t>(frameLen));
+    writeRaw(fd, frameInfo, static_cast<size_t>(frameLen));
   }
 
   // 6. 写入预计算系统信息
   if (s_instance->precomputed_info_len_ > 0) {
-    write(fd, s_instance->precomputed_info_, s_instance->precomputed_info_len_);
+    writeRaw(fd, s_instance->precomputed_info_,
+             s_instance->precomputed_info_len_);
   }
 
   // 7. backtrace_symbols_fd 直接写 fd（零分配）
