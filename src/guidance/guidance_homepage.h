@@ -53,11 +53,11 @@ class GuidanceCard : public QWidget {
   bool pressed_ = false;
 };
 
-// 引导首页：直接作为顶层窗口的子控件覆盖层（覆盖 MainWindow 含 ribbon），
-// 黑半透明遮罩 + 居中卡片。通过 raise() 置顶，不依赖 OverlayDialog / QDialog。
+// 引导首页：覆盖在宿主窗口之上的子控件覆盖层，
+// 黑半透明遮罩 + 居中卡片。通过 raise() 置顶，不用 QDialog 的事件循环。
 // - 显示/隐藏：show() / hide()（exec() 保留阻塞式兼容接口）
 // - 父窗口尺寸变化：showEvent 中按 parentWidget()->rect() 同步几何
-// - 遮罩颜色自绘（与原 OverlayDialog::themeDefaultMaskColor 保持一致）
+// - 遮罩颜色自绘
 class GuidanceHomePage : public QWidget {
   Q_OBJECT
 

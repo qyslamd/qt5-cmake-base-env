@@ -21,24 +21,28 @@ Python 侧要凑出全局坐标得沿父链累加，依赖"父链完整 + 每层
 
 **决定：C++ 侧解析 path，但不依赖 funq。**
 
-bridge 收 **path 字符串**，自己用 Qt 的 `findChild` 按最后一段 objectName 找控件
-（从 `QApplication::topLevelWidgets()` 逐个递归），再用引擎内部那套 `mapToGlobal`
-算矩形。好处：
+bridge 收 **path 字符串**，自己解析，再用引擎内部那套 `mapToGlobal` 算矩形：
 
 - **零 funq 依赖**——guidance 库保持干净，不用链 funq
 - **与引擎同源**——引导自己定位高亮用的就是这个算法，不会出现"算出来的框和引擎
   画的对不上"
 - Python 侧只传字符串，沿用 funq 已有的 path 概念，不引入新概念
 
-**解析器的两条限制**（实现并实测后确认，脚本里要绕开）：
+解析规则**照 funq 的 ObjectPath 重写**（`libFunq/objectpath.cpp`）：名字取
+objectName、为空时退到类名；同名兄弟里非首个的带 `-<序号>` 后缀；路径按 `::`
+逐段下钻。所以 `MainWindow::QWidget::pagePlaceholderTitle`、
+`...settingsRow-1::QSpinBox` 这种含**合成段**的路径也能解析——实测第 6 步因此从
+"指整页"变成了"指那个输入框本身"。
 
-| 限制 | 后果 | 绕法 |
-| ---- | ---- | ---- |
-| 只认**最后一段的 objectName** | `MainWindow::settingsDialog::settingsCloseButton` 能解析；`...settingsRow-1::QSpinBox` 不能——`QSpinBox` 是 funq 按"类名-序号"造的合成名，不是 objectName | 给那个控件补 objectName，或改指有名字的上层控件 |
-| 目标是 **QWidget**（引擎的目标类型只有 控件/矩形/图） | 菜单项是 `QAction`，指不了 | 改指它所在的菜单（菜单本身是 QWidget） |
+**没有直接抄 funq 的源码**：它是 CeCILL v2.1（copyleft），拷进来会把 guidance 库
+一起卷进那个许可证。算法本身不受版权保护，照着重写既干净又短，而且仍然零依赖。
 
-实测里这两条各撞了一次：`examples/funq/funq_client_demo.py` 的第 5、6 步因此改指
-「工具」菜单与「日志」页。
+**仍然存在的一条限制**：目标是 `QWidget`（引擎的目标类型只有 控件 / 矩形 / 图），
+所以菜单项那种 `QAction` 指不了——需要时改指它所在的菜单。
+
+另有一条保护：目标不可见或尺寸为空时**拒绝高亮并回报原因**。踩过——菜单栏里的
+`QMenu` 从没显示过，几何是未初始化的 `(0,0,100x30)`，指它会把遮罩铺到屏幕左上角
+一个小方块上。
 
 ## 二、五项决定
 
@@ -65,17 +69,26 @@ presentation 会被 Qt 的父子机制一起带走。改成不设父子后，`ra
 3. `mousePressEvent` 里"点遮罩空白退出"加 `if (passive_mode_) { return; }`
 4. 气泡可关：关掉就只有高亮框，没有文案
 
-## 四、bridge 就是 GuidanceSupport
+## 四、bridge 拆成两个类
 
-**不新增类。** `GuidanceSupport` 的 `showHighlight` / `hideHighlight` 已经把位置
-留好了（TODO 里管它叫 `GuidanceBridge`）。按下第一条的决定，它不需要依赖 funq。
+外部驱动这半拆成两个，各归各位：
 
-**但它必须是个可见的 QWidget，而且得早于登录就存在**——两条都是实测撞出来的：
+| 类 | 基类 | 职责 |
+| -- | ---- | ---- |
+| `GuidanceBridge` | **QWidget** | 被动模式 + 按 path 高亮（两个 `Q_INVOKABLE` 槽 + 路径解析） |
+| `GuidanceMenu` | `QObject` | 给 QMainWindow 宿主挂「功能引导」菜单、懒建主题主页 |
+
+原先合成一个 `GuidanceSupport`，结果是菜单那半白白背着一个 `QWidget` 基类和
+"0 尺寸 + 必须 `show()`"的包袱——**它之所以是 QWidget 纯粹是 funq 对桥接的要求**。
+拆开后两个名字各自准确，依赖也各归各位（Menu 要 `QMainWindow`；Bridge 谁都不
+依赖，给一个 presentation 就够）。
+
+**桥接为什么必须是可见的 QWidget、而且得早于登录就存在**——两条都是实测撞出来的：
 
 1. funq 的 `call_slot` 走 `WidgetLocatorContext<QWidget>`，即
    `qobject_cast<QWidget*>`，纯 `QObject` 会被判成 `NotAWidget`；而且
-   `client.widget()` 默认还要等控件 `visible`。所以本类**基类是 QWidget**，
-   并且构造里要 `show()`。它没有任何界面，做成 0 尺寸、不挡鼠标的一块占位控件
+   `client.widget()` 默认还要等控件 `visible`。所以它是 0 尺寸、不挡鼠标、
+   构造里就 `show()` 的一块占位控件
 2. funq 脚本的第一步就跑在**登录对话框**上，那时主窗口还没创建。挂在主窗口下的话
    那几步没法高亮，所以它是**独立顶层窗口**（`Qt::Tool` 不进任务栏），路径就是
    光秃秃的 `guidanceBridge`
@@ -88,7 +101,7 @@ presentation 会被 Qt 的父子机制一起带走。改成不设父子后，`ra
 接口：
 
 ```cpp
-class GuidanceSupport : public QWidget {
+class GuidanceBridge : public QWidget {
   Q_OBJECT
  public:
   Q_INVOKABLE QVariant showHighlight(const QVariant& params);
@@ -98,15 +111,6 @@ class GuidanceSupport : public QWidget {
 
 参数 `{"path": …, "title": …, "text": …}`；返回 `{"ok": bool, "message": str}`，
 解析失败时脚本能自己判断，不会静默。
-
-Python 侧：
-
-```python
-guide.highlight(LOGIN_PASSWORD, "密码", "这一步故意填错")
-client.widget(path=LOGIN_PASSWORD).set_property("text", BAD_PASSWORD)
-client.widget(path=LOGIN_BUTTON).click()
-guide.clear()
-```
 
 ## 五、验证顺序
 

@@ -78,9 +78,9 @@ void GuidanceController::ApplyFlowOptions(GuidanceFlow* const flow) {
   auto_mode_ = requested_auto_mode_ && !flow->interactive();
 
   presentation_->setInteractive(flow->interactive());
-  // 主题驱动时一定不是被动模式。被动模式是 funq 桥接那套（外部驱动、不带按钮、
-  // 停倒计时），上一轮跑完留下的状态不能跟到这一轮来——踩过：跑完 funq 示例
-  // （被测程序还开着）再点菜单开引导，跳过/上一步/下一步全没了
+  // 主题驱动时一定不是被动模式。被动模式属于"外部驱动"那套（不带按钮、停倒计时），
+  // 上一轮留给它的状态不能跟到这一轮来——否则外部驱动跑过一次之后，再走主题播放
+  // 就只剩遮罩和气泡，三个按钮全是隐的
   presentation_->setPassiveMode(false);
   // 演示层的自动模式必须跟着一起推：refreshStepPresentation() 起不起倒计时看
   // 的是**演示层自己的** auto_mode_。跨主题前进/回退这两条路径以前只调了本
@@ -286,7 +286,7 @@ void GuidanceController::refreshCurrentStepHighlight() {
 }
 
 // 刷新当前步骤的演示层（高亮/气泡/按钮态）。从 updateStep 抽出，
-// 便于 enter 回调中目标控件异步就绪后重新定位（D12）。
+// 便于 enter 回调中目标控件异步就绪后重新定位。
 void GuidanceController::refreshStepPresentation() {
   if (!isRunning_ || config_.flows().isEmpty()) {
     return;

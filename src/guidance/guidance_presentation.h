@@ -22,7 +22,8 @@ class GuidanceFlow;
 class GuidanceStep;
 
 // 演示层：覆盖整个 viewport 的半透明遮罩 + 目标高亮 + 气泡导航。
-// 自绘层（遮罩/气泡底/箭头/高亮框）颜色读 ThemeManager token，明暗主题自动适配；
+// 自绘层（遮罩/气泡底/箭头/高亮框）的颜色由 maskColor/bubbleColor/accentColor
+// 三个函数收口——目前是写死的常量，要做主题适配改这三处即可；
 // 气泡内部子控件（title/text/countdown/skip/prev/next）只设 objectName，由 QSS 覆盖。
 class GuidancePresentation : public QWidget {
   Q_OBJECT
@@ -39,7 +40,7 @@ class GuidancePresentation : public QWidget {
   // 默认关闭 = 讲解式（目标不响应、点空白退出）
   void setInteractive(bool interactive);
 
-  // 被动模式：只显示、不交互，由外部驱动（funq 桥接用）。
+  // 被动模式：只显示、不交互，由外部驱动（见 GuidanceBridge）。
   // 三个按钮全隐、倒计时一律停、点遮罩空白不退出
   void setPassiveMode(bool passive);
 
@@ -107,7 +108,7 @@ class GuidancePresentation : public QWidget {
   enum Position { Auto, Left, Right, Top, Bottom } position_ = Left;
   DirectionInfo evaluateDirectionSpace(Position pos);
 
-  // 自绘层颜色：读 ThemeManager token（明暗主题自动适配），禁止硬编码色值。
+  // 自绘层颜色：集中在这三个函数里，便于统一替换成主题色
   QColor maskColor() const;
   QColor bubbleColor() const;
   QColor accentColor() const;

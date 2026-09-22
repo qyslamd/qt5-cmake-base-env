@@ -32,8 +32,8 @@ GuidancePresentation::GuidancePresentation(QWidget* parent)
   // 独立顶层窗口（不设 Qt 父子，宿主由 SetHost 记）：无边框、不进任务栏，
   // 半透明让宿主内容透出（遮罩底色自绘）
   setWindowFlags(Qt::Tool | Qt::FramelessWindowHint);
-  // 顶层窗口也要有名字：funq 对没名字的顶层只能编"类名-序号"，连"遮罩显没显示"
-  // 都没法查
+  // 顶层窗口也要有名字：外部工具对没名字的顶层只能编"类名-序号"，
+  // 连"遮罩显没显示"都没法查
   setObjectName(QStringLiteral("guidanceOverlay"));
   setAttribute(Qt::WA_TranslucentBackground);
   setAutoFillBackground(false);
@@ -315,6 +315,10 @@ void GuidancePresentation::setPassiveMode(bool passive) {
   skip_btn_->setVisible(!passive);
   prev_btn_->setVisible(!passive);
   next_btn_->setVisible(!passive);
+  // 遮罩是覆盖在宿主上的独立顶层窗口，不收鼠标的话整块区域都会被它吞掉——
+  // 被动模式是"只显示"，人得能照常点下面的应用（脚本走 TCP 不受影响，
+  // 但脚本卡住时人还得能操作）
+  setAttribute(Qt::WA_TransparentForMouseEvents, passive);
   if (passive) {
     count_down_timer_->stop();
   }
@@ -524,7 +528,7 @@ void GuidancePresentation::drawHighlight(QPainter* painter) {
 }
 
 void GuidancePresentation::mousePressEvent(QMouseEvent* event) {
-  // 被动模式：由外部驱动（funq 脚本），点哪儿都不该把它关掉
+  // 被动模式：由外部驱动，点哪儿都不该把它关掉
   if (passive_mode_) {
     return;
   }
@@ -709,8 +713,7 @@ void GuidancePresentation::paintEvent(QPaintEvent* event) {
 }
 
 QColor GuidancePresentation::maskColor() const {
-  // 遮罩按设计文档 3.8 固定为半透明黑（default 0.50 / vscode 0.55），
-  // alpha 随明暗主题微调，无单个硬编码色值。
+  // 遮罩：半透明黑。alpha 定在这里，深浅要调只改这一个数
   const int alpha = 128;
   return QColor(0, 0, 0, alpha);
 }

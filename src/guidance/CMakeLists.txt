@@ -1,18 +1,20 @@
 set(TARGET_NAME ${APP_TARGET_PREFIX}_guidance)
 
 set(TARGET_SRCS
+    guidance_bridge.cpp
+    guidance_bridge.h
     guidance_config.cpp
     guidance_config.h
     guidance_controller.cpp
     guidance_controller.h
     guidance_homepage.cpp
     guidance_homepage.h
+    guidance_menu.cpp
+    guidance_menu.h
     guidance_presentation.cpp
     guidance_presentation.h
     guidance_style.cpp
     guidance_style.h
-    guidance_support.cpp
-    guidance_support.h
 )
 
 # 资源用 qt5_add_resources 显式生成，不同时开 AUTORCC——两套机制并存时看不出

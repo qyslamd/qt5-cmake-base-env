@@ -147,9 +147,8 @@ void GuidanceCard::mouseReleaseEvent(QMouseEvent* event) {
 GuidanceHomePage::GuidanceHomePage(GuidanceController* controller,
                                    QWidget* parent)
     : QWidget(parent), controller_(controller) {
-  // 覆盖层统一挂到顶层窗口：避免被侧边栏等中间父对象的边界裁剪，同时保证
-  // 遮罩覆盖 MainWindow（含 ribbon）。等价于 OverlayDialog 原来在 Linux
-  // 分支做的那件事，只是现在不再需要平台判断。
+  // 覆盖层统一挂到顶层窗口：避免被侧边栏等中间父对象的边界裁剪，
+  // 同时保证遮罩能盖住整个宿主窗口
   if (parent && parent->window() && parent->window() != parent) {
     setParent(parent->window());
   }
@@ -187,7 +186,7 @@ void GuidanceHomePage::initUi() {
   pal.setColor(QPalette::Window, QColor("#F0F0F0"));
   panel_->setPalette(pal);
 
-  // 阴影：原来是 OverlayDialog::setWidget 负责，现在自己挂。
+  // 面板阴影：挂一个 QGraphicsDropShadowEffect（比在 QSS 里做更省事）
   auto* shadow = new QGraphicsDropShadowEffect(panel_);
   shadow->setColor(QColor(105, 105, 105, 200));
   shadow->setBlurRadius(9);
@@ -323,7 +322,7 @@ void GuidanceHomePage::showEvent(QShowEvent* event) {
   }
   raise();
 
-  // 面板居中（原来由 OverlayDialog::showEvent 完成）。
+  // 面板居中
   if (panel_ != nullptr) {
     panel_->move((width() - panel_->width()) / 2,
                  (height() - panel_->height()) / 2);
@@ -342,7 +341,7 @@ void GuidanceHomePage::hideEvent(QHideEvent* event) {
 
 void GuidanceHomePage::paintEvent(QPaintEvent* event) {
   Q_UNUSED(event);
-  // 自绘遮罩：半透明黑，色值与 OverlayDialog::themeDefaultMaskColor 一致。
+  // 自绘遮罩：半透明黑
   // 不调 QWidget::paintEvent，让子控件各自绘制、不被底色覆盖。
   QPainter p(this);
   p.setRenderHint(QPainter::Antialiasing);

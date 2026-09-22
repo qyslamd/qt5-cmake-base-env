@@ -14,7 +14,7 @@ class GuidanceHomePage;
 
 // 引导库的演示窗口。刻意用一个普通 QWidget——没有 QMainWindow、没有菜单栏：
 // 库的核心 API（Controller + HomePage）对宿主是什么窗口没有要求，菜单那套
-// （GuidanceSupport::attachMenu）只是给主窗口宿主准备的便利层。
+// （GuidanceMenu::attachMenu）只是给主窗口宿主准备的便利层。
 //
 // 窗口里放几个真实控件，作为引导主题的高亮目标
 class DemoWidget : public QWidget {

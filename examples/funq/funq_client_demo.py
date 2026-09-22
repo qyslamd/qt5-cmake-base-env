@@ -7,7 +7,7 @@
     终端 2（client 侧）  <构建目录>/examples/funq/run_demo_client.bat
 
 每走一步，引导会在屏幕上高亮出脚本正操作的控件并停留一会儿（`--dwell` 调，
-默认 1.2 秒，设 0 关掉）。脚本本身是毫秒级的，不歇一下根本看不清——这是
+默认值见 DEFAULT_DWELL，设 0 关掉）。脚本本身是毫秒级的，不歇一下根本看不清——这是
 **演示**才需要的节奏，真跑自动化时关掉。
 
 两边对应 funq 的两个包，谁也不依赖谁：
@@ -118,7 +118,9 @@ class Guidance(object):
     """funq -> guidance 的薄封装：脚本走到哪一步，屏幕上就高亮到哪一步。
 
     底层是 guidanceBridge 上的两个槽，见 docs/plan/guidance接入funq.md。
-    高亮失败不会中断脚本——它只是可视化，不该把用例拖垮。
+    桥接**回报**失败（ok=false，含原因）时不中断脚本——它只是可视化，不该把
+    用例拖垮。但桥接本身调不通（对象不在、连接断了）会抛异常，那是另一回事，
+    会直接中断——那种情况挂掉比静默继续好查。
 
     `dwell` 是每次高亮后的停留秒数。funq 没有慢放开关（它只有"等条件"的
     wait_for_properties，挡不住高亮一闪而过），而脚本本身是毫秒级的——不歇
@@ -165,7 +167,7 @@ def main():
     parser.add_argument("--port", type=int, default=9000,
                         help="libFunq 监听的端口（默认 9000）")
     parser.add_argument("--dwell", type=float, default=DEFAULT_DWELL,
-                        help="每次高亮后停留的秒数（默认 1.2；设 0 关掉，"
+                        help="每次高亮后停留的秒数（默认见 DEFAULT_DWELL；设 0 关掉，"
                              "想看清时调大）")
     opts = parser.parse_args()
 
@@ -236,8 +238,9 @@ def main():
     print("（「日志」页的『保留天数』）")
     # 高亮「日志」页本身：那个 QSpinBox 没有 objectName，funq 的路径是
     # 合成名（settingsRow-1::QSpinBox），引导解析不了
-    guide.highlight(SETTINGS_PAGE_LOG, "日志页",
-                    "下面读的『保留天数』就在这一页里")
+    # 直接指那个 QSpinBox：它没有 objectName，路径里是合成段
+    # （settingsRow-1::QSpinBox），引导的解析器照 funq 的规则逐段下钻，认这个
+    guide.highlight(SETTINGS_RETAIN_DAYS, "保留天数", "读一个值，再写回去")
     spin = client.widget(path=SETTINGS_RETAIN_DAYS)
     before = spin.properties()["value"]
     print("当前 value = %s" % before)

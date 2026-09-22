@@ -9,7 +9,7 @@
 class GuidancePresentation;
 
 // 引导流程控制器：持有全部 Flow/Step 配置，驱动演示层（遮罩 + 高亮 + 气泡）
-// 前进/后退/跳过，并把状态通过信号暴露给上层（MainWindow）。
+// 前进/后退/跳过，并把状态通过信号暴露给宿主。
 class GuidanceController : public QObject {
   Q_OBJECT
 
@@ -31,7 +31,7 @@ class GuidanceController : public QObject {
   // 首页构建主题卡片用：当前已注册的 Flow 列表。
   const QList<GuidanceFlow*>& flows() const { return config_.flows(); }
 
-  // 演示层由控制器持有。桥接层（GuidanceSupport）要拿它响应外部高亮请求，
+  // 演示层由控制器持有。桥接层（GuidanceBridge）要拿它响应外部高亮请求，
   // 所以这里开个口子，而不是让调用方自己 new 一个
   GuidancePresentation* presentation() const { return presentation_; }
 

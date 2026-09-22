@@ -14,7 +14,7 @@
   可视化层——脚本走到哪个控件，遮罩就高亮到哪个，同一套渲染层平时给用户当新手
   引导、跑脚本时给自动化当"看得见的光标"。实现上给演示层加了**被动模式**（按钮
   全隐、倒计时一律停、点遮罩不退出，推进全由外部给）与气泡开关，并给
-  `GuidanceSupport` 补上按 path 定位控件的两个 `Q_INVOKABLE`（**零 funq 依赖**：
+  `GuidanceBridge` 按 path 定位控件的两个 `Q_INVOKABLE`（**零 funq 依赖**：
   自己用 Qt 的 `findChild` 解析、用引擎同一套 `mapToGlobal` 算矩形，所以 guidance
   库不必链 funq）。实测撞出四处约束，都记在 `docs/plan/guidance接入funq.md`：
   桥接对象必须是**可见的 QWidget**（funq 的 `call_slot` 要 `qobject_cast<QWidget*>`，
@@ -34,8 +34,9 @@
   **应用级**并入样式（追加而非覆盖，不动宿主已有的样式表）——气泡在实操模式下
   会被 reparent 到 viewport，只设在某个控件上的样式盖不到它。静态库的 qrc 符号
   需要有人显式引用，这一步收在库内部（`GuidanceStyle::EnsureApplied()`），宿主
-  不必知道资源名——漏写的代价是静默丢样式。`GuidanceSupport` 是给主窗口宿主
-  准备的便利层：挂菜单入口，并留出对 funq 的桥接口子。移植进来时修掉了四处缺陷
+  不必知道资源名——漏写的代价是静默丢样式。外部驱动分两个类各归各位：
+  `GuidanceBridge`（必须是可见 QWidget + 独立顶层窗口）管被动高亮，
+  `GuidanceMenu`（普通 QObject）给主窗口宿主挂菜单。移植进来时修掉了四处缺陷
   （跨主题自动模式不同步、实操主题被自动翻页、倒计时初值用反、第二遍运行气泡
   不显示），逐条记录在 `docs/plan/引入的guidance的bug记录.md`
 - **引导演示示例 `examples/guidance_demo/`**：一个普通 QWidget 窗口（没有
@@ -105,6 +106,14 @@
 
 ### 变更
 
+- **`main.cpp` 骨架化**：它原来是一篇 200 行的说明文——12 件事平铺在一个 `main()`
+  里，顺序约束散在五处注释中，读者拼不出全局。现在顶部有三块说明（启动时序图、
+  对象所有权约定、"标了「可删」的段落可整段拿掉"），正文分成 8 段，Splash 那段
+  只负责报进度、干活的抽成具名函数（`InitializeSession` / `LoadWindowSize`），
+  UI 测试接线收进 `SetupUiTesting`（`#ifdef` 封在函数里）。基础设施那几步**刻意
+  没抽**——`CrashHandler::create()` 返回 `unique_ptr`，抽进辅助函数会在返回时析构、
+  顺带撤掉崩溃捕获。命令行解析换成 `QCommandLineParser`：`--help` / `--version`
+  白送，未知参数直接报错（以前是被静默忽略）
 - **引导演示层不再靠 Qt 父子关系定位**：原先把遮罩 `setParent` 到 viewport——模态
   对话框一开就盖不到它上面（子控件永远压不过同为顶层窗口的模态框），而换宿主时
   宿主被销毁又会把演示层一起带走。改成独立顶层窗口（`Qt::Tool` + 无边框 + 半透明）
