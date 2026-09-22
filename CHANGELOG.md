@@ -55,7 +55,7 @@
   `GuidanceBridge`（必须是可见 QWidget + 独立顶层窗口）管被动高亮，
   `GuidanceMenu`（普通 QObject）给主窗口宿主挂菜单。移植进来时修掉了四处缺陷
   （跨主题自动模式不同步、实操主题被自动翻页、倒计时初值用反、第二遍运行气泡
-  不显示），逐条记录在 `docs/plan/引入的guidance的bug记录.md`
+  不显示），逐条记录在 `docs/plan/plan总结.md`（原文已归档，该文件已删除）
 - **引导演示示例 `examples/guidance_demo/`**：一个普通 QWidget 窗口（没有
   QMainWindow、也没有菜单栏——库的核心 API 对宿主是什么窗口没有要求）。演示
   三条主题：讲解式的控件导览、遮罩穿透的实操式主题、以及 QRect / QPixmap 两种
