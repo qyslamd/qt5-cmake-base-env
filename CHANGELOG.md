@@ -185,6 +185,16 @@
 - 全量 `clang-format` 格式化，并登记到 `.git-blame-ignore-revs`
 - 编辑器与静态分析配置：`.vscode/` 纳入仓库、新增 `.clang-format`、
   configure 时生成 `.clangd`
+- **崩溃排查与发布指南补上 Linux 侧**：`docs/guide/构建配置与崩溃排查.md`
+  此前通篇是 Windows（PDB、minidump、WinDbg），而 Linux 的捕获机制、日志格式
+  与符号载体都不同；`docs/guide/发布指南.md` 同样只有 `.bat` + ISCC 一条路。
+  现两份都按平台并列改写，并补上在 WSL 实测出来的结论：Linux 崩溃日志名是
+  `crash_<Unix 时间戳>.log`（与 Windows 的日期格式不同）、退出码是
+  `128+信号号`、解析时必须取圆括号里的 `+0x…` 偏移（PIE 的绝对地址喂给
+  `addr2line` 只得到 `??`）；`release` 产物给出函数名但无行号，而 AppImage 里
+  strip 过的那份会给出**错误的函数名**——符号表没了，`addr2line` 退回到最近的
+  可疑符号。发布指南另记了产物命名的两处不一致：符号目录的架构用 `x64`
+  （`APP_ARCH_SUFFIX`），AppImage 文件名的架构用 `x86_64`（`APPIMAGE_ARCH`）
 
 ### 修复
 
@@ -224,6 +234,20 @@
   追加空条目；Windows 上空条目意味着搜索当前目录
 - Debug 配置此前可以打包，但其产物依赖调试版 C 运行时（不在 VC++
   可再发行包内），在用户机器上无法启动。现于打包前拦截
+- **Linux 侧 Debug 打包被拒时，提示里给的是 Windows 的命令**：
+  `check_package_config.cmake` 的 Linux 分支打印 `cmake --preset
+  ninja-relwithdebinfo-x64 ...`，而 Linux 侧根本不用 preset（原因见
+  `build_ninja.sh` 头部注释），照抄只会再撞一次错。改为
+  `./scripts/build_ninja.sh -t relwithdebinfo -p`
+- **Linux 侧打包可能执行到别的构建目录的脚本**：`scripts/make_appimage.sh`
+  由 `configure_file` 生成在**源码树**里，同一棵树的多个构建目录共用这一个
+  文件，后 configure 的会覆盖先前的。于是从旧构建目录里跑 `make_appimage`
+  执行的其实是别人的脚本——实测报「未找到
+  build/linux-ninja-release/bin/demo_app」，而更糟的是：若被覆盖的那份是
+  relwithdebinfo 生成的，Debug 打包的拦截会一并被绕过去。现要求调用方传入
+  可执行文件所在目录，与脚本里烧死的构建目录比对，不符即报错退出（退出码 2）。
+  Windows 侧早有同款守卫（`make_installer.bat` 的 `EXPECTED_BIN` 比对），
+  此次是把 Linux 侧补齐
 
 ## [1.0.0] - 2026-09-11
 

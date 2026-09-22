@@ -332,9 +332,14 @@ else() # 非 Windows：Linux 侧用 AppImage
         RENAME "${APP_APP_NAME}.png")
 
     # make_appimage target — 对应 Windows 侧的 make_package。构建配置校验放在
-    # 脚本里（而非此处），这样直接调用脚本也拦得住 Debug 打包
+    # 脚本里（而非此处），这样直接调用脚本也拦得住 Debug 打包。
+    #
+    # 传入可执行文件所在目录：生成的脚本落在源码树、被所有构建目录共用，后
+    # configure 的会覆盖先前的，脚本据此比对是否属于当前构建（对应 Windows 侧
+    # make_installer.bat 收到的 bin 目录参数）
     add_custom_target(make_appimage
         COMMAND "${CMAKE_SOURCE_DIR}/scripts/make_appimage.sh"
+            "$<TARGET_FILE_DIR:${TARGET_NAME}>"
         WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
         COMMENT "Building AppImage (${APPIMAGE_ARCH})..."
     )

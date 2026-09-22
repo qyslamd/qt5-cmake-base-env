@@ -32,9 +32,7 @@ if(BUILD_TYPE STREQUAL "Debug")
             "Debug 产物体积大、带断言检查，而 AppImage 会 strip 掉调试信息，"
             "发布的包既没有性能优势也没有可解析的符号。\n"
             "发布请改用 relwithdebinfo：\n"
-            "  cmake --preset ninja-relwithdebinfo-x64\n"
-            "  cmake --build --preset ninja-relwithdebinfo-x64-build\n"
-            "  cmake --build --preset ninja-relwithdebinfo-x64-build --target make_appimage")
+            "  ./scripts/build_ninja.sh -t relwithdebinfo -p")
     endif()
 endif()
 
