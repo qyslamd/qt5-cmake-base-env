@@ -1,0 +1,70 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 0dc0a97..e851573 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -134,47 +134,15 @@ endif()
+ 
+ 
+ # QWindowKit的依赖
+-# QWindowKit的查找顺序：
+-# 1. 用户通过-DQWindowKit_DIR指定的路径
+-# 2. 项目本地安装目录 (bin_qtX.X.X_compiler_platform/lib/cmake/QWindowKit)
+-# 3. 系统默认安装路径
+-# 对于开发者，可以在配置时指定路径：
+-# cmake -DQWindowKit_DIR={path-to-qwindowkit/lib/cmake/QWindowKit}
++# 本仓把 QWindowKit 当子项目源码内嵌（add_subdirectory），不走 find_package：
++# 它的目标在配置期就已存在，直接检查即可。上游那套“依次找 QWindowKit_DIR /
++# 本地安装目录 / 系统路径”的查找在这里没有意义，且会误选中系统里另一份
+ if(_SARIBBON_USE_FRAMELESS_LIB)
+-    # 明确记录尝试查找的路径
+-    set(_qwk_search_paths)
+-
+-    # 如果用户已指定QWindowKit_DIR，优先使用
+-    if(QWindowKit_DIR)
+-        list(APPEND _qwk_search_paths ${QWindowKit_DIR})
+-        message(STATUS "Using user-specified QWindowKit_DIR: ${QWindowKit_DIR}")
+-    endif()
+-
+-    # 添加项目本地安装目录作为备选路径
+-    set(_local_qwk_dir ${SARIBBON_LOCAL_INSTALL_BIN_DIR}/lib/cmake/QWindowKit)
+-    if(EXISTS "${_local_qwk_dir}")
+-        list(APPEND _qwk_search_paths ${_local_qwk_dir})
+-        message(STATUS "Adding local install path for QWindowKit: ${_local_qwk_dir}")
+-    endif()
+-
+-    # 尝试查找QWindowKit包
+-    find_package(QWindowKit QUIET
+-        PATHS ${_qwk_search_paths}
+-        NO_DEFAULT_PATH  # 禁止在系统默认路径查找
+-    )
+-
+-    # 如果未找到，尝试系统路径作为最后手段
+-    if(NOT QWindowKit_FOUND)
+-        message(STATUS "QWindowKit not found in specified paths, trying system default...")
+-        find_package(QWindowKit QUIET)
+-    endif()
+-
+-    # 最终确认是否找到
+-    if(QWindowKit_FOUND)
+-        message(STATUS "QWindowKit found at: ${QWindowKit_DIR}")
++    if(TARGET QWindowKit::Widgets)
++        message(STATUS "QWindowKit found (built in-tree by add_subdirectory)")
+     else()
+         set(_SARIBBON_USE_FRAMELESS_LIB OFF)
+-        message(WARNING "QWindowKit not found - disabling frameless support. Searched paths:\n  ${_qwk_search_paths}")
++        message(WARNING "QWindowKit not found - disabling frameless support.")
+     endif()
+ endif()
+ 
+diff --git a/src/SARibbonBar/CMakeLists.txt b/src/SARibbonBar/CMakeLists.txt
+index 41f6ff6..d5cab75 100644
+--- a/src/SARibbonBar/CMakeLists.txt
++++ b/src/SARibbonBar/CMakeLists.txt
+@@ -150,7 +150,6 @@ message(STATUS "link ${SARIBBON_LIB_NAME} PUBLIC Qt${QT_VERSION_MAJOR}::Core Qt$
+ # Qt X11Extras was first introduced in 5.1 and got removed in 6.0
+ # But it was again brought back as a private feature of QtGui in 6.2
+ if(_SARIBBON_USE_FRAMELESS_LIB)
+-    find_package(QWindowKit REQUIRED)
+     target_link_libraries(${SARIBBON_LIB_NAME} PRIVATE QWindowKit::Widgets)
+     message(STATUS "link ${SARIBBON_LIB_NAME} PRIVATE QWindowKit::Widgets")
+ endif()

@@ -1,0 +1,26 @@
+diff --git a/src/SARibbonBar/CMakeLists.txt b/src/SARibbonBar/CMakeLists.txt
+index d5cab75..5a09c02 100644
+--- a/src/SARibbonBar/CMakeLists.txt
++++ b/src/SARibbonBar/CMakeLists.txt
+@@ -291,19 +291,14 @@ configure_package_config_file(
+     PATH_VARS SARIBBON_LIB_INCLUDE_INSTALL_DIR
+ )
+ 
++# 不登记 EXPORT：本仓把 SARibbon 当子项目源码内嵌，不做 find_package 分发；
++# 且 QWindowKit 的目标不在本 export set 里，留着会在 install 阶段报错
+ install(TARGETS ${SARIBBON_LIB_NAME}
+-    EXPORT ${SARIBBON_LIB_NAME}Targets
+     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${SARIBBON_LIB_NAME}
+ )
+-install(EXPORT ${SARIBBON_LIB_NAME}Targets
+-    FILE ${SARIBBON_LIB_NAME}Targets.cmake
+-    NAMESPACE ${SARIBBON_LIB_NAME}::
+-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${SARIBBON_LIB_NAME}
+-)
+-
+ install(FILES
+     "${CMAKE_CURRENT_BINARY_DIR}/${SARIBBON_LIB_NAME}Config.cmake"
+     "${CMAKE_CURRENT_BINARY_DIR}/${SARIBBON_LIB_NAME}ConfigVersion.cmake"

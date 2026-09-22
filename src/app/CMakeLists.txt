@@ -88,6 +88,13 @@ if(BUILD_QT_TESTING)
     target_compile_definitions(${TARGET_NAME} PRIVATE APP_ENABLE_QT_TESTING)
 endif()
 
+# Ribbon 界面：主窗口的基类与入口形态随这个开关二选一，见 mainwindow.h 的
+# MainWindowBase。关掉时退回 QMainWindow + 普通菜单栏，也不链 SARibbon
+if(BUILD_RIBBON)
+    target_link_libraries(${TARGET_NAME} PRIVATE SARibbonBar)
+    target_compile_definitions(${TARGET_NAME} PRIVATE APP_ENABLE_RIBBON)
+endif()
+
 set_target_properties(${TARGET_NAME} PROPERTIES
     AUTOMOC ON
     AUTOUIC ON

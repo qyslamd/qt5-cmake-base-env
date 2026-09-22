@@ -63,6 +63,16 @@
 #include "qttesting/testing_support.h"
 #endif
 
+#ifdef APP_ENABLE_RIBBON
+// SARibbon 的图标编在静态库自己的 qrc 里，没人引用那个符号就会被链接器丢掉，
+// 表现为功能区上的按钮全是空白（本仓在 QtTesting 的面板上踩过同款）。
+//
+// 这个函数必须留在文件作用域：Q_INIT_RESOURCE 展开是一条 extern 声明，
+// 放进匿名命名空间会绑到 internal linkage 的符号上，链接期直接报找不到
+// qInitResources_SARibbonResource
+static void InitRibbonResources() { Q_INIT_RESOURCE(SARibbonResource); }
+#endif
+
 namespace {
 
 // 命令行参数。只有回放一个开关；--help / --version 由 QCommandLineParser 白送。
@@ -275,6 +285,11 @@ int main(int argc, char* argv[]) {
     app.setStyleSheet(style_sheet);
 
     ConfigManager::instance();
+
+#ifdef APP_ENABLE_RIBBON
+    // 功能区（SARibbon）的图标资源注册。要早于主窗口构造，否则第一帧没有图标
+    InitRibbonResources();
+#endif
 
     Logger::init();
     LOG_INFO("MAIN", "应用程序启动，版本: {}", getProjectVersionAll());

@@ -1,0 +1,26 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 0eedf0e..4db9c28 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -28,7 +28,20 @@ endif()
+ # load Qt library, minimum version required is 5.8
+ # cn:Qt库加载,最低版本要求为5.8
+ set(SARIBBON_MIN_QT_VERSION 5.8)
+-find_package(QT NAMES Qt6 Qt5 COMPONENTS Core REQUIRED)
++# 本仓只用 Qt5：上游这里是版本无关查找（包名 QT，认 QT_DIR），与本仓
++# local.cmake 只提供 Qt5_DIR 的写法对不上，机器上装了 Qt6 还会选中它。
++# 下面几句等价于那次查找的产物——SARibbon 后面按 QT_VERSION_MINOR
++# 判断能否使用 frameless，缺了会展开成 if(LESS 14) 直接报错
++string(REPLACE "." ";" _saribbon_qt5_parts "${Qt5_VERSION}")
++list(GET _saribbon_qt5_parts 0 QT_VERSION_MAJOR)
++list(GET _saribbon_qt5_parts 1 QT_VERSION_MINOR)
++list(LENGTH _saribbon_qt5_parts _saribbon_qt5_count)
++if(_saribbon_qt5_count GREATER 2)
++    list(GET _saribbon_qt5_parts 2 QT_VERSION_PATCH)
++else()
++    set(QT_VERSION_PATCH 0)
++endif()
++set(QT_VERSION "${Qt5_VERSION}")
+ find_package(Qt${QT_VERSION_MAJOR} ${SARIBBON_MIN_QT_VERSION} COMPONENTS
+     Core
+     Gui

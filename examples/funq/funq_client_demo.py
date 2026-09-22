@@ -58,10 +58,14 @@ LOGIN_HINT = "loginDialog::loginContent::loginForm::loginHint"
 MAIN_WINDOW = "MainWindow"
 MAIN_TITLE = "MainWindow::QWidget::pagePlaceholderTitle"
 
-# 菜单项是 QAction 不是 QWidget，但 funq 一样能按路径取（client.action）。
-# 这里全靠 objectName：不给名字的话 funq 会退回「类名 + 同名兄弟序号」
-# （QMenu-1::QAction-2），那种合成名字既不稳定，引导桥接也解析不了
-SETTINGS_ACTION = "MainWindow::QMenuBar::menuTool::actionSettings"
+# 动作是 QAction 不是 QWidget，但 funq 一样能按路径取（client.action）。
+# 路径 = 它所属控件的路径 + 动作名，而本项目的动作都 new 在主窗口上
+# （SARibbon 的 addLargeAction 不改父级），所以前缀就是 MainWindow 自己。
+#
+# 这行原先更长：MainWindow::QMenuBar::menuTool::actionSettings——主窗口换成
+# 功能区（SARibbon）之后没有 QMenuBar 那一段了，路径随之变短。
+# 容器名也一并变了：工具入口在功能区里是面板 ribbonPanelTool，不再是菜单 menuTool
+SETTINGS_ACTION = "MainWindow::actionSettings"
 
 SETTINGS_DIALOG = "MainWindow::settingsDialog"
 SETTINGS_CLOSE = "MainWindow::settingsDialog::settingsCloseButton"

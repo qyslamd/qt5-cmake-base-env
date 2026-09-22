@@ -161,6 +161,12 @@ find_package(Qt5 COMPONENTS
     Core Gui Widgets PrintSupport Test Xml Svg Network Concurrent Sql SerialPort OpenGL
     CONFIG REQUIRED)
 
+# 本仓只用 Qt5，这里把版本号显式钉死：部分第三方库（qmsetup 的 qm_find_qt）
+# 只在 QT_VERSION_MAJOR 未定义时才做「版本无关查找」——那个查找走的是包名
+# QT，认的是 QT_DIR，与本仓 local.cmake 只提供 Qt5_DIR 的写法对不上，会直接
+# 配置失败；钉死之后它们转为 find_package(Qt5 ...)，正好复用已解析的 Qt5_DIR
+set(QT_VERSION_MAJOR 5)
+
 # Qt 运行时目录推导仅服务 Windows 消费方（run_app.bat、测试环境变量）。
 # qmake 按定义位于 Qt 安装的 bin 目录下，由它反推最直接；不要在各子目录
 # 另起一套推导，否则改动假设时容易漏改。
@@ -266,6 +272,42 @@ if(BUILD_FUNQ)
     endif()
 else()
     message(STATUS "BUILD_FUNQ=OFF，跳过 funq（注入式 UI 测试不可用）")
+endif()
+
+# SARibbon Ribbon 界面库：把主窗口的菜单栏换成功能区（Ribbon）。静态库，
+# 随本仓一次编译。开关 BUILD_RIBBON 默认 ON，不需要时用 -DBUILD_RIBBON=OFF
+# 关掉——主窗口会退回普通菜单栏（见 src/app/mainwindow.cpp 的条件编译）
+option(BUILD_RIBBON "启用 SARibbon Ribbon 界面（主窗口的功能区菜单）" ON)
+
+if(BUILD_RIBBON)
+    # 无边框窗口（frameless）由 QWindowKit 提供，而它要求 Qt ≥ 5.14：低版本
+    # 连编都不该编，故这里跳过整个 QWindowKit，SARibbon 侧对应关掉 frameless。
+    # 判的是 Qt5_VERSION——find_package(Qt5) 只设置这个变量，QT_VERSION 不由
+    # Qt5Config 提供（照着后者写会永远判成"低版本"）
+    if(Qt5_VERSION VERSION_LESS "5.14")
+        message(STATUS
+            "Qt ${Qt5_VERSION} < 5.14：跳过 QWindowKit，SARibbon 的无边框支持关闭"
+            "（Ribbon 本体不受影响）")
+        set(SARIBBON_USE_FRAMELESS_LIB OFF CACHE BOOL "关闭无边框窗口" FORCE)
+    else()
+        set(QWINDOWKIT_BUILD_STATIC ON CACHE BOOL "把 QWindowKit 编成静态库" FORCE)
+        set(QWINDOWKIT_BUILD_WIDGETS ON CACHE BOOL "编 QWindowKit 的 widgets 模块" FORCE)
+        set(QWINDOWKIT_BUILD_QUICK OFF CACHE BOOL "不编 quick 模块" FORCE)
+        set(QWINDOWKIT_BUILD_EXAMPLES OFF CACHE BOOL "不编 QWindowKit 示例" FORCE)
+        set(QWINDOWKIT_BUILD_DOCUMENTATIONS OFF CACHE BOOL "不生成文档" FORCE)
+        set(QWINDOWKIT_INSTALL OFF CACHE BOOL "不安装 QWindowKit" FORCE)
+        set(SARIBBON_USE_FRAMELESS_LIB ON CACHE BOOL "启用无边框窗口" FORCE)
+        add_subdirectory(3rdparty/qwindowkit-1.5.0)
+    endif()
+
+    # 这两个选项必须在 add_subdirectory 之前设好：SARibbon 用 option() 声明，
+    # 缓存里已有条目时它不会覆盖
+    set(SARIBBON_BUILD_STATIC_LIBS ON CACHE BOOL "把 SARibbonBar 编成静态库" FORCE)
+    set(SARIBBON_BUILD_EXAMPLES OFF CACHE BOOL "不编 SARibbon 自带示例" FORCE)
+    set(SARIBBON_INSTALL_IN_CURRENT_DIR OFF CACHE BOOL "不安装到当前目录" FORCE)
+    add_subdirectory(3rdparty/SARibbon-2.5.7)
+else()
+    message(STATUS "BUILD_RIBBON=OFF，跳过 SARibbon（主窗口用普通菜单栏）")
 endif()
 
 #-------------------------------------------------------------------------------

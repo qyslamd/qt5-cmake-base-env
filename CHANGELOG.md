@@ -10,6 +10,20 @@
 
 ### 新增
 
+- **Ribbon 界面：SARibbon 作为基础设施接入**（`BUILD_RIBBON`，默认 ON）。
+  主窗口的基类随开关二选一：开着是 `SARibbonMainWindow`（菜单栏那一行换成
+  功能区），关掉退回 `QMainWindow` + 普通菜单栏。两种形态**共用同一批
+  QAction**，差异全收在 `mainwindow.cpp` 的 `initRibbon` / `initMenuBar`。
+  功能区下挂三个面板（工具 / 帮助 / 文件），面板都设了 objectName——引导与
+  funq 定位的是控件，而菜单项是 QAction，指不了。顺带接上无边框窗口：它的
+  frameless 依赖 QWindowKit，而 QWindowKit 要求 Qt ≥ 5.14，所以 Windows 侧
+  （5.15.2）启用、Linux 侧（Ubuntu 20.04 的 5.12.8）整个跳过，Ribbon 本体
+  不受影响。三个包（SARibbon 2.5.7 / QWindowKit 1.5.0 / qmsetup）按本仓既有
+  约定只入库 tar.gz，解压产物不入库。实测（Windows，`--play` 空脚本拉起
+  主窗口后读日志）：三个面板都能被 `findChild` 按名找到，`:/SARibbon/...` 的
+  图标与 `:/SARibbonTheme/...` 的主题资源均在位——后者是静态库 qrc 的老问题，
+  靠 `main.cpp` 里的 `Q_INIT_RESOURCE(SARibbonResource)` 显式引用
+
 - **录制改用库自带的控制面板，校验模式可用**：原先自己弹 `QFileDialog` 拿文件名、
   再调 `recordTests(文件名)`——那条路会**绕过** `pqRecordEventsDialog`，连带把
   「校验模式」（鼠标划过的控件显示绿/红框）与暂停/继续一起绕过去。现在走
@@ -123,6 +137,27 @@
 
 ### 变更
 
+- **第三方改动一律走 patch 文件，不再用 CMake 文本替换**：SARibbon 与
+  QWindowKit 一共 5 处改动（Qt5 锁定、`cmake_minimum_required` 抬到 3.15、
+  QWindowKit 改走 in-tree 目标、去掉 `install(EXPORT)`、qmsetup 源码路径），
+  全部落在 `patches/SARibbon/` 与 `patches/QWindowKit/`，由
+  `patch_dependencies.cmake` 在 configure 时应用——可 review、可重放，重解压
+  后自动重放。补丁由 pristine 解压副本逐条 `git diff` 生成，`--ignore-whitespace`
+  解决 CRLF 目标的匹配问题（见下）
+- **`patch_dependencies.cmake` 给 `git apply` 加 `--ignore-whitespace`**：
+  SARibbon 的 `CMakeLists.txt` 是 CRLF，而本仓 `.gitattributes` 把 `*.patch`
+  钉成 LF，行尾不一致会让 `git apply` 直接报 `patch does not apply`（实测）。
+  代价是补丁新增/修改的那几行按 LF 落盘，目标文件成为**混合行尾**——CMake
+  两者都认，且该文件是解压产物、每次解压重新生成，故接受
+- **顶层显式 `set(QT_VERSION_MAJOR 5)`**：qmsetup 的 `qm_find_qt` 只在
+  `QT_VERSION_MAJOR` 未定义时才做版本无关查找，而那个查找走的是包名 `QT`、
+  认 `QT_DIR`，与本仓 `local.cmake` 只提供 `Qt5_DIR` 的写法对不上，配置会直接
+  失败。钉死后它转为 `find_package(Qt5 ...)`，复用已解析好的 `Qt5_DIR`
+- **funq 示例脚本里的设置项路径变短**：`MainWindow::QMenuBar::menuTool::
+  actionSettings` → `MainWindow::actionSettings`。动作都 `new` 在主窗口上，
+  而 SARibbon 的 `addLargeAction` 不改其父级，所以前缀就是窗口自己；引导导览的
+  目标名也随形态切换（功能区指面板 `ribbonPanelTool` / `ribbonPanelHelp`，
+  菜单栏形态仍是 `menuTool` / `menuHelp`）
 - **`main.cpp` 骨架化**：它原来是一篇 200 行的说明文——12 件事平铺在一个 `main()`
   里，顺序约束散在五处注释中，读者拼不出全局。现在顶部有三块说明（启动时序图、
   对象所有权约定、"标了「可删」的段落可整段拿掉"），正文分成 8 段，Splash 那段
