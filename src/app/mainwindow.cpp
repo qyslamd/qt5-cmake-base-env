@@ -2,6 +2,7 @@
 
 #include <QAction>
 #include <QCoreApplication>
+#include <QIcon>
 #include <QKeySequence>
 #include <QLabel>
 #include <QVBoxLayout>
@@ -45,22 +46,31 @@ void MainWindow::initUi() {
 // 动作：objectName 供功能引导与 funq 按名字定位。
 // 不给名字的话 funq 会拿「类名-序号」当路径（QAction-2 之类），那种合成名字
 // 既不稳定、引导侧也解析不了（它按 objectName 找）
+//
+// 图标是彩色 SVG（`resources/icons/svg/`）：功能区形态下每个动作就是一个大
+// 按钮，没有图标会是一排纯文字。两种形态共用这批动作，菜单栏形态跟着一起有
+// 图标。SVG 由 Qt 的 svg 图片插件渲染（开发机随 Qt 安装，发布包由
+// windeployqt 收进 imageformats/qsvg.dll，Linux 侧在 libqt5svg5 里）
 void MainWindow::createActions() {
-  quit_action_ = new QAction(QStringLiteral("退出(&Q)"), this);
+  quit_action_ = new QAction(QIcon(":/resources/icons/svg/quit.svg"),
+                             QStringLiteral("退出(&Q)"), this);
   quit_action_->setObjectName(QStringLiteral("actionQuit"));
   quit_action_->setShortcut(QKeySequence::Quit);
   connect(quit_action_, &QAction::triggered, this, &QWidget::close);
 
-  log_action_ = new QAction(QStringLiteral("日志窗口(&L)"), this);
+  log_action_ = new QAction(QIcon(":/resources/icons/svg/log_window.svg"),
+                            QStringLiteral("日志窗口(&L)"), this);
   log_action_->setObjectName(QStringLiteral("actionLogWindow"));
   connect(log_action_, &QAction::triggered, this, &MainWindow::onShowLogWindow);
 
-  settings_action_ = new QAction(QStringLiteral("设置(&S)"), this);
+  settings_action_ = new QAction(QIcon(":/resources/icons/svg/settings.svg"),
+                                 QStringLiteral("设置(&S)"), this);
   settings_action_->setObjectName(QStringLiteral("actionSettings"));
   connect(settings_action_, &QAction::triggered, this,
           &MainWindow::onShowSettings);
 
-  about_action_ = new QAction(QStringLiteral("关于(&A)"), this);
+  about_action_ = new QAction(QIcon(":/resources/icons/svg/about.svg"),
+                              QStringLiteral("关于(&A)"), this);
   about_action_->setObjectName(QStringLiteral("actionAbout"));
   connect(about_action_, &QAction::triggered, this, &MainWindow::onShowAbout);
 }

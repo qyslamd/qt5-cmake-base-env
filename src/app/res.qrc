@@ -18,5 +18,8 @@
         <file>resources/icons/svg/bicycle_floor_pump.svg</file>
         <file>resources/icons/svg/settings.svg</file>
         <file>resources/icons/svg/user.svg</file>
+        <file>resources/icons/svg/log_window.svg</file>
+        <file>resources/icons/svg/about.svg</file>
+        <file>resources/icons/svg/quit.svg</file>
     </qresource>
 </RCC>

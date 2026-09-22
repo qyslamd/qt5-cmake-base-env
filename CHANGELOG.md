@@ -10,6 +10,14 @@
 
 ### 新增
 
+- **功能区/菜单栏的动作配上彩色 SVG 图标**：日志窗口、设置、关于、退出四个动作
+  各一张（`src/app/resources/icons/svg/`，48×48 扁平彩色，与既有的 `monitor.svg`
+  同一套配色）。此前功能区形态下是四个纯文字大按钮，很空。图标设在 QAction 上，
+  于是功能区与菜单栏两种形态一起有。SVG 由 Qt 的 svg 图片插件渲染——开发机随
+  Qt 安装、发布包由 windeployqt 收进 `imageformats/qsvg.dll`、Linux 在
+  libqt5svg5 里；实测四张都能渲出非空 pixmap。`settings.svg` 原先是单色且无人
+  引用，一并换成彩色版本
+
 - **Ribbon 界面：SARibbon 作为基础设施接入**（`BUILD_RIBBON`，默认 ON）。
   主窗口的基类随开关二选一：开着是 `SARibbonMainWindow`（菜单栏那一行换成
   功能区），关掉退回 `QMainWindow` + 普通菜单栏。两种形态**共用同一批
