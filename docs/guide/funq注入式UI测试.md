@@ -129,6 +129,44 @@ python3 tests/gallery_funq/probe_widgets.py SwitchButton
 探针会拉起程序、注入、把路径含该关键字的控件全部打印出来。改完界面后重新跑一遍，
 把新路径更新到 `gallery.alias`。
 
+**只想确认某一个控件时，用 pick 模式更直接**——它不开 TCP 服务，而是在整个
+应用上装事件钩子（`libFunq/pick.cpp`），**按住 Ctrl+Shift 点任何控件**，它的
+funq 路径连同非空属性就打到 server 终端的 stdout 上：
+
+```text
+WIDGET: `MainWindow::settingsDialog::settingsCloseButton` (pos: 84, 201)
+        enabled: true
+        text: "关闭"
+        visible: true
+```
+
+开启方式是给 runner 加 `--pick`（经环境变量 `FUNQ_MODE_PICK=1` 传给 libFunq）。
+生成的 `funq-server-demo.bat` 不透传参数——跟在后面的参数会传给被测程序——
+最省事的做法是复制一份再改（生成的脚本不入库，configure 会重新生成，改它没有
+副作用）：
+
+```bat
+cd build\ninja-debug-x64\bin
+copy funq-server-demo.bat funq-pick.bat
+:: 编辑 funq-pick.bat，给 python -m funq_server.runner 那行加上 --pick
+funq-pick.bat
+```
+
+跑起来后终端会打一句 `Funq mode PICK in action !`，确认模式生效。要挑别的
+程序，照脚本里那行 runner 命令自己写一条即可。`--pick` 本身只是个语法糖：
+runner 把它翻译成环境变量 `FUNQ_MODE_PICK=1` 塞进被测进程，自己在 shell 里
+设置这个变量再启动，效果相同——变量只要能到达被测进程就行。三点注意：
+
+- **「模式生效」的确认不在终端**：那句 `Funq mode PICK in action !` 是
+  `qDebug` 打的，而本仓的被测程序都装了 Qt 消息重定向（demo_app 收进 spdlog
+  日志、gallery 收进界面日志面板），它不会出现在控制台——去应用日志里找
+  （demo_app 在 `%LOCALAPPDATA%/<组织>/<应用>/logs/`）。终端里真正会出现的
+  是 Ctrl+Shift 点控件后的 `WIDGET: ...` 行：那走 C stdout，不经消息重定向
+- pick 与正常模式**互斥**（`funq.cpp` 的 `funqInit()`：PLAYER 开 TCP 服务，
+  PICK 装事件钩子，二选一）——pick 下客户端连不上，它是个找路径的工具，
+  不是「边连客户端边挑」
+- pick 输出在 **server 那个终端**，别去客户端找
+
 ### 用别名让用例不怕路径变化
 
 `tests/gallery_funq/gallery.alias` 是 funq 的别名表（`友好名 = 路径`），用例里可以
