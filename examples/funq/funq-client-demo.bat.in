@@ -5,7 +5,7 @@ rem
 rem 只连 TCP、只发消息，不启动任何程序、也不需要 Qt 的 DLL 路径。
 rem 这就是「分离」：client 侧对被测程序一无所知，只有 host:port。
 rem
-rem 本文件由 CMake 生成到构建目录，不入库。
+rem 本文件由 CMake 生成到 <构建目录>/bin，不入库。
 
 set "PYTHONPATH=@FUNQ_CLIENT_DIR@;%PYTHONPATH%"
 

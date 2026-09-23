@@ -285,7 +285,7 @@
   `WaitForSingleObject() returned 258`（附带一句误导人的"Maybe x86/x64 mismatch"）。
   现改为**按构建类型分名暂存**（`libFunq-debug.dll` / `libFunq-relwithdebinfo.dll`），
   并给 funq 的 runner 加 `--library`（`patches/funq/0007`），由 `funq_attach` 与
-  `serve_demo_app` 两个包装脚本显式传入本构建目录对应的那一份；无后缀那份仍保留，
+  `funq-server-demo` 两个包装脚本显式传入本构建目录对应的那一份；无后缀那份仍保留，
   供手工 `python -m funq_server.runner` 使用（沿用"最后一次构建说了算"的旧行为，
   文档已写明）
 - **Linux 侧 Debug 打包被拒时，提示里给的是 Windows 的命令**：

@@ -1,5 +1,5 @@
 #!/bin/sh
-# 终端 1 —— server 侧（Linux 对应 serve_demo_app.bat）。
+# 终端 1 —— server 侧（Linux 对应 funq-server-demo.bat）。
 #
 # 起 demo_app 并注入 libFunq。Linux 走 LD_PRELOAD：先把库挂进环境变量，
 # 再 exec 被测程序，库的构造器随程序一起加载——顺序与 Windows 相反
@@ -8,7 +8,7 @@
 # 这个终端会被占住：runner 启动完被测程序就一直 wait 着它。Ctrl+C 结束，
 # 被测程序也跟着结束。
 #
-# 本文件由 CMake 生成到构建目录，不入库。
+# 本文件由 CMake 生成到 <构建目录>/bin，不入库。
 
 PYTHONPATH="@FUNQ_CLIENT_DIR@:@FUNQ_SERVER_DIR@${PYTHONPATH:+:$PYTHONPATH}"
 export PYTHONPATH
@@ -22,7 +22,7 @@ if ! "@PYTHON_EXECUTABLE@" "@INSTANCE_PROBE_PY@" --name @APP_APP_NAME@; then
 fi
 
 echo "demo_app 即将启动并被注入，libFunq 监听 localhost:@FUNQ_DEMO_PORT@"
-echo "另一个终端跑 run_demo_client 接上它。Ctrl+C 结束。"
+echo "另一个终端跑 funq-client-demo 接上它。Ctrl+C 结束。"
 echo
 
 # --library 显式指定本构建目录对应的那份注入库（暂存目录在源码树里、多配置

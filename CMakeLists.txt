@@ -268,7 +268,7 @@ if(BUILD_FUNQ)
                 "$<TARGET_FILE:Funq>"
                 "${FUNQ_INJECTOR_STAGE_DIR}/${FUNQ_INJECTOR_STAGE_NAME}"
             DEPENDS Funq
-            COMMENT "Staging ${FUNQ_INJECTOR_CONFIGURED_NAME}（+ 无后缀那份）next to funq_server")
+            COMMENT "Staging ${FUNQ_INJECTOR_CONFIGURED_NAME} next to funq_server")
     endif()
 else()
     message(STATUS "BUILD_FUNQ=OFF，跳过 funq（注入式 UI 测试不可用）")

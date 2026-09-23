@@ -80,7 +80,7 @@ libFunq.dll / libFunq.so（注入进 gallery 进程，在里面起 JSON 服务�
   `POST_BUILD` 不会再触发，库就悄悄消失了）。
 - **注入库必须与被测程序同一构建配置**，所以暂存时按配置分名
   （`libFunq-debug.dll` / `libFunq-relwithdebinfo.dll` / …），由 `funq_attach`
-  与 `serve_demo_app` 通过 `--library` 显式指定。不分名的后果很贵：暂存位置在
+  与 `funq-server-demo` 通过 `--library` 显式指定。不分名的后果很贵：暂存位置在
   源码树里只有一个，后一次构建会把前一次覆盖掉，于是「在 debug 目录跑测试，
   但上一次全量构建是 relwithdebinfo」就变成往 Debug 程序里注入 Release 库——
   Qt 的 debug 二进制（`Qt5Cored`）与 release（`Qt5Core`）互不兼容，表现为

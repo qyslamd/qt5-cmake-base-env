@@ -8,7 +8,7 @@ rem
 rem 这个窗口会被占住：runner 启动完被测程序就一直 wait 着它。Ctrl+C 结束，
 rem 被测程序也跟着结束。
 rem
-rem 本文件由 CMake 生成到构建目录，不入库。
+rem 本文件由 CMake 生成到 <构建目录>/bin，不入库。
 
 set "PATH=@QT_BIN_DIR@;%PATH%"
 set "PYTHONPATH=@FUNQ_CLIENT_DIR@;@FUNQ_SERVER_DIR@;%PYTHONPATH%"
@@ -23,7 +23,7 @@ if errorlevel 1 (
 )
 
 echo demo_app 即将启动并被注入，libFunq 监听 localhost:@FUNQ_DEMO_PORT@
-echo 另一个终端跑 run_demo_client 接上它。Ctrl+C 结束。
+echo 另一个终端跑 funq-client-demo 接上它。Ctrl+C 结束。
 echo.
 
 rem --library 显式指定本构建目录对应的那份注入库（暂存目录在源码树里、

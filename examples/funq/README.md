@@ -16,18 +16,18 @@
 
 ```bat
 :: 终端 1 —— server 侧。起 demo_app 并注入 libFunq，然后这个窗口被占住
-build\ninja-debug-x64\examples\funq\serve_demo_app.bat
+build\ninja-debug-x64\bin\funq-server-demo.bat
 
 :: 终端 2 —— client 侧。只连 TCP，不启动任何程序
-build\ninja-debug-x64\examples\funq\run_demo_client.bat
+build\ninja-debug-x64\bin\funq-client-demo.bat
 ```
 
-Linux / WSL 同样是这两条，把 `.bat` 换成 `.sh` 即可（由 CMake 生成到构建
-目录，带可执行位）。
+Linux / WSL 同样是这两条，把 `.bat` 换成 `.sh` 即可（由 CMake 生成到
+`<构建目录>/bin`——与可执行程序同一处，带可执行位）。
 
 `Ctrl+C` 结束终端 1，被测程序跟着结束。终端 2 跑完自己退出。
 
-想在别的机器上连，`run_demo_client` 支持 `--host` / `--port`；端口在
+想在别的机器上连，`funq-client-demo` 支持 `--host` / `--port`；端口在
 `examples/funq/CMakeLists.txt` 的 `FUNQ_DEMO_PORT` 里改，两侧一起换。
 
 ## 两个终端分别在做什么
@@ -123,7 +123,7 @@ client.widget(path="MainWindow::settingsDialog::settingsCloseButton").click()
 的 demo_app。两个启动器都会抢先把话说清楚：
 
 ```text
-$ serve_demo_app.bat
+$ funq-server-demo.bat
 已有实例在运行：\\.\pipe\QtCMakeAppDemo
 程序本体只允许一个实例，所以不会再起一个去注入——那样 runner 只会报一句
 看不出原因的错。两条路：
@@ -152,7 +152,8 @@ stderr 说明原因。
 
 ## 换成你自己的程序
 
-1. `serve_*.bat.in` / `serve_*.sh.in` 里的 `@DEMO_APP_EXE@` 换成你的程序
+1. `funq-server-demo.bat.in` / `funq-server-demo.sh.in` 里的 `@DEMO_APP_EXE@`
+   换成你的程序
    （CMake 变量 `DEMO_APP_EXE`）
 2. 你的程序要是也需要 Qt 的库路径，把它加进 `PATH`（Windows）/ `LD_LIBRARY_PATH`
    （Linux）——示例里 Windows 那行就是干这个的

@@ -3,8 +3,8 @@
 这是 funq 的「client 侧」。它不启动被测程序、不碰它的进程，只往一条 TCP
 连接上发消息。被驱动的那一端要先用另一个终端跑起来：
 
-    终端 1（server 侧）  <构建目录>/examples/funq/serve_demo_app.bat
-    终端 2（client 侧）  <构建目录>/examples/funq/run_demo_client.bat
+    终端 1（server 侧）  <构建目录>/bin/funq-server-demo.bat
+    终端 2（client 侧）  <构建目录>/bin/funq-client-demo.bat
 
 每走一步，引导会在屏幕上高亮出脚本正操作的控件并停留一会儿（`--dwell` 调，
 默认值见 DEFAULT_DWELL，设 0 关掉）。脚本本身是毫秒级的，不歇一下根本看不清——这是
@@ -39,7 +39,7 @@ try:
     from funq.client import FunqClient
 except ImportError:
     sys.stderr.write(
-        "找不到 funq 包。请用同目录的 run_demo_client.bat / .sh 启动本脚本，\n"
+        "找不到 funq 包。请用同目录的 funq-client-demo.bat / .sh 启动本脚本，\n"
         "它们会把 funq 的 client 目录放进 PYTHONPATH。\n")
     sys.exit(2)
 
@@ -182,7 +182,7 @@ def main():
         client = FunqClient(host=opts.host, port=opts.port)
     except Exception as exc:
         sys.stderr.write("\n连不上（%s）。\n"
-                         "确认另一个终端里的 serve_demo_app 还在跑。\n" % exc)
+                         "确认另一个终端里的 funq-server-demo 还在跑。\n" % exc)
         return 1
     print("连上了。注意：整个过程 client 没启动过任何程序。")
     # 高亮助手：脚本每走一步，屏幕上就指到对应控件（失败不影响用例）

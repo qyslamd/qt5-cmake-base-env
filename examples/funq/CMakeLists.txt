@@ -6,8 +6,9 @@
 #   这边  两个终端各起一边的手动示例，便于看清 funq 的分工。靶子是本仓自己的
 #         demo_app——「怎么测我自己的程序」才是这个示例要回答的问题
 #
-# 两份启动器由 configure_file 生成到构建目录：里面的路径都是本机的（Qt 的
-# bin、funq 的两个包、demo_app 的位置），入库没有意义。
+# 两份启动器由 configure_file 生成到 <构建目录>/bin——与可执行程序同一处，
+# 被测程序和它的启动脚本挨在一起；里面的路径都是本机的（Qt 的 bin、funq 的
+# 两个包、demo_app 的位置），入库没有意义。
 
 if(NOT BUILD_FUNQ)
     message(STATUS "BUILD_FUNQ=OFF，跳过 funq 手动示例")
@@ -42,25 +43,31 @@ set(DEMO_APP_EXE
 # server 侧与 client 侧共用这一个端口；换了它两边一起换
 set(FUNQ_DEMO_PORT 9000 CACHE STRING "funq 手动示例里 libFunq 监听的端口")
 
+# 输出目录取 CMAKE_RUNTIME_OUTPUT_DIRECTORY（= <构建目录>/bin，顶层统一设置），
+# 与上面拼 demo_app 路径用的是同一个变量——可执行程序挪窝时脚本跟着走
+set(FUNQ_SCRIPT_OUTPUT_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+
+# 名字带 funq- 前缀：脚本与可执行程序同在 bin/ 下，不带前缀会和
+# run_demo_app 一类的运行脚本混淆
 if(WIN32)
     set(DEMO_SCRIPT_SUFFIX ".bat")
-    configure_file(serve_demo_app.bat.in
-        "${CMAKE_CURRENT_BINARY_DIR}/serve_demo_app${DEMO_SCRIPT_SUFFIX}" @ONLY)
-    configure_file(run_demo_client.bat.in
-        "${CMAKE_CURRENT_BINARY_DIR}/run_demo_client${DEMO_SCRIPT_SUFFIX}" @ONLY)
+    configure_file(funq-server-demo.bat.in
+        "${FUNQ_SCRIPT_OUTPUT_DIR}/funq-server-demo${DEMO_SCRIPT_SUFFIX}" @ONLY)
+    configure_file(funq-client-demo.bat.in
+        "${FUNQ_SCRIPT_OUTPUT_DIR}/funq-client-demo${DEMO_SCRIPT_SUFFIX}" @ONLY)
 else()
     set(DEMO_SCRIPT_SUFFIX ".sh")
-    configure_file(serve_demo_app.sh.in
-        "${CMAKE_CURRENT_BINARY_DIR}/serve_demo_app${DEMO_SCRIPT_SUFFIX}" @ONLY)
-    configure_file(run_demo_client.sh.in
-        "${CMAKE_CURRENT_BINARY_DIR}/run_demo_client${DEMO_SCRIPT_SUFFIX}" @ONLY)
-    file(CHMOD "${CMAKE_CURRENT_BINARY_DIR}/serve_demo_app${DEMO_SCRIPT_SUFFIX}"
-               "${CMAKE_CURRENT_BINARY_DIR}/run_demo_client${DEMO_SCRIPT_SUFFIX}"
+    configure_file(funq-server-demo.sh.in
+        "${FUNQ_SCRIPT_OUTPUT_DIR}/funq-server-demo${DEMO_SCRIPT_SUFFIX}" @ONLY)
+    configure_file(funq-client-demo.sh.in
+        "${FUNQ_SCRIPT_OUTPUT_DIR}/funq-client-demo${DEMO_SCRIPT_SUFFIX}" @ONLY)
+    file(CHMOD "${FUNQ_SCRIPT_OUTPUT_DIR}/funq-server-demo${DEMO_SCRIPT_SUFFIX}"
+               "${FUNQ_SCRIPT_OUTPUT_DIR}/funq-client-demo${DEMO_SCRIPT_SUFFIX}"
         PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
                     GROUP_READ GROUP_EXECUTE
                     WORLD_READ WORLD_EXECUTE)
 endif()
 
 message(STATUS
-    "funq 手动示例：先跑 ${CMAKE_CURRENT_BINARY_DIR}/serve_demo_app${DEMO_SCRIPT_SUFFIX}，"
-    "再跑同目录的 run_demo_client${DEMO_SCRIPT_SUFFIX}")
+    "funq 手动示例：先跑 ${FUNQ_SCRIPT_OUTPUT_DIR}/funq-server-demo${DEMO_SCRIPT_SUFFIX}，"
+    "再跑同目录的 funq-client-demo${DEMO_SCRIPT_SUFFIX}")
