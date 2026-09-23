@@ -26,6 +26,7 @@
 #include <guidance_bridge.h>
 #include <guidance_controller.h>
 #include <guidance_menu.h>
+#include <style.h>
 
 #include <cstdio>
 #include <memory>
@@ -36,8 +37,6 @@
 #include <QCommandLineOption>
 #include <QCommandLineParser>
 #include <QDialog>
-#include <QFile>
-#include <QFont>
 #include <QIcon>
 #include <QSize>
 #include <QString>
@@ -272,40 +271,9 @@ int main(int argc, char* argv[]) {
   // 这几步刻意不抽成函数：crash_handler 一旦离开作用域就会析构、顺带撤掉
   // 崩溃捕获，抽出去反而埋雷
   {
-    // 全局样式：底座层在前、项目层在后（后加载的可覆盖前者）。底座层内部也
-    // 必须"从宽到窄"——QSS 里所有类型选择器具体度相同、后写优先，宽的选择器
-    // 排在后会把窄的盖掉（如 QWidget 的 border 盖掉 QLineEdit 的）。
-    // 用 QString 累加而不是 QByteArray——后者 += QString 在 Qt5.15 已废弃
-    QString style_sheet;
-    for (const auto& path : {
-             QStringLiteral(":/resources/styles/base/widget.qss"),
-             QStringLiteral(":/resources/styles/base/button.qss"),
-             QStringLiteral(":/resources/styles/base/input.qss"),
-             QStringLiteral(":/resources/styles/base/itemview.qss"),
-             QStringLiteral(":/resources/styles/base/scrollbar.qss"),
-             QStringLiteral(":/resources/styles/base/tab.qss"),
-             QStringLiteral(":/resources/styles/base/container.qss"),
-             QStringLiteral(":/resources/styles/base/menu.qss"),
-             QStringLiteral(":/resources/styles/base/progress.qss"),
-             QStringLiteral(":/resources/styles/base/label.qss"),
-             QStringLiteral(":/resources/styles/default.qss"),
-         }) {
-      QFile file(path);
-      if (file.open(QIODevice::ReadOnly)) {
-        if (!style_sheet.isEmpty()) {
-          style_sheet += QLatin1Char('\n');
-        }
-        style_sheet += QString::fromUtf8(file.readAll());
-        file.close();
-      }
-    }
-    app.setStyleSheet(style_sheet);
-
-    // 全局字体走应用默认字体，不在 QSS 里用 `*` 铺 font-family：那样每个控件
-    // 都要做一次样式表匹配，而且会把已有的字号/字重一起冲掉
-    QFont app_font = app.font();
-    app_font.setFamily(QStringLiteral("Microsoft YaHei"));
-    app.setFont(app_font);
+    // 全局样式：底座层由 demo_style 提供（顺序与拼接在那边），项目层是本仓
+    // 业务控件的 objectName 规则，跟在底座层之后加载。顺带设了全局字体
+    ApplyStyleSheet(app, {QStringLiteral(":/resources/styles/default.qss")});
 
     ConfigManager::instance();
 

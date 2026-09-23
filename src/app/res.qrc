@@ -1,16 +1,6 @@
 <RCC>
     <qresource prefix="/">
         <file>resources/styles/default.qss</file>
-        <file>resources/styles/base/widget.qss</file>
-        <file>resources/styles/base/button.qss</file>
-        <file>resources/styles/base/input.qss</file>
-        <file>resources/styles/base/itemview.qss</file>
-        <file>resources/styles/base/scrollbar.qss</file>
-        <file>resources/styles/base/tab.qss</file>
-        <file>resources/styles/base/container.qss</file>
-        <file>resources/styles/base/menu.qss</file>
-        <file>resources/styles/base/progress.qss</file>
-        <file>resources/styles/base/label.qss</file>
         <file>resources/icons/png/icons8_rfid_signal_16.png</file>
         <file>resources/icons/png/icons8_rfid_signal_32.png</file>
         <file>resources/icons/png/icons8_rfid_signal_48.png</file>

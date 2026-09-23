@@ -73,6 +73,7 @@ target_include_directories(${TARGET_NAME}
 )
 
 target_link_libraries(${TARGET_NAME} PRIVATE
+    ${APP_TARGET_PREFIX}_style
     ${APP_TARGET_PREFIX}_guidance
     ${APP_TARGET_PREFIX}_core
     qt-libui::libui

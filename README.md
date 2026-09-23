@@ -77,12 +77,13 @@ submodule 放在 `external/` 下，随本仓一次编译，克隆时需一并拉
 ```text
 src/
 ├── core/   无 UI 依赖：配置 / 日志 / 崩溃捕获 / 认证 / 单实例
-└── app/    界面骨架、资源与样式
+├── style/  底座层样式表（QSS）与加载入口：链上即得一套通用的控件外观
+└── app/    界面骨架、资源与项目层样式
 external/   外部源码仓库（git submodule）：qt-libui 通用 UI 部件
 cmake/      构建脚本模块（版本、运行脚本、测试宏、符号归档、打包）
 scripts/    构建与打包入口脚本
 tests/      单元测试
-examples/   funq 手动分离运行示例（两个终端各起一边）
+examples/   style_demo（样式表样例）、guidance_demo、funq 手动分离运行示例
 docs/       文档
 config/     随构建拷贝到输出目录的配置样例
 ```

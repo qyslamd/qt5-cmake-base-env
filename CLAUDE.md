@@ -61,7 +61,7 @@ scripts/build_ninja.bat -t relwithdebinfo -m demo_app -p
 - for语句，如果只有一行，也请加上`{}`
 - if语句，如果只有一行，也请加上`{}`
 - Qt 界面样式禁止在 C++ 代码中通过 `setStyleSheet` 硬编码
-  - 所有样式统一写入 `src/app/resources/styles/` 下的 QSS 文件中，分两层：**底座层** `base/*.qss`（只许用类型、伪状态、子控件、属性选择器，**禁止出现 objectName**，且必须从宽到窄排序、`widget.qss` 置首），**项目层** `default.qss`（只写本仓业务控件的 `#objectName`）
+  - 所有样式统一写入 QSS 文件中，分两层：**底座层** `src/style/resources/styles/base/*.qss`（随 `demo_style` 模块走，只许用类型、伪状态、子控件、属性选择器，**禁止出现 objectName**，且必须从宽到窄排序、`widget.qss` 置首），**项目层** `src/app/resources/styles/default.qss`（只写本仓业务控件的 `#objectName`）；顺序与拼接在 `src/style/style.cpp` 的 `ApplyStyleSheet()` 里，文件清单也只有那一处
   - 定位控件按三档优先级：**类型 + 伪状态 + 子控件** → **动态属性**（`setProperty("role", "primary")` 配 `[role="primary"]`；运行中改属性后要 `unpolish` + `polish`）→ `#objectName`（仅项目层，且仅当确实无法用属性表达时）。`objectName` 是 funq 控件路径与 QtTesting 录制的锚点，不要拿它做样式角色
   - 对于QPushButton或者QToolButon而言，如果明确不需要对外观定制，用QPushButton,否则用QToolButton
   - 如果 QSS 必须使用 Type Selector、Descendant Selector 或 Child Selector 定位带命名空间的 Qt/C++ 类，必须写 Qt 元对象系统使用的完整命名空间选择器：将 C++ 命名空间中的 `::` 替换为 `--`
