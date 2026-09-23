@@ -79,6 +79,8 @@ void AddEditUserDialog::initUi() {
 
   hint_label_ = new QLabel(this);
   hint_label_->setObjectName(QStringLiteral("addEditUserHint"));
+  // 报错文本的观感由底座样式表按角色给（styles/base/label.qss）
+  hint_label_->setProperty("role", "error");
   hint_label_->hide();
   layout->addWidget(hint_label_);
 

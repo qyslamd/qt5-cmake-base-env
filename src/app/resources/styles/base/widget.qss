@@ -1,0 +1,52 @@
+/* 底座层 01 / 10 · 窗口与最宽的一层
+ *
+ * 本文件必须排在其它底座文件之前。QSS 里所有类型选择器具体度相同、后写优先，
+ * 宽的选择器排在后面会把窄的盖掉（比如 QWidget 的 border 盖掉 QLineEdit 的）。
+ *
+ * 底座层语义色板（取值全部来自本仓原有样式表，这里只是收拢成一套命名；
+ * 改颜色时以本表为准，项目层的业务样式也从这里取色）：
+ *   文本    主 #333333   次 #666666   弱 #999999   禁用 #AAAAAA
+ *   背景    面板 #FFFFFF 浅底 #F5F6FA 控件底 #F0F0F0 卡片 #FAFAFA
+ *   边框    常规 #CCCCCC 浅 #E0E0E0
+ *   强调    底 #0078D4   焦点 #007ACC
+ *   选中    #CCE4F7      危险 #D13438   禁用底 #E0E0E0
+ *
+ * 注意：底座层里的裸类型规则会打进功能区——SARibbon 的控件都是标准件子类
+ * （SARibbonBar 是 QMenuBar、SARibbonGalleryGroup 是 QListView、SARibbonPanel
+ * 是 QFrame…），它的主题只声明自己那部分属性。新增 QMenuBar / QToolBar /
+ * QToolButton / QFrame / QLabel / QListView / QAbstractButton / QScrollArea
+ * 的规则时，必须同时看一眼功能区有没有被改样。
+ */
+
+/* 自定义 QWidget 子类设 background-color 不生效，三档可选（按 Qt 文档的推荐
+   顺序）：重写 paintEvent 调 style()->drawPrimitive(QStyle::PE_Widget, ...)、
+   setAttribute(Qt::WA_StyledBackground, true)、或改用 QFrame。
+   本仓例子见 src/guidance/guidance_homepage.cpp。此处不给 QWidget / QFrame
+   加规则，正是为了不让宽规则波及功能区，需要背景的块请在自己那里声明。 */
+
+/* 主窗口的分隔条（可停靠窗口之间） */
+QMainWindow::separator {
+  background-color: transparent;
+  width: 6px;
+  height: 6px;
+  border: none;
+}
+QMainWindow::separator:hover {
+  background-color: #007ACC;
+}
+QMainWindow::separator:pressed {
+  background-color: #0078D4;
+}
+
+/* 图形视图 */
+QGraphicsView {
+  background: transparent;
+  border: 1px solid #E0E0E0;
+  border-bottom: none;
+  border-radius: 8px;
+}
+
+/* 分页容器：本身不画底，交给页面 */
+QStackedWidget {
+  background: transparent;
+}

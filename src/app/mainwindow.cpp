@@ -81,9 +81,11 @@ void MainWindow::createActions() {
 // funq 的定位都落在控件上，指不到动作，只能指它所在的面板
 void MainWindow::initRibbon() {
   SARibbonBar* ribbon = ribbonBar();
-  // 主题由 SARibbonMainWindow 提供（不是 SARibbonBar 的接口）。它与应用级
-  // QSS 是两套样式体系：功能区内部由 SARibbon 自己的样式表绘制，default.qss
-  // 里的通用控件规则不参与
+  // 主题由 SARibbonMainWindow 提供（不是 SARibbonBar 的接口）：它在主窗口上
+  // 设一份 widget 级样式表，只覆盖主题自己声明的属性。QSS 的级联规则是
+  // "冲突时 widget 表优先"，所以应用级样式表（base/*.qss + default.qss）里
+  // SARibbon 主题没声明的属性照样会落到功能区上——底座层那些裸类型规则
+  // （QListView、QScrollBar 等）现在就在改功能区。改底座层要一并看功能区
   setRibbonTheme(SARibbonTheme::RibbonThemeOffice2013);
 
   SARibbonCategory* home = ribbon->addCategoryPage(QStringLiteral("主页"));

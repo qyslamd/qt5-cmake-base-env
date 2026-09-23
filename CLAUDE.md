@@ -61,11 +61,12 @@ scripts/build_ninja.bat -t relwithdebinfo -m demo_app -p
 - for语句，如果只有一行，也请加上`{}`
 - if语句，如果只有一行，也请加上`{}`
 - Qt 界面样式禁止在 C++ 代码中通过 `setStyleSheet` 硬编码
-  - 所有样式统一写入 `src/app/resources/styles/` 下的 QSS 文件中；优先通过 `setObjectName` 使用 `#objectName` 选择器定位控件
+  - 所有样式统一写入 `src/app/resources/styles/` 下的 QSS 文件中，分两层：**底座层** `base/*.qss`（只许用类型、伪状态、子控件、属性选择器，**禁止出现 objectName**，且必须从宽到窄排序、`widget.qss` 置首），**项目层** `default.qss`（只写本仓业务控件的 `#objectName`）
+  - 定位控件按三档优先级：**类型 + 伪状态 + 子控件** → **动态属性**（`setProperty("role", "primary")` 配 `[role="primary"]`；运行中改属性后要 `unpolish` + `polish`）→ `#objectName`（仅项目层，且仅当确实无法用属性表达时）。`objectName` 是 funq 控件路径与 QtTesting 录制的锚点，不要拿它做样式角色
   - 对于QPushButton或者QToolButon而言，如果明确不需要对外观定制，用QPushButton,否则用QToolButton
   - 如果 QSS 必须使用 Type Selector、Descendant Selector 或 Child Selector 定位带命名空间的 Qt/C++ 类，必须写 Qt 元对象系统使用的完整命名空间选择器：将 C++ 命名空间中的 `::` 替换为 `--`
 - **禁止在代码中使用 emoji 字符**（包括 `\xF0\x9F...` 等字节转义或直接粘贴的 emoji）
-  - 替代方案：统一使用 `src/app/resources/icons/svg/` 下的 SVG 图标，通过 `AppIconProvider::instance().icon("name")` 加载；缺图时新增 SVG（配 `_light`/`_dark` 两套）而非用 emoji
+  - 替代方案：统一使用 `src/app/resources/icons/svg/` 下的 SVG 图标，直接 `QIcon(":/resources/icons/svg/<name>.svg")` 加载（新图要在 `res.qrc` 里登记）；缺图时新增 SVG 而非用 emoji
 - **本项目不需要使用命名空间**：小Demo项目，命名空间没啥用处
 
 

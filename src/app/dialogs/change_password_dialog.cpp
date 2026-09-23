@@ -29,25 +29,32 @@ void ChangePasswordDialog::initUi() {
   old_password_edit_->setObjectName(QStringLiteral("changePasswordOld"));
   old_password_edit_->setPlaceholderText(QStringLiteral("原密码"));
   old_password_edit_->setEchoMode(QLineEdit::Password);
+  // 外观角色交给底座样式表的动态属性（见 styles/base/input.qss）：
+  // objectName 留着做功能性标识，funq 与 QtTesting 都靠它定位控件
+  old_password_edit_->setProperty("role", "form");
 
   new_password_edit_ = new QLineEdit(this);
   new_password_edit_->setObjectName(QStringLiteral("changePasswordNew"));
   new_password_edit_->setPlaceholderText(QStringLiteral("新密码"));
   new_password_edit_->setEchoMode(QLineEdit::Password);
+  new_password_edit_->setProperty("role", "form");
 
   confirm_password_edit_ = new QLineEdit(this);
   confirm_password_edit_->setObjectName(
       QStringLiteral("changePasswordConfirm"));
   confirm_password_edit_->setPlaceholderText(QStringLiteral("确认新密码"));
   confirm_password_edit_->setEchoMode(QLineEdit::Password);
+  confirm_password_edit_->setProperty("role", "form");
 
   hint_label_ = new QLabel(this);
   hint_label_->setObjectName(QStringLiteral("changePasswordHint"));
+  hint_label_->setProperty("role", "error");
   hint_label_->hide();
 
   ok_button_ = new QToolButton(this);
   ok_button_->setObjectName(QStringLiteral("changePasswordOk"));
   ok_button_->setText(QStringLiteral("确定"));
+  ok_button_->setProperty("role", "primary");
 
   auto* btn_row = new QHBoxLayout;
   btn_row->addStretch();

@@ -104,11 +104,15 @@ void LoginDialog::initUi() {
   username_edit_ = new QLineEdit(form);
   username_edit_->setObjectName(QStringLiteral("loginUsername"));
   username_edit_->setPlaceholderText(QStringLiteral("admin"));
+  // 外观角色交给底座样式表的动态属性（见 styles/base/input.qss）：
+  // objectName 留着做功能性标识，funq 与 QtTesting 都靠它定位控件
+  username_edit_->setProperty("role", "form");
 
   password_edit_ = new QLineEdit(form);
   password_edit_->setObjectName(QStringLiteral("loginPassword"));
   password_edit_->setPlaceholderText(QStringLiteral("请输入密码"));
   password_edit_->setEchoMode(QLineEdit::Password);
+  password_edit_->setProperty("role", "form");
 
   remember_check_box_ = new QCheckBox(QStringLiteral("记住密码"), form);
   remember_check_box_->setObjectName(QStringLiteral("loginRemember"));
@@ -116,9 +120,11 @@ void LoginDialog::initUi() {
   login_button_ = new QToolButton(form);
   login_button_->setObjectName(QStringLiteral("loginButton"));
   login_button_->setText(QStringLiteral("登录"));
+  login_button_->setProperty("role", "primary");
 
   hint_label_ = new QLabel(form);
   hint_label_->setObjectName(QStringLiteral("loginHint"));
+  hint_label_->setProperty("role", "error");
   hint_label_->hide();
 
   form_layout->addLayout(title_row);

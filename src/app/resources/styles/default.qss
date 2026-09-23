@@ -1,388 +1,13 @@
-* {
-  font-family: "Microsoft YaHei";
-}
-
-/* ========== 通用控件基础样式 ========== */
-/* 仅保留与具体业务无关的控件族样式，来自 ETestStudio 的通用部分。
-   业务专属选择器（#topology*、#welcome*、#userMgr* 等）一律未纳入。 */
-
-/* ---------- QTreeView ---------- */
-QTreeView {
-  border: none;
-}
-
-/* ---------- QListView ---------- */
-QListView {
-  background-color: #FFFFFF;
-  color: #1F1F1F;
-  border: none;
-  outline: none;
-  selection-background-color: #CCE4F7;
-  selection-color: #1F1F1F;
-}
-QListView::item {
-  padding: 5px 8px;
-  border: none;
-  border-radius: 6px;
-}
-QListView::item:hover {
-  background-color: #EAEAEA;
-}
-QListView::item:selected {
-  background-color: rgba(0, 103, 192, 0.10);
-}
-
-/* ---------- QLineEdit ---------- */
-QLineEdit {
-  background-color: rgba(255, 255, 255, 0.85);
-  border: 1.5px solid #D0D0DD;
-  border-radius: 8px;
-  padding: 4px 12px;
-  color: #333333;
-  selection-background-color: #007ACC;
-}
-QLineEdit:focus {
-  border-color: #007ACC;
-  background-color: #FFFFFF;
-}
-QLineEdit[error="true"] {
-  border: 1.5px solid #D13438;
-}
-
-/* ---------- QTextEdit ---------- */
-QTextEdit {
-  background-color: rgba(255, 255, 255, 0.85);
-  border: none;
-  border-radius: 10px;
-  padding: 8px 10px;
-  color: #333333;
-  selection-background-color: #007ACC;
-}
-QTextEdit:focus {
-  border: 1px solid #007ACC;
-}
-QTextEdit[error="true"] {
-  border: 1.5px solid #D13438;
-}
-
-/* ---------- QScrollBar ---------- */
-QScrollBar:vertical {
-  background-color: #F0F0F0;
-  width: 10px;
-  margin: 0px;
-}
-QScrollBar::handle:vertical {
-  background-color: #C0C0C0;
-  min-height: 30px;
-  border-radius: 5px;
-}
-QScrollBar::handle:vertical:hover {
-  background-color: #A0A0A0;
-}
-QScrollBar::handle:vertical:pressed {
-  background-color: #909090;
-}
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-  height: 0px;
-}
-QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-  background: none;
-}
-QScrollBar:horizontal {
-  background-color: #F0F0F0;
-  height: 10px;
-  margin: 0px;
-}
-QScrollBar::handle:horizontal {
-  background-color: #C0C0C0;
-  min-width: 30px;
-  border-radius: 5px;
-}
-QScrollBar::handle:horizontal:hover {
-  background-color: #A0A0A0;
-}
-QScrollBar::handle:horizontal:pressed {
-  background-color: #909090;
-}
-QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-  width: 0px;
-}
-QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
-  background: none;
-}
-
-/* ---------- QSplitter ---------- */
-QSplitter {
-  border: none;
-  background-color: transparent;
-}
-QSplitter::handle {
-  background-color: transparent;
-  border: none;
-  image: none;
-}
-QSplitter::handle:hover {
-  background-color: #0055aa;
-}
-QSplitter::handle:pressed {
-  background-color: #0055aa;
-}
-QSplitter::handle:horizontal {
-  background-color: transparent;
-  border: none;
-  image: none;
-  width: 6px;
-}
-QSplitter::handle:horizontal:hover {
-  background-color: #0055aa;
-}
-QSplitter::handle:horizontal:pressed {
-  background-color: #0055aa;
-}
-QSplitter::handle:vertical {
-  background-color: transparent;
-  border: none;
-  image: none;
-  height: 6px;
-}
-QSplitter::handle:vertical:hover {
-  background-color: #0055aa;
-}
-QSplitter::handle:vertical:pressed {
-  background-color: #0055aa;
-}
-
-/* ---------- QScrollArea ---------- */
-QScrollArea {
-  border: none;
-  background: transparent;
-}
-QScrollArea > QWidget {
-  background-color: transparent;
-}
-
-/* ---------- QGraphicsView ---------- */
-QGraphicsView {
-  background: transparent;
-  border: 1px solid #E0E0E0;
-  border-bottom: none;
-  border-radius: 8px;
-}
-
-/* ---------- QMainWindow 分隔条 ---------- */
-QMainWindow::separator {
-  background-color: transparent;
-  width: 6px;
-  height: 6px;
-  border: none;
-}
-QMainWindow::separator:hover {
-  background-color: #0055aa;
-}
-QMainWindow::separator:pressed {
-  background-color: #0055aa;
-}
-
-/* ---------- QPushButton ---------- */
-QPushButton {
-  background-color: #0078D4;
-  color: #FFFFFF;
-  border: 1px solid #0078D4;
-  border-radius: 3px;
-  padding: 5px 16px;
-}
-QPushButton:hover {
-  background-color: #1A86E0;
-}
-QPushButton:pressed {
-  background-color: #006ABF;
-}
-QPushButton:disabled {
-  background-color: #E0E0E0;
-  color: #AAAAAA;
-  border-color: #D0D0D0;
-}
-
-/* ---------- QComboBox ---------- */
-QComboBox {
-  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-    stop:0 #F0F0F0, stop:1 #F0F0F0);
-  border: 1px solid #CCCCCC;
-  border-radius: 8px;
-  padding: 8px 36px 8px 8px;
-  color: #333333;
-  font-size: 13px;
-  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
-  selection-background-color: #CCE4F7;
-  selection-color: #FFFFFF;
-  min-height: 20px;
-}
-QComboBox::drop-down {
-  subcontrol-origin: padding;
-  subcontrol-position: center right;
-  width: 32px;
-  height: 100%;
-  border: none;
-  border-left: 1px solid #CCCCCC;
-  border-top-right-radius: 7px;
-  border-bottom-right-radius: 7px;
-  background: transparent;
-}
-QComboBox::drop-down:hover {
-  background: rgba(0, 122, 204, 0.2);
-}
-QComboBox::drop-down:pressed {
-  background: rgba(0, 122, 204, 0.4);
-}
-/* 下拉箭头沿用 Qt 原生绘制：参考实现的 image 依赖其自有 SVG 资源，
-   引入需额外链接 Qt5::Svg 并部署 qsvg 插件，不在本次范围内 */
-QComboBox::drop-down::down-arrow {
-  subcontrol-origin: margin;
-  subcontrol-position: right center;
-}
-QComboBox QAbstractItemView {
-  background: #F0F0F0;
-  border: 1px solid #CCCCCC;
-  border-radius: 8px;
-  padding: 4px;
-  selection-background-color: #CCE4F7;
-  selection-color: #FFFFFF;
-  outline: none;
-  alternate-background-color: transparent;
-  color: #333333;
-}
-QComboBox QAbstractItemView::item {
-  padding: 10px 14px;
-  margin: 2px 4px;
-  border-radius: 6px;
-  min-height: 24px;
-  color: #333333;
-}
-QComboBox QAbstractItemView::item:hover {
-  background: rgba(0, 122, 204, 0.3);
-  color: #333333;
-}
-QComboBox QAbstractItemView::item:selected {
-  background: rgba(0, 122, 204, 0.6);
-  color: #FFFFFF;
-  border: 1px solid rgba(0, 122, 204, 0.8);
-}
-QComboBox QAbstractItemView::item:alternate {
-  background: transparent;
-}
-QComboBox:hover {
-  border: 1px solid #007ACC;
-  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-    stop:0 #F1F1F1, stop:1 #F1F1F1);
-}
-QComboBox:focus {
-  border: 2px solid #007ACC;
-  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-    stop:0 #F1F1F1, stop:1 #F1F1F1);
-}
-QComboBox:disabled {
-  background: #F0F0F0;
-  color: #AAAAAA;
-  border: 1px solid #CCCCCC;
-}
-QComboBox::drop-down:disabled {
-  background: #F0F0F0;
-  border-left: 1px solid #CCCCCC;
-}
-QComboBox::down-arrow:disabled {
-  opacity: 0.5;
-}
-
-/* ---------- QSpinBox / QDoubleSpinBox ---------- */
-QSpinBox, QDoubleSpinBox {
-  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-    stop:0 #F0F0F0, stop:1 #F0F0F0);
-  border: 1px solid #CCCCCC;
-  border-radius: 8px;
-  padding: 8px 30px 8px 12px;
-  color: #333333;
-  font-size: 13px;
-  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
-  selection-background-color: #CCE4F7;
-  selection-color: #FFFFFF;
-}
-QSpinBox:hover, QDoubleSpinBox:hover {
-  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-    stop:0 #F1F1F1, stop:1 #F1F1F1);
-  border: 1px solid #007ACC;
-}
-QSpinBox:focus, QDoubleSpinBox:focus {
-  border: 2px solid #007ACC;
-}
-QSpinBox:disabled, QDoubleSpinBox:disabled {
-  background: #F0F0F0;
-  color: #AAAAAA;
-  border: 1px solid #CCCCCC;
-}
-QSpinBox::up-button, QDoubleSpinBox::up-button {
-  subcontrol-origin: border;
-  subcontrol-position: right top;
-  width: 28px;
-  height: 14px;
-  border: none;
-  border-top-right-radius: 7px;
-  border-left: 1px solid #CCCCCC;
-  background: transparent;
-}
-QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover {
-  background: rgba(0, 122, 204, 0.2);
-}
-QSpinBox::up-button:pressed, QDoubleSpinBox::up-button:pressed {
-  background: rgba(0, 122, 204, 0.4);
-}
-QSpinBox::down-button, QDoubleSpinBox::down-button {
-  subcontrol-origin: border;
-  subcontrol-position: right bottom;
-  width: 28px;
-  height: 14px;
-  border: none;
-  border-bottom-right-radius: 7px;
-  border-left: 1px solid #CCCCCC;
-  background: transparent;
-}
-QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
-  background: rgba(0, 122, 204, 0.2);
-}
-QSpinBox::down-button:pressed, QDoubleSpinBox::down-button:pressed {
-  background: rgba(0, 122, 204, 0.4);
-}
-/* 上下箭头同样沿用 Qt 原生绘制，原因见 QComboBox::down-arrow */
-QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
-  width: 12px;
-  height: 12px;
-}
-QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
-  width: 12px;
-  height: 12px;
-}
-
-/* ---------- QGroupBox ---------- */
-QGroupBox {
-  background-color: #FAFAFA;
-  border: 1px solid #CCCCCC;
-  border-radius: 8px;
-  margin-top: 0px;
-  padding: 22px 12px 12px 12px;
-  color: #333333;
-}
-QGroupBox::title {
-  subcontrol-origin: padding;
-  subcontrol-position: top left;
-  left: 12px;
-  top: 8px;
-  padding: 0 4px;
-  color: #888888;
-  font-size: 12px;
-  font-weight: 700;
-}
-QGroupBox:hover {
-  border: 1px solid #007ACC;
-}
+/* 项目层 · 本仓业务控件
+ *
+ * 与底座层（base/*.qss）的分工：底座层只写与业务无关的类型/伪状态/子控件/
+ * 属性规则；这里只写本仓业务控件的 objectName 规则。加载顺序是底座在前、
+ * 本文件在后，本文件里的 id 选择器具体度也更高，两层重合时以本文件为准。
+ *
+ * 不用 objectName 表达"角色"（主按钮、表单输入、报错文本…）：那是底座层的
+ * 动态属性（role="primary"/"form"/"error"）。objectName 留给功能性标识——
+ * funq 的控件路径、QtTesting 录制的 XML、gallery.alias 都依赖它。
+ */
 
 /* ========== LoginDialog ========== */
 #loginContent {
@@ -413,48 +38,14 @@ QGroupBox:hover {
   font-weight: 600;
   color: #1F1F1F;
 }
-#loginUsername, #loginPassword {
-  background: #f5f5f5;
-  border: 1px solid #D7D7D9;
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-size: 13px;
-  color: #1F1F1F;
-}
-#loginUsername:focus, #loginPassword:focus {
-  border-color: #1d8fe1;
-  background: white;
-}
-QToolButton#loginButton {
-  background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
-    stop: 0 #4080ff, stop: 1 #80c0ff);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 10px;
-  font-size: 14px;
-  font-weight: 500;
-}
-QToolButton#loginButton:hover {
-  background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
-    stop: 0 #3070ee, stop: 1 #70b0ff);
-}
-QToolButton#loginButton:pressed {
-  background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
-    stop: 0 #2060dd, stop: 1 #60a0ee);
-}
-#loginHint {
-  color: #e53935;
-  font-size: 12px;
-}
 QToolButton#loginCloseBtn {
   background: transparent;
   border: none;
-  color: #999;
+  color: #999999;
   font-size: 18px;
 }
 QToolButton#loginCloseBtn:hover {
-  color: #333;
+  color: #333333;
 }
 
 /* ========== ChangePasswordDialog ========== */
@@ -466,41 +57,6 @@ QToolButton#loginCloseBtn:hover {
   font-weight: 600;
   color: #1F1F1F;
 }
-#changePasswordOld, #changePasswordNew, #changePasswordConfirm {
-  background: #f5f5f5;
-  border: 1px solid #D7D7D9;
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-size: 13px;
-  color: #1F1F1F;
-}
-#changePasswordOld:focus, #changePasswordNew:focus,
-#changePasswordConfirm:focus {
-  border-color: #1d8fe1;
-  background: white;
-}
-QToolButton#changePasswordOk {
-  background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
-    stop: 0 #4080ff, stop: 1 #80c0ff);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 8px 24px;
-  font-size: 14px;
-  font-weight: 500;
-}
-QToolButton#changePasswordOk:hover {
-  background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
-    stop: 0 #3070ee, stop: 1 #70b0ff);
-}
-QToolButton#changePasswordOk:pressed {
-  background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
-    stop: 0 #2060dd, stop: 1 #60a0ee);
-}
-#changePasswordHint {
-  color: #e53935;
-  font-size: 12px;
-}
 
 /* ========== MainWindow 占位页 ========== */
 #pagePlaceholderTitle {
@@ -510,17 +66,7 @@ QToolButton#changePasswordOk:pressed {
 }
 #pagePlaceholderHint {
   font-size: 14px;
-  color: #999;
-}
-/* ========== QTabWidget / QTabBar ========== */
-QTabWidget::pane {
-  border: none;
-}
-QTabBar {
-  background: #f5f6fa;
-}
-QTabBar::tab {
-  /* tab 形状由 TabBarStyle（QProxyStyle）自绘，此处不设样式避免冲突 */
+  color: #999999;
 }
 
 /* ========== LogFilterBar / LogOutputPanel ========== */
@@ -534,7 +80,7 @@ QTabBar::tab {
   border-radius: 3px;
   padding: 2px 6px;
   font-size: 11px;
-  color: #666;
+  color: #666666;
 }
 #LogFilterBar QToolButton:checked {
   background: #e8eaf6;
@@ -556,14 +102,14 @@ QTabBar::tab {
 #logOutputView {
   background: white;
   border: none;
+  /* 日志按列对齐，等宽字体 */
   font-family: "Consolas", "Microsoft YaHei";
   font-size: 12px;
 }
 
 /* ========== 用户管理对话框 ========== */
-#addEditUserHint {
-  color: #d32f2f;
-}
+/* 表头与单元格样式由底座层的 QHeaderView / QAbstractItemView 提供，
+   这里只给表格本体的边框与字号 */
 #userManageTable {
   background: white;
   border: 1px solid #e0e0e0;
@@ -571,22 +117,12 @@ QTabBar::tab {
   font-size: 13px;
   gridline-color: #f0f0f0;
 }
-#userManageTable QHeaderView::section {
-  background: #f5f6fa;
-  padding: 6px 10px;
-  border: none;
-  border-bottom: 2px solid #e0e0e0;
-  font-size: 12px;
-  color: #666;
-  font-weight: 600;
-}
-#userManageTable::item {
-  padding: 4px 8px;
-}
 
 /* ========== SplashScreen（启动画面） ========== */
 /* 跨仓契约：下列 objectName 由 qt-libui 的 SplashScreen 设置（见其
-   splash_screen.cpp）。改名前请同步确认该库未改名，否则此处样式静默失效 */
+   splash_screen.cpp）。改名前请同步确认该库未改名，否则此处样式静默失效。
+   进度条的底色、高度、文字居中已由底座层的 QProgressBar 提供，这里只覆盖
+   它自己的强调色 */
 #splashContent {
   background: white;
   border: 1px solid #D0D0D0;
@@ -605,16 +141,6 @@ QTabBar::tab {
   background: transparent;
   color: #666666;
   font-size: 13px;
-}
-#splashProgressBar {
-  background-color: #E0E0E0;
-  border: none;
-  border-radius: 4px;
-  height: 16px;
-  color: #666666;
-  font-size: 11px;
-  /* QSS 未声明 text-align 时默认左对齐，显式居中 */
-  text-align: center;
 }
 #splashProgressBar::chunk {
   background-color: #007ACC;
