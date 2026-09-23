@@ -14,6 +14,13 @@ void QtConsoleSink::sink_it_(const spdlog::details::log_msg& msg) {
   formatter_->format(msg, formatted);
   QString text =
       QString::fromUtf8(formatted.data(), static_cast<int>(formatted.size()));
+  // 格式化器会在末尾补 spdlog 的行尾（Windows 是 "\r\n"），那是给按行读的 sink
+  // 用的。Qt 侧每条消息自成一个文本块，留着它就会多渲染出空行——面板的条目样式
+  // 带 white-space:pre-wrap，换行不会再被折叠掉
+  while (!text.isEmpty() && (text.endsWith(QLatin1Char('\n')) ||
+                             text.endsWith(QLatin1Char('\r')))) {
+    text.chop(1);
+  }
   if (history_ != nullptr) {
     history_->push(static_cast<int>(msg.level), text);
   }

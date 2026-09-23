@@ -131,7 +131,7 @@ python3 tests/gallery_funq/probe_widgets.py SwitchButton
 
 **只想确认某一个控件时，用 pick 模式更直接**——它不开 TCP 服务，而是在整个
 应用上装事件钩子（`libFunq/pick.cpp`），**按住 Ctrl+Shift 点任何控件**，它的
-funq 路径连同非空属性就打到 server 终端的 stdout 上：
+funq 路径连同非空属性就写出去（stdout 与应用日志两处，见下）：
 
 ```text
 WIDGET: `MainWindow::settingsDialog::settingsCloseButton` (pos: 84, 201)
@@ -157,15 +157,30 @@ funq-pick.bat
 runner 把它翻译成环境变量 `FUNQ_MODE_PICK=1` 塞进被测进程，自己在 shell 里
 设置这个变量再启动，效果相同——变量只要能到达被测进程就行。三点注意：
 
-- **「模式生效」的确认不在终端**：那句 `Funq mode PICK in action !` 是
-  `qDebug` 打的，而本仓的被测程序都装了 Qt 消息重定向（demo_app 收进 spdlog
-  日志、gallery 收进界面日志面板），它不会出现在控制台——去应用日志里找
-  （demo_app 在 `%LOCALAPPDATA%/<组织>/<应用>/logs/`）。终端里真正会出现的
-  是 Ctrl+Shift 点控件后的 `WIDGET: ...` 行：那走 C stdout，不经消息重定向
+- **输出同时进应用日志**（`patches/funq/0008` 起）：`WIDGET:` / `GITEM:` 那一块
+  既照旧写 stdout（终端里竖着读），也经 `qInfo()` 发一遍——**一次点击是一条记录**，
+  属性行保留自己的换行，所以日志里长这样（前缀只出现一次）：
+
+  ```text
+  [info] [default] WIDGET: `loginDialog::loginContent::loginForm::loginButton` (pos: 36, 31)
+  	objectName: loginButton
+  	enabled: true
+  	text: "登录"
+  ```
+
+  于是 demo_app 的界面日志窗口与日志文件（`%LOCALAPPDATA%/<组织>/<应用>/logs/`）、
+  gallery 的界面日志面板里**都能看到**。要看路径就打开日志窗口点，最省事
+  （日志窗口的条目样式带 `white-space:pre-wrap`，否则富文本会把这块压成一行——
+  见 `log_output_panel.cpp` 的 `buildEntryHtml`）
+- **别指望 stdout 一定有人接**：被测程序是 GUI 程序，若它是被 Python 经管道链
+  起的（本仓的 runner 正是如此），它的标准句柄是无效的，stdout 的写入会被
+  静默丢弃——实测同一次点击，日志里有 `WIDGET:` 行而重定向文件里一个字节都
+  没有。这也是加 0008 的原因
+- **「模式生效」的确认要看日志**：那句 `Funq mode PICK in action !` 是 `qDebug`
+  打的，而本仓的被测程序都装了 Qt 消息重定向，它只会进应用日志，不在控制台
 - pick 与正常模式**互斥**（`funq.cpp` 的 `funqInit()`：PLAYER 开 TCP 服务，
   PICK 装事件钩子，二选一）——pick 下客户端连不上，它是个找路径的工具，
   不是「边连客户端边挑」
-- pick 输出在 **server 那个终端**，别去客户端找
 
 ### 用别名让用例不怕路径变化
 
