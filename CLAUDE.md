@@ -109,19 +109,21 @@ scripts/build_ninja.bat -t relwithdebinfo -m demo_app -p
 8. 不要每次改动之后都给我说百分百没问题！
 9. 使用spdlog编写日志的时候，**尽可能**使用我封装好的Logger类及其宏定义
 10. 关于脚本：
-    - 编写用户使用的脚本，请使用`powershell`或者`Command Prompt`，尤其是CMake的模板文件`xxxx.ps1.in`,`xxxx.bat.in`
+    - 编写用户使用的脚本，请使用`powershell`或者`Command Prompt`，Linux下使用`Bash`。尤其是CMake的模板文件`xxxx.ps1.in`,`xxxx.bat.in`,`xxxx.sh.in`
+    - CMake使用的模板文件如`xxxx.ps1.in`,`xxxx.bat.in`,`xxxx.sh.in`中的注释，尽量不要用中文，因为在windows上即使脚本本身是UTF-8编码+脚本内 `chcp 65001`，依然有问题，Linux下如果没有安装中文字体，一样有问题。
     - 编写AI Agent工具使用的脚本(这些脚本通常不纳入源代码管理，不被用户直接调用)，请使用 `pwsh` 的语法来编写脚本，若尝试了三次`pwsh`脚本不行，请使用 `python`脚本。
+    - python脚本则按照它自己的规则弄。不受`bat`、`ps1`、`sh`脚本的约束。
 11. clang-tidy检查在开发机器上太慢了，除非用户明确提示，不然AI Agent默认不做clang-tidy检查。
-11. 改动完成代码，编译无误之后，**禁止**直接提交代码！除非是使用git worktree方式。
-12. 严禁中代码中使用QObject::tr("")或者在QObject的派生类中使用 tr("")中文。
-13. git提交规则：
+12. 改动完成代码，编译无误之后，**禁止**直接提交代码！除非是使用git worktree方式。
+13. 严禁中代码中使用QObject::tr("")或者在QObject的派生类中使用 tr("")中文。
+14. git提交规则：
    - 能使用中文的描述必须使用中文
    - 当你生成 git commit 信息时：
    - 严禁出现 Co-Authored-By 信息 以及 Co-Authored-By: claude code 助手等相关信息
    - 不使用默认的 Claude 署名
    - 提交信息的开始和结束不能有 @ 符号
-14. 头文件顺序有要求的，必须要在包含头文件的地方关掉clang-format，不然容易被clang-format自动调整头文件顺序导致出问题
-15. **发布一律用 `relwithdebinfo` 配置**（`scripts/build_ninja.bat -t relwithdebinfo -p`），不要用 `release`。Release 不带 `/Zi`、构建不产 PDB，崩溃日志的调用栈只能给出裸地址。每次发布的 exe 与对应 PDB 必须一并归档，否则 minidump 事后无法解析。详见 `docs/guide/发布指南.md` 与 `docs/guide/构建配置与崩溃排查.md`
+15. 头文件顺序有要求的，必须要在包含头文件的地方关掉clang-format，不然容易被clang-format自动调整头文件顺序导致出问题
+16. **发布一律用 `relwithdebinfo` 配置**（`scripts/build_ninja.bat -t relwithdebinfo -p`），不要用 `release`。Release 不带 `/Zi`、构建不产 PDB，崩溃日志的调用栈只能给出裸地址。每次发布的 exe 与对应 PDB 必须一并归档，否则 minidump 事后无法解析。详见 `docs/guide/发布指南.md` 与 `docs/guide/构建配置与崩溃排查.md`
   
 ## 功能开发流程
 
