@@ -10,6 +10,16 @@
 
 ### 新增
 
+- **样式表分两层，底座层独立成模块**：`src/style/`（目标 `demo_style`）带
+  `base/*.qss` 十份表与 `ApplyStyleSheet()`，只写类型/伪状态/子控件/属性选择器、
+  不出现 objectName，别的程序链上模块调一次就有；`src/app/resources/styles/
+  default.qss` 退回项目层，只留本仓业务控件的 objectName 规则。原先那份表 704 行
+  里滚动条/下拉框/微调框/分割器占了 65 个规则块，而 QLabel、QCheckBox、QMenu、
+  QTableView 等 25 个常见控件连一条裸类型规则都没有。"同角色多控件"改用动态属性
+  表达（主按钮、表单输入、报错文本三类合并成 `role="primary"/"form"/"error"`），
+  objectName 一个没删——funq 的控件路径与 QtTesting 的录制都靠它。全局字体改走
+  `QApplication::setFont`，删掉了 `* { font-family }`。新增 `examples/style_demo`
+  按控件族分六页眼验底座层（demo_app 只有业务控件，看不到表格、滑块这些）
 - **功能区/菜单栏的动作配上彩色 SVG 图标**：日志窗口、设置、关于、退出四个动作
   各一张（`src/app/resources/icons/svg/`，48×48 扁平彩色，与既有的 `monitor.svg`
   同一套配色）。此前功能区形态下是四个纯文字大按钮，很空。图标设在 QAction 上，
@@ -247,6 +257,15 @@
 
 ### 修复
 
+- **底座层的下拉框与微调框看不到箭头**：`base/input.qss` 里只给箭头子控件写了
+  尺寸、没给 `image`——子控件一旦被规则接管，Qt 就不再画原生箭头，结果是一个
+  都没有（离屏探针实测整个控件里最暗的像素是边框色 204，箭头区域零墨迹）。
+  补上 `arrow_up.svg` / `arrow_down.svg`（16×8 紧画布、描边 1.6，与 QSS 尺寸
+  1:1，不做二次缩放），同时删掉 `subcontrol-origin: margin; subcontrol-position:
+  right center`——实测那写法算出的箭头矩形 y 为负，等于把箭头排在控件外。另外
+  微调按钮原来写死 `height: 14px`，控件高 38px，两个按钮之间空了 10px，改成不写
+  高度由 Qt 对半分；下拉框右侧内边距 36 → 34（下拉区 32 + 分隔线 1 + 1px 余量），
+  文字区宽 81 → 83。改后用同一探针复测：箭头墨迹 12×5 且居中、缝 0
 - **pick 模式的输出看不见**（`patches/funq/0008`）：pick 把 `WIDGET:` / `GITEM:`
   直接写 C stdout（`pick.cpp` 的 `QTextStream(stdout, ...)`），而本仓的日志文件
   与界面日志窗口都接在 Qt 消息处理器上——这两处永远不会有它。更麻烦的是 stdout

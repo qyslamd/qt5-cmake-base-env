@@ -10,5 +10,7 @@
         <file>resources/styles/base/menu.qss</file>
         <file>resources/styles/base/progress.qss</file>
         <file>resources/styles/base/label.qss</file>
+        <file>resources/icons/svg/arrow_down.svg</file>
+        <file>resources/icons/svg/arrow_up.svg</file>
     </qresource>
 </RCC>

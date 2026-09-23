@@ -84,7 +84,8 @@ QAbstractSpinBox::up-button {
   subcontrol-origin: border;
   subcontrol-position: right top;
   width: 28px;
-  height: 14px;
+  /* 高度不写：交给 Qt 按控件高度对半分。写死像素会在两个按钮之间留缝，
+     写 50% 也不行——Qt 会把它当成 50 像素 */
   border: none;
   border-top-right-radius: 7px;
   border-left: 1px solid #CCCCCC;
@@ -100,7 +101,7 @@ QAbstractSpinBox::down-button {
   subcontrol-origin: border;
   subcontrol-position: right bottom;
   width: 28px;
-  height: 14px;
+  /* 高度同 up-button：不写 */
   border: none;
   border-bottom-right-radius: 7px;
   border-left: 1px solid #CCCCCC;
@@ -112,15 +113,17 @@ QAbstractSpinBox::down-button:hover {
 QAbstractSpinBox::down-button:pressed {
   background: rgba(0, 122, 204, 0.4);
 }
-/* 上下箭头沿用 Qt 原生绘制：换成自绘需要额外备两套箭头 SVG，
-   不在本次范围内 */
+/* 上下箭头：与 QComboBox 同一套 SVG，约束也一样（要有 image、不写
+   subcontrol-position、尺寸等于 SVG 原生尺寸 16x8） */
 QAbstractSpinBox::up-arrow {
-  width: 12px;
-  height: 12px;
+  image: url(:/resources/icons/svg/arrow_up.svg);
+  width: 16px;
+  height: 8px;
 }
 QAbstractSpinBox::down-arrow {
-  width: 12px;
-  height: 12px;
+  image: url(:/resources/icons/svg/arrow_down.svg);
+  width: 16px;
+  height: 8px;
 }
 /* 日历下拉按钮（QDateEdit / QDateTimeEdit 开 calendarPopup 时） */
 QDateEdit::drop-down, QTimeEdit::drop-down, QDateTimeEdit::drop-down {
@@ -136,7 +139,8 @@ QComboBox {
   background: #F0F0F0;
   border: 1px solid #CCCCCC;
   border-radius: 8px;
-  padding: 8px 36px 8px 8px;
+  /* 右内边距是留给下拉区的：下拉区 32px + 左侧分隔线 1px，取 34px 留 1px 余量 */
+  padding: 8px 34px 8px 8px;
   color: #333333;
   font-size: 13px;
   selection-background-color: #CCE4F7;
@@ -177,13 +181,20 @@ QComboBox::drop-down:disabled {
   background: #F0F0F0;
   border-left: 1px solid #CCCCCC;
 }
-/* 下拉箭头沿用 Qt 原生绘制：换自绘需要额外备箭头 SVG，不在本次范围内 */
+/* 下拉箭头：SVG 由本模块的 style_res.qrc 提供（换自绘就一定要给 image——
+   子控件一旦被规则接管，Qt 就不再画原生箭头，只写尺寸的结果是什么都没有）。
+   两条约束别动：
+   1. 不要写 subcontrol-origin / subcontrol-position——写了就不在下拉区里居中，
+      交给 Qt 自己在 drop-down 内居中；
+   2. 尺寸必须等于 SVG 的原生尺寸（16x8）：写别的值，Qt 会先按原生尺寸栅格化
+      再缩放，1.6px 的描边被稀释成亚像素，箭头淡到看不见 */
 QComboBox::down-arrow {
-  subcontrol-origin: margin;
-  subcontrol-position: right center;
+  image: url(:/resources/icons/svg/arrow_down.svg);
+  width: 16px;
+  height: 8px;
 }
-QComboBox::down-arrow:disabled {
-  opacity: 0.5;
+QComboBox::down-arrow:on {
+  image: url(:/resources/icons/svg/arrow_up.svg);
 }
 
 /* 下拉弹出列表：它会命中 itemview.qss 的 QAbstractItemView 规则，这里的
