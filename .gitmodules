@@ -1,3 +1,6 @@
 [submodule "external/qt-libui"]
 	path = external/qt-libui
 	url = https://gitee.com/slamdd/qt-libui.git
+[submodule "external/c-cmake-base-env"]
+	path = external/c-cmake-base-env
+	url = https://gitee.com/slamdd/c-cmake-base-env.git
