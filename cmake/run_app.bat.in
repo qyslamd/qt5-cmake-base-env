@@ -8,6 +8,6 @@ chcp 65001 >nul
 
 cd /d "@RUN_DIR@"
 
-rem 显式 .\ 前缀：NoDefaultCurrentDirectoryInExePath 生效时，
-rem 裸文件名不会从当前目录解析
+rem Explicit .\ prefix: with NoDefaultCurrentDirectoryInExePath in effect,
+rem a bare filename is not resolved from the current directory
 .\@TARGET_NAME@.exe @PROGRAM_ARGS@ %*
