@@ -9,18 +9,21 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "(Windows) Attach",
+            "type": "cppvsdbg",
+            "request": "attach",
+        },
+        {
             "name": "Python Debugger: Current File with Arguments",
             "type": "debugpy",
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": [
-                "--port",
-                "9000"
-            ],
+            "args": "${command:pickArgs}",
             "pythonArgs": [],
             "env": {
-                "PYTHONPATH": "${workspaceFolder}/3rdparty/funq-master/client;${env:PYTHONPATH}"
+                "PATH": "D:/Qt22/5.15.2/msvc2019_64/bin;${env:PATH}",
+                "PYTHONPATH": "${workspaceFolder}/3rdparty/funq-master/client;D:/trae_workspace/qt-cmake-base-env/3rdparty/funq-master/server;${env:PYTHONPATH}"
             }
         },
         {
@@ -31,6 +34,27 @@
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build/ninja-relwithdebinfo-x64/bin",
+            "environment": [
+                {
+                    "name": "PATH",
+                    "value": "${config:qtcmake.qtDir}/bin;${env:PATH}"
+                },
+                {
+                    "name": "QT_PLUGIN_PATH",
+                    "value": "${config:qtcmake.qtDir}/plugins"
+                }
+            ],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "openOnFirstSessionStart"
+        },
+        {
+            "name": "demo_app (x64 Debug)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/ninja-debug-x64/bin/demo_app.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/ninja-debug-x64/bin",
             "environment": [
                 {
                     "name": "PATH",
