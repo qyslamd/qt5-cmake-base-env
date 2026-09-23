@@ -92,6 +92,9 @@ libFunq.dll / libFunq.so（注入进 gallery 进程，在里面起 JSON 服务�
   `funq.conf` 并把配置注册给测试基类，nose 不可用后由该脚本用 funq 自带的公开接口
   （`ApplicationRegistry.register_from_conf` + `register_funq_app_registry`）补上。
 
+调试注入库本身（没有可 F5 的工程，要附加到进程）的步骤见
+[调试 libFunq](调试libFunq.md)。
+
 ## 写用例
 
 ### 控件路径必须从运行中的进程里查
