@@ -21,7 +21,6 @@ set(ALL_HEADERS_SOURCES
     logger/log_history_buffer.h
     logger/log_pattern_builder.h
     logger/qt_console_sink.h
-    crashhandler/crash_handler.cpp
     common/file_exception.cpp
     common/time_exception.cpp
     common/string_exception.cpp
@@ -34,19 +33,37 @@ set(ALL_HEADERS_SOURCES
     common/byte_exception.h
     common/global_exception_handler.h
     common/single_instance.h
+
+    # 统一入口：两套实现由 APP_ENABLE_CRASHPAD 切换，本文件两套都编
+    crashhandler/crash_bootstrap.cpp
+    crashhandler/crash_bootstrap.h
 )
 
-# 平台崩溃捕获实现按平台加入（源文件自身亦有平台守卫，此处为防御性组织）
-if(WIN32)
+# 崩溃捕获两套实现二选一。
+# APP_ENABLE_CRASHPAD 由顶层 CMakeLists 在 project() 之后声明，
+# 是 cache 变量，子目录里可直接读
+if(APP_ENABLE_CRASHPAD)
     list(APPEND ALL_HEADERS_SOURCES
-        crashhandler/windows_crash_handler.cpp
-        crashhandler/windows_crash_handler.h
+        crashhandler/crashpad_bootstrap.cpp
+        crashhandler/crashpad_bootstrap.h
     )
 else()
     list(APPEND ALL_HEADERS_SOURCES
-        crashhandler/linux_crash_handler.cpp
-        crashhandler/linux_crash_handler.h
+        crashhandler/crash_handler.cpp
+        crashhandler/crash_handler.h
     )
+    # 平台实现按平台加入（源文件自身亦有平台守卫，此处为防御性组织）
+    if(WIN32)
+        list(APPEND ALL_HEADERS_SOURCES
+            crashhandler/windows_crash_handler.cpp
+            crashhandler/windows_crash_handler.h
+        )
+    else()
+        list(APPEND ALL_HEADERS_SOURCES
+            crashhandler/linux_crash_handler.cpp
+            crashhandler/linux_crash_handler.h
+        )
+    endif()
 endif()
 
 # ============================
@@ -70,8 +87,37 @@ target_link_libraries(${TARGET_NAME} PUBLIC
     spdlog::spdlog
 )
 
-if(WIN32)
-    target_link_libraries(${TARGET_NAME} PRIVATE dbghelp)
+# 崩溃捕获的链接依赖，随开关切换
+if(APP_ENABLE_CRASHPAD)
+    # Crashpad 头文件（客户端 API + mini_chromium 基础类型）
+    target_include_directories(${TARGET_NAME} PUBLIC
+        "${CMAKE_SOURCE_DIR}/3rdparty/crashpad-7b9686b"
+        "${CMAKE_SOURCE_DIR}/3rdparty/mini_chromium-9cdc2a7"
+    )
+
+    # Crashpad 静态库。顺序无所谓，CMake 会解析依赖关系；
+    # ZLIB::ZLIB 是 crashpad 的强依赖（util 里解压用）
+    target_link_libraries(${TARGET_NAME} PUBLIC
+        crashpad_client
+        crashpad_util
+        crashpad_compat
+        crashpad_minidump
+        crashpad_snapshot
+        crashpad_tools
+        minichromium
+        ZLIB::ZLIB
+    )
+
+    if(WIN32)
+        target_link_libraries(${TARGET_NAME} PRIVATE
+            advapi32 winhttp version user32 PowrProf
+        )
+    endif()
+else()
+    # 自研方案需要 dbghelp 做符号解析与 minidump 写入
+    if(WIN32)
+        target_link_libraries(${TARGET_NAME} PRIVATE dbghelp)
+    endif()
 endif()
 
 if(MSVC)

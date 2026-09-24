@@ -114,5 +114,8 @@ apply_patch_to_dir("${3RDPARTY_DIR}/SARibbon-2.5.7"
 apply_patch_to_dir("${3RDPARTY_DIR}/qwindowkit-1.5.0"
     "${PATCHES_DIR}/QWindowKit/0001-qmsetup-source-dir.patch")
 
+apply_patch_to_dir("${3RDPARTY_DIR}/zlib-v1.2.11"
+    "${PATCHES_DIR}/zlib/0001-bump-cmake-minimum-version.patch")
+
 message(STATUS "Patches applied.")
 message(STATUS "")

@@ -6,12 +6,12 @@ set(TARGET_NAME ${APP_TARGET_PREFIX}_app)
 include(${CMAKE_SOURCE_DIR}/cmake/version_manage.cmake)
 resolve_app_version(APP)
 
-configure_file(${CMAKE_SOURCE_DIR}/cmake/version.h.in
+configure_file(${CMAKE_SOURCE_DIR}/cmake/template/version.h.in
     ${CMAKE_CURRENT_BINARY_DIR}/AppVersion.h
     @ONLY)
 
 # 组织名 / 应用名：与安装脚本共用同一来源（见顶层 CMakeLists.txt）
-configure_file(${CMAKE_SOURCE_DIR}/cmake/app_info.h.in
+configure_file(${CMAKE_SOURCE_DIR}/cmake/template/app_info.h.in
     ${CMAKE_CURRENT_BINARY_DIR}/AppInfo.h
     @ONLY)
 
@@ -60,7 +60,7 @@ add_executable(${TARGET_NAME} WIN32 ${TARGET_SRCS})
 if(WIN32 AND MSVC)
     set(APP_ICON_PATH "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/icon.ico")
     set(OUT_RC_FILE ${CMAKE_CURRENT_BINARY_DIR}/app.rc)
-    configure_file(${CMAKE_SOURCE_DIR}/cmake/app.rc.in
+    configure_file(${CMAKE_SOURCE_DIR}/cmake/template/app.rc.in
         ${OUT_RC_FILE}
         @ONLY)
     target_sources(${TARGET_NAME} PRIVATE ${OUT_RC_FILE})
@@ -110,6 +110,34 @@ endif()
 
 # 生成运行脚本（Windows 为 .bat，Linux 为 .sh），输出到可执行文件所在目录
 configure_run_script("run_${TARGET_NAME}")
+
+#=======================================
+# Crashpad 模式下拷贝 crashpad_handler 到可执行文件旁
+# 自研方案不需要：捕获逻辑在进程内，无外部依赖文件
+if(APP_ENABLE_CRASHPAD)
+    if(WIN32)
+        add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:crashpad_handler>"
+                "$<TARGET_FILE_DIR:${TARGET_NAME}>/crashpad_handler.exe"
+            COMMENT "拷贝 crashpad_handler.exe"
+        )
+        # PDB 一并拷过去，用户机器上能用 VS 直接打开 dump
+        add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_PDB_FILE:crashpad_handler>"
+                "$<TARGET_FILE_DIR:${TARGET_NAME}>/crashpad_handler.pdb"
+            COMMENT "拷贝 crashpad_handler.pdb"
+        )
+    elseif(UNIX AND NOT APPLE)
+        add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:crashpad_handler>"
+                "$<TARGET_FILE_DIR:${TARGET_NAME}>/crashpad_handler"
+            COMMENT "拷贝 crashpad_handler"
+        )
+    endif()
+endif()
 
 #=======================================
 # 拷贝运行时目录到输出目录（每次构建后同步）
@@ -188,13 +216,21 @@ if(WIN32)
 
     # 生成打包脚本（可独立编译的 .iss + CLI .bat）
     set(ISS_FILE "${CMAKE_SOURCE_DIR}/scripts/make_install_package.iss")
+    # Inno Setup 预处理用：1 = 打包 crashpad_handler.exe，0 = 不打包。
+    # 用数字而不是 ON/OFF——Inno 的 #if 需要数值表达式
+    if(APP_ENABLE_CRASHPAD)
+        set(ISCC_APP_HAS_CRASHPAD "1")
+    else()
+        set(ISCC_APP_HAS_CRASHPAD "0")
+    endif()
+
     configure_file(
-        "${CMAKE_SOURCE_DIR}/cmake/make_install_package.iss.in"
+        "${CMAKE_SOURCE_DIR}/cmake/template/make_install_package.iss.in"
         ${ISS_FILE}
         @ONLY
     )
     configure_file(
-        "${CMAKE_SOURCE_DIR}/cmake/make_installer.bat.in"
+        "${CMAKE_SOURCE_DIR}/cmake/template/make_installer.bat.in"
         "${CMAKE_SOURCE_DIR}/scripts/make_installer.bat"
         @ONLY
     )
@@ -210,15 +246,39 @@ if(WIN32)
     set(SYMBOLS_OUTPUT_DIR
         "${PACKAGE_OUTPUT_DIR}/symbols/${APP_VERSION}-${APP_GIT_HASH}-${APP_ARCH_SUFFIX}")
     if(MSVC)
-        add_custom_target(make_symbols
+        # 符号归档：主程序 + （ON 模式下）crashpad_handler。
+        #
+        # 为什么要归档 handler 的 PDB：minidump 的调用栈里如果有帧落在
+        # crashpad_handler 自己（比如 handler 处理崩溃时），没有这份 PDB
+        # 那几帧就是 (unknown)。份数不大，一起归档省事。
+        #
+        # 两个 archive_symbols 调用写到同一个 DEST_DIR，先主程序后 handler，
+        # 顺序无依赖，文件不重名
+        set(_symbols_commands
             COMMAND ${CMAKE_COMMAND}
                 -DSRC_EXE="$<TARGET_FILE:${TARGET_NAME}>"
                 -DSRC_PDB="$<TARGET_PDB_FILE:${TARGET_NAME}>"
                 -DDEST_DIR="${SYMBOLS_OUTPUT_DIR}"
                 -P "${CMAKE_SOURCE_DIR}/cmake/archive_symbols.cmake"
+        )
+        if(APP_ENABLE_CRASHPAD AND TARGET crashpad_handler)
+            list(APPEND _symbols_commands
+                COMMAND ${CMAKE_COMMAND}
+                    -DSRC_EXE="$<TARGET_FILE:crashpad_handler>"
+                    -DSRC_PDB="$<TARGET_PDB_FILE:crashpad_handler>"
+                    -DDEST_DIR="${SYMBOLS_OUTPUT_DIR}"
+                    -P "${CMAKE_SOURCE_DIR}/cmake/archive_symbols.cmake"
+            )
+        endif()
+
+        add_custom_target(make_symbols
+            ${_symbols_commands}
             COMMENT "Archiving symbols to ${SYMBOLS_OUTPUT_DIR}..."
         )
         add_dependencies(make_symbols ${TARGET_NAME})
+        if(APP_ENABLE_CRASHPAD AND TARGET crashpad_handler)
+            add_dependencies(make_symbols crashpad_handler)
+        endif()
     endif()
 
     # make_package target — 调用生成的 .bat 完成 ISCC 打包。
@@ -314,14 +374,14 @@ else() # 非 Windows：Linux 侧用 AppImage
     endif()
     file(MAKE_DIRECTORY "${APPIMAGE_WORK_DIR}")
     configure_file(
-        "${CMAKE_SOURCE_DIR}/cmake/appimage.desktop.in"
+        "${CMAKE_SOURCE_DIR}/cmake/template/appimage.desktop.in"
         "${APPIMAGE_DESKTOP_FILE}"
         @ONLY
     )
 
     # 打包脚本，对应 Windows 侧的 scripts/make_installer.bat
     configure_file(
-        "${CMAKE_SOURCE_DIR}/cmake/make_appimage.sh.in"
+        "${CMAKE_SOURCE_DIR}/cmake/template/make_appimage.sh.in"
         "${CMAKE_SOURCE_DIR}/scripts/make_appimage.sh"
         @ONLY
     )
@@ -332,6 +392,10 @@ else() # 非 Windows：Linux 侧用 AppImage
 
     # 安装规则：打包脚本用 cmake --install 铺 AppDir，也可用于常规 Linux 安装
     install(TARGETS ${TARGET_NAME} RUNTIME DESTINATION bin)
+    if(APP_ENABLE_CRASHPAD AND TARGET crashpad_handler)
+        # AppImage 打包走 cmake --install 铺 AppDir，handler 也要装进 usr/bin
+        install(PROGRAMS "$<TARGET_FILE:crashpad_handler>" DESTINATION bin)
+    endif()
     install(FILES "${APPIMAGE_DESKTOP_FILE}"
         DESTINATION share/applications
         RENAME "${APP_APP_NAME}.desktop")

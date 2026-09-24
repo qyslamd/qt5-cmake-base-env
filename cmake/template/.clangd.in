@@ -1,4 +1,4 @@
-# 由 cmake/.clangd.in 生成，请勿手工修改（每次 configure 都会覆盖）。
+# 由 cmake/template/.clangd.in 生成，请勿手工修改（每次 configure 都会覆盖）。
 #
 # CompilationDatabase 指向本次配置的构建目录：本项目的构建目录按 preset
 # 分开（build/ninja-<配置>-<架构>），不在源码树的祖先路径上，clangd 无法

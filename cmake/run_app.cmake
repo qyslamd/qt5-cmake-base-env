@@ -14,7 +14,7 @@ macro(configure_run_script output_basename)
     cmake_parse_arguments(CRS "" "ARGS" "" ${ARGN})
 
     if(WIN32)
-        set(_template "${CMAKE_SOURCE_DIR}/cmake/run_app.bat.in")
+        set(_template "${CMAKE_SOURCE_DIR}/cmake/template/run_app.bat.in")
         set(_output "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${output_basename}.bat")
         # cmd 的 cd 不认正斜杠路径，bat 内必须用原生反斜杠形式
         file(TO_NATIVE_PATH "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}" RUN_DIR)

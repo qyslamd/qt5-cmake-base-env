@@ -17,9 +17,10 @@
 //    └─ app.exec() → 清理
 //
 // 对象所有权的约定（三种并存是有意的，别随手改）：
-//   短生命周期                  → 栈对象（LoginDialog / SplashScreen / MainWindow）
-//   活到进程结束，且是 QObject   → 挂到 app 或宿主窗口下，由 Qt 父子负责回收
-//   活到进程结束，但不是 QObject → unique_ptr（如 GuidanceBridge——它不能有 Qt 父级）
+//   短生命周期                  → 栈对象（LoginDialog / SplashScreen /
+//   MainWindow） 活到进程结束，且是 QObject   → 挂到 app 或宿主窗口下，由 Qt
+//   父子负责回收 活到进程结束，但不是 QObject → unique_ptr（如
+//   GuidanceBridge——它不能有 Qt 父级）
 //
 // 标了「可删」的段落不需要时整段拿掉即可，不影响其余部分。
 
@@ -51,7 +52,7 @@
 #include "common/single_instance.h"
 #include "config/config_defs.h"
 #include "config/config_manager.h"
-#include "crashhandler/crash_handler.h"
+#include "crashhandler/crash_bootstrap.h"
 #include "dialogs/login_dialog.h"
 #include "guidance_app_flows.h"
 #include "logger/logger.h"
@@ -285,16 +286,48 @@ int main(int argc, char* argv[]) {
     Logger::init();
     LOG_INFO("MAIN", "应用程序启动，版本: {}", getProjectVersionAll());
 
-    // 信号捕获 + Qt 消息重定向。致命信号实际由 CrashHandler 接管
-    // （其注册晚于本模块），此处生效的是 Qt 消息重定向与 SIGINT/SIGTERM
+    // 信号捕获 + Qt 消息重定向。
+    //
+    // Crashpad 模式下必须传 false：crashpad_handler 通过进程外机制捕获崩溃，
+    // 若 GlobalExceptionHandler 用 std::signal 抢先接住 SIGSEGV/SIGABRT，
+    // handler 收不到通知，dump 不会生成。此时这里只保留 SIGINT/SIGTERM。
+    //
+    // 自研模式下传 true：WindowsCrashHandler 的 VEH 会先接住异常并
+    // TerminateProcess，走不到 CRT 信号这层，两者不冲突
+#ifdef APP_ENABLE_CRASHPAD
+    GlobalExceptionHandler::instance().init(/*enable_crash_signals=*/false);
+#else
     GlobalExceptionHandler::instance().init();
+#endif
 
-    const auto crash_handler = CrashHandler::create();
-    if (crash_handler) {
-      crash_handler->init();
-      LOG_INFO("MAIN", "崩溃捕获模块初始化完成");
+    // 崩溃捕获：两套实现由 APP_ENABLE_CRASHPAD 编译期切换
+    //   OFF → 自研（信号 / SEH + .log + .dmp，进程内解析符号）
+    //   ON  → Crashpad（crashpad_handler 独立进程 + minidump）
+    //
+    // handler 生命周期由 crash::init 内部维护（文件作用域静态对象），
+    // 不需要在这里持有；dumpDir 也由内部按 QStandardPaths 解析
+    {
+      const QString exe_dir = QCoreApplication::applicationDirPath();
+#ifdef Q_OS_WIN
+      const QString handler_path =
+          exe_dir + QStringLiteral("/crashpad_handler.exe");
+#else
+      const QString handler_path =
+          exe_dir + QStringLiteral("/crashpad_handler");
+#endif
+
+      if (crash::init(handler_path, QCoreApplication::applicationName(),
+                      QCoreApplication::applicationVersion())) {
+        LOG_INFO("MAIN", "崩溃捕获模块初始化完成");
+      } else {
+        LOG_WARN("MAIN", "崩溃捕获初始化失败，本次运行不会生成崩溃报告");
+      }
     }
   }
+
+  // ========================= 3.5 崩溃测试（临时，验证完删除）=====
+  // std::fprintf(stderr, "[crash-test] triggering null deref...\n");
+  // *(volatile int*)0 = 42;
 
   // ========================= 4. 功能引导（可删）=========================
   // 控制器驱动演示层（遮罩 + 高亮 + 气泡），桥接对象供外部脚本从进程外驱动。

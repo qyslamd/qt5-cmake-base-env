@@ -35,6 +35,7 @@ set(APP_TARGET_PREFIX "demo")
 set(APP_INSTALLER_ID_X64 "{{028a3caf-84f9-43a5-818f-af4237aac3d6}}")
 set(APP_INSTALLER_ID_X86 "{{c11fe96c-bb38-42e2-87ab-bd9d72fb4644}}")
 
+
 #===============================================================================
 #   项目定制区结束。以下内容通常无需修改。
 #===============================================================================
@@ -43,6 +44,18 @@ project(${PROJECT_NAME_STR}
     VERSION 1.0.0
     DESCRIPTION "a complete qt cmake basic demo."
     LANGUAGES CXX C)
+
+#-------------------------------------------------------------------------------
+# Crashpad（可选）
+#
+# 开关放在 project() 之后而不是定制区：它是功能开关，不属于项目元信息。
+# 开启后：
+#   1. 定义 APP_ENABLE_CRASHPAD 宏 —— src/core 与 src/app 靠它做条件编译
+#   2. include cmake/crashpad/crashpad.cmake —— 引入 crashpad 各静态库目标
+#   3. 提供 crashpad_handler 目标 —— 打包脚本据此拷贝 handler 到 bin/
+#-------------------------------------------------------------------------------
+
+option(APP_ENABLE_CRASHPAD "Use Crashpad for crash reporting" ON)
 
 #-------------------------------------------------------------------------------
 # 由定制区变量派生，请勿手工修改
@@ -148,7 +161,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CLANGD_COMPILE_COMMANDS_DIR "${CMAKE_BINARY_DIR}")
 file(TO_CMAKE_PATH "${CLANGD_COMPILE_COMMANDS_DIR}" CLANGD_COMPILE_COMMANDS_DIR)
 configure_file(
-    "${CMAKE_SOURCE_DIR}/cmake/.clangd.in"
+    "${CMAKE_SOURCE_DIR}/cmake/template/.clangd.in"
     "${CMAKE_SOURCE_DIR}/.clangd"
     @ONLY
 )
@@ -194,6 +207,16 @@ add_subdirectory(3rdparty/QCustomPlot)
 
 # QXlsx Excel读写库
 add_subdirectory(3rdparty/QXlsx-1.5.0/QXlsx)
+
+# google crashpad
+if(APP_ENABLE_CRASHPAD)
+    add_compile_definitions(APP_ENABLE_CRASHPAD)
+
+    # 必须在 add_subdirectory(src) 之前 include：
+    #   - src/core 和 src/app 都要能看见 APP_ENABLE_CRASHPAD 宏
+    #   - src/app 要能链接 crashpad_client / crashpad_util 等目标
+    include(${CMAKE_SOURCE_DIR}/cmake/crashpad/crashpad.cmake)
+endif()
 
 # QtTesting GUI测试库：UI 录制/回放的引擎。
 # 开关 BUILD_QT_TESTING 默认 ON，各构建类型都能用。它是静态库，开了会整套
@@ -359,12 +382,12 @@ if(WIN32)
         message(WARNING "cloc executable not found! Put cloc-2.06.exe in 3rdparty/cloc-2.06/")
     else()
         configure_file(
-            "${CMAKE_SOURCE_DIR}/cmake/code_stats.bat.in"
+            "${CMAKE_SOURCE_DIR}/cmake/template/code_stats.bat.in"
             "${CMAKE_SOURCE_DIR}/scripts/code_stats.bat"
             @ONLY
         )
         configure_file(
-            "${CMAKE_SOURCE_DIR}/cmake/code_stats.ps1.in"
+            "${CMAKE_SOURCE_DIR}/cmake/template/code_stats.ps1.in"
             "${CMAKE_SOURCE_DIR}/scripts/code_stats.ps1"
             @ONLY
         )
@@ -384,12 +407,12 @@ if(WIN32)
     else()
         # 脚本内烘焙了本次配置的构建目录；脚本支持 -BuildDir 覆盖
         configure_file(
-            "${CMAKE_SOURCE_DIR}/cmake/clang_tidy.ps1.in"
+            "${CMAKE_SOURCE_DIR}/cmake/template/clang_tidy.ps1.in"
             "${CMAKE_SOURCE_DIR}/scripts/clang_tidy.ps1"
             @ONLY
         )
         configure_file(
-            "${CMAKE_SOURCE_DIR}/cmake/clang_tidy.bat.in"
+            "${CMAKE_SOURCE_DIR}/cmake/template/clang_tidy.bat.in"
             "${CMAKE_SOURCE_DIR}/scripts/clang_tidy.bat"
             @ONLY
         )

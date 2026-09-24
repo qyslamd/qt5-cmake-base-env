@@ -14,6 +14,11 @@
 #define MyAppMutex "@APP_MUTEX_NAME@"
 #define MyInstallerIcon "@APP_ICON_ICO@"
 
+; Crashpad handler 是否随包分发。CMake 注入 1 或 0：
+;   1 = APP_ENABLE_CRASHPAD=ON 的构建，bin\ 下有 crashpad_handler.exe
+;   0 = 自研崩溃处理，进程内捕获，无外部依赖文件
+#define HasCrashpadHandler @ISCC_APP_HAS_CRASHPAD@
+
 [Setup]
 AppId=@ISCC_APP_ID@
 AppName={#MyAppName}
@@ -49,6 +54,11 @@ Name: "installvcruntime"; Description: "安装 VC++ 运行库"; GroupDescription
 [Files]
 ; @TARGET_NAME@ 主程序
 Source: "{#WhereAreFiles}\@TARGET_NAME@.exe"; DestDir: "{app}"; Flags: ignoreversion
+; Crashpad handler：独立进程负责捕获崩溃、生成 minidump。
+; 必须与主程序同目录，CrashpadClient::StartHandler 按相对路径找它
+#if HasCrashpadHandler == 1
+Source: "{#WhereAreFiles}\crashpad_handler.exe"; DestDir: "{app}"; Flags: ignoreversion
+#endif
 Source: "{#WhereAreFiles}\Qt5*.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#WhereAreFiles}\@ISCC_VC_REDIST@"; DestDir: "{app}"; Flags: ignoreversion
 

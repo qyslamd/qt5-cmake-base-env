@@ -29,7 +29,7 @@ $RECYCLE.BIN/
 *.iml
 .cache/
 
-# clangd：由 cmake/.clangd.in 生成，内含本机构建路径，不入库
+# clangd：由 cmake/template/.clangd.in 生成，内含本机构建路径，不入库
 .clangd
 
 # ============================================================

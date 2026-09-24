@@ -17,17 +17,24 @@
 #include <execinfo.h>
 #endif
 
-QList<int> GlobalExceptionHandler::s_signals_ = {SIGABRT,
-                                                 SIGFPE,
-                                                 SIGILL,
-                                                 SIGSEGV,
-                                                 SIGINT,
-                                                 SIGTERM
+namespace {
+
+// 崩溃信号：由崩溃捕获模块（自研 CrashHandler 或 Crashpad）负责，
+// GlobalExceptionHandler 只在未开启崩溃捕获时兜底
+const QList<int> kCrashSignals = {
+    SIGABRT, SIGFPE, SIGILL, SIGSEGV,
 #ifndef Q_OS_WIN
-                                                 ,
-                                                 SIGBUS
+    SIGBUS,
 #endif
 };
+
+// 终止信号：Ctrl+C / kill 等正常退出路径，与崩溃捕获无关，始终注册
+const QList<int> kTermSignals = {SIGINT, SIGTERM};
+
+}  // namespace
+
+// 当前实际注册的信号列表（init 时填充，shutdown 时清空）
+QList<int> GlobalExceptionHandler::s_signals_;
 
 QList<void (*)(int)> GlobalExceptionHandler::s_oldHandlers_;
 
@@ -44,16 +51,22 @@ GlobalExceptionHandler::~GlobalExceptionHandler() {
   }
 }
 
-void GlobalExceptionHandler::init() {
+void GlobalExceptionHandler::init(bool enable_crash_signals) {
   if (initialized_) {
     return;
+  }
+
+  s_signals_ = kTermSignals;
+  if (enable_crash_signals) {
+    s_signals_.append(kCrashSignals);
   }
 
   setupSignalHandlers();
   qInstallMessageHandler(qtMessageHandler);
   initialized_ = true;
 
-  LOG_INFO("EXCEPTION", "全局异常处理器初始化完成");
+  LOG_INFO("EXCEPTION", "全局异常处理器初始化完成（崩溃信号: {}）",
+           enable_crash_signals ? "本模块接管" : "交给崩溃捕获模块");
 }
 
 void GlobalExceptionHandler::shutdown() {
