@@ -1,19 +1,12 @@
 set(TARGET_NAME ${APP_TARGET_PREFIX}_core)
 
 set(ALL_HEADERS_SOURCES
-    auth/auth_service.cpp
-    auth/password_hasher.cpp
-    auth/user_manager.cpp
     config/config_manager.cpp
     logger/log_filter.cpp
     logger/logger.cpp
     logger/log_history_buffer.cpp
     logger/log_pattern_builder.cpp
     logger/qt_console_sink.cpp
-    auth/auth_service.h
-    auth/auth_types.h
-    auth/password_hasher.h
-    auth/user_manager.h
     config/config_defs.h
     config/config_manager.h
     logger/log_filter.h
@@ -24,24 +17,36 @@ set(ALL_HEADERS_SOURCES
     common/single_instance.cpp
     common/single_instance.h
 
-    # 统一入口：两套实现由 APP_ENABLE_CRASHPAD 切换，本文件两套都编
+    # 统一入口：三态后端由 APP_CRASH_BACKEND 切换，本文件三种都编
     crashhandler/crash_bootstrap.cpp
     crashhandler/crash_bootstrap.h
-    # 信号兜底 + Qt 消息重定向。它管的不只是崩溃，但崩溃信号那半与两套后端
-    # 的职责划分有关，所以放在这个目录（见文件头注释）
+    # 信号兜底 + Qt 消息重定向。它管的不只是崩溃，但崩溃信号那半与各后端的
+    # 职责划分有关，所以放在这个目录（见文件头注释）
     crashhandler/global_exception_handler.cpp
     crashhandler/global_exception_handler.h
 )
 
-# 崩溃捕获两套实现二选一。
-# APP_ENABLE_CRASHPAD 由顶层 CMakeLists 在 project() 之后声明，
-# 是 cache 变量，子目录里可直接读
+# 登录认证：APP_ENABLE_AUTH=OFF 时整块裁掉（见顶层 CMakeLists 的说明）
+if(APP_ENABLE_AUTH)
+    list(APPEND ALL_HEADERS_SOURCES
+        auth/auth_service.cpp
+        auth/auth_service.h
+        auth/auth_types.h
+        auth/password_hasher.cpp
+        auth/password_hasher.h
+        auth/user_manager.cpp
+        auth/user_manager.h
+    )
+endif()
+
+# 崩溃捕获实现三选一。APP_ENABLE_CRASHPAD / APP_ENABLE_CRASH_CAPTURE 由顶层
+# CMakeLists 从 APP_CRASH_BACKEND 派生，子目录里可直接读（none 时两个都为 OFF）
 if(APP_ENABLE_CRASHPAD)
     list(APPEND ALL_HEADERS_SOURCES
         crashhandler/crashpad_bootstrap.cpp
         crashhandler/crashpad_bootstrap.h
     )
-else()
+elseif(APP_ENABLE_CRASH_CAPTURE)
     list(APPEND ALL_HEADERS_SOURCES
         crashhandler/crash_handler.cpp
         crashhandler/crash_handler.h
@@ -107,12 +112,13 @@ if(APP_ENABLE_CRASHPAD)
             advapi32 winhttp version user32 PowrProf
         )
     endif()
-else()
+elseif(APP_ENABLE_CRASH_CAPTURE)
     # 自研方案需要 dbghelp 做符号解析与 minidump 写入
     if(WIN32)
         target_link_libraries(${TARGET_NAME} PRIVATE dbghelp)
     endif()
 endif()
+# none：不链接任何崩溃相关库
 
 if(MSVC)
     target_compile_options(${TARGET_NAME} PRIVATE /W4 /WX- /EHsc)

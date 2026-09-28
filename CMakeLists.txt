@@ -46,16 +46,70 @@ project(${PROJECT_NAME_STR}
     LANGUAGES CXX C)
 
 #-------------------------------------------------------------------------------
-# Crashpad（可选）
+# 崩溃捕获后端（三态）
 #
 # 开关放在 project() 之后而不是定制区：它是功能开关，不属于项目元信息。
-# 开启后：
-#   1. 定义 APP_ENABLE_CRASHPAD 宏 —— src/core 与 src/app 靠它做条件编译
-#   2. include cmake/crashpad/crashpad.cmake —— 引入 crashpad 各静态库目标
-#   3. 提供 crashpad_handler 目标 —— 打包脚本据此拷贝 handler 到 bin/
+#
+#   crashpad —— 进程外捕获（crashpad_handler + minidump）。默认，代价是拖进
+#               crashpad / mini_chromium / zlib / linux-syscall-support 四个包
+#   builtin  —— 自研：VEH / signal + 平台符号解析，写 .log + .dmp，零第三方依赖
+#   none     —— 本仓不装任何捕获，崩溃信号留给使用者自己的方案
+#
+# 用 CACHE STRING 而不是几个布尔：布尔叠加会产生非法组合，而 STRINGS 属性让
+# cmake-gui 直接给下拉框，命令行 -DAPP_CRASH_BACKEND=builtin 也好记
 #-------------------------------------------------------------------------------
 
-option(APP_ENABLE_CRASHPAD "Use Crashpad for crash reporting" ON)
+set(APP_CRASH_BACKEND "crashpad" CACHE STRING
+    "崩溃捕获后端：crashpad / builtin / none")
+
+# 迁移旧开关：APP_ENABLE_CRASHPAD 曾是唯一的布尔开关，老构建目录的缓存里还有
+# 它。按它的值映射一次再清掉——直接 FATAL 会让所有人手上的 build 目录一
+# configure 就报错。只映射"曾经是 OFF"这一种（旧 OFF 等于自研）；旧 ON 与新
+# 默认值同义，清掉缓存即可
+if(DEFINED CACHE{APP_ENABLE_CRASHPAD})
+    if(NOT APP_ENABLE_CRASHPAD AND APP_CRASH_BACKEND STREQUAL "crashpad")
+        set(APP_CRASH_BACKEND "builtin" CACHE STRING
+            "崩溃捕获后端：crashpad / builtin / none" FORCE)
+        message(STATUS
+            "APP_ENABLE_CRASHPAD=OFF 已映射为 APP_CRASH_BACKEND=builtin")
+    endif()
+    unset(APP_ENABLE_CRASHPAD CACHE)
+endif()
+
+set_property(CACHE APP_CRASH_BACKEND PROPERTY STRINGS crashpad builtin none)
+if(NOT APP_CRASH_BACKEND MATCHES "^(crashpad|builtin|none)$")
+    message(FATAL_ERROR "APP_CRASH_BACKEND 只能是 crashpad / builtin / none，"
+        "当前是 ${APP_CRASH_BACKEND}")
+endif()
+
+# 派生给 CMake 侧用（源码选择、链接库、打包脚本都读这两个），C++ 侧的宏在
+# 下面"基础设施"那一段统一加
+if(APP_CRASH_BACKEND STREQUAL "crashpad")
+    set(APP_ENABLE_CRASHPAD ON)
+    set(APP_ENABLE_CRASH_CAPTURE OFF)
+elseif(APP_CRASH_BACKEND STREQUAL "builtin")
+    set(APP_ENABLE_CRASHPAD OFF)
+    set(APP_ENABLE_CRASH_CAPTURE ON)
+else()
+    set(APP_ENABLE_CRASHPAD OFF)
+    set(APP_ENABLE_CRASH_CAPTURE OFF)
+endif()
+message(STATUS "崩溃捕获后端：${APP_CRASH_BACKEND}")
+
+#-------------------------------------------------------------------------------
+# 登录认证与用户管理（可选）
+#
+# OFF 时：core 不编 auth/，app 不编登录 / 改密 / 用户管理三个对话框，main 跳过
+# 登录直接进主窗口。注意这不是"关掉一个功能"那么简单——它是一道贯穿 core 与
+# app 的切割面，改这个开关请连带看 main.cpp 的登录段与 Splash 的会话步
+#
+# 坑：从 OFF 切回 ON 时，AUTOMOC 的产物不会因为源文件重新入列而重生成——
+# <build>/src/core/demo_core_autogen/mocs_compilation.cpp 里还缺 moc_auth_service，
+# 链接会报 AuthService::staticMetaObject / loginSucceeded 未解析（实测）。切回
+# ON 后先删掉那个 demo_core_autogen 目录再构建（或换个干净的构建目录）
+#-------------------------------------------------------------------------------
+
+option(APP_ENABLE_AUTH "启用登录认证与用户管理" ON)
 
 #-------------------------------------------------------------------------------
 # 崩溃测试开关（可选）
@@ -219,14 +273,22 @@ add_subdirectory(3rdparty/QCustomPlot)
 # QXlsx Excel读写库
 add_subdirectory(3rdparty/QXlsx-1.5.0/QXlsx)
 
-# google crashpad
+# 崩溃捕获后端：宏与第三方引入（三态见顶部 APP_CRASH_BACKEND 的说明）。
+# 必须在 add_subdirectory(src) 之前：
+#   - src/core 和 src/app 都要能看见宏
+#   - src/app 要能链接 crashpad_client / crashpad_util 等目标
 if(APP_ENABLE_CRASHPAD)
     add_compile_definitions(APP_ENABLE_CRASHPAD)
-
-    # 必须在 add_subdirectory(src) 之前 include：
-    #   - src/core 和 src/app 都要能看见 APP_ENABLE_CRASHPAD 宏
-    #   - src/app 要能链接 crashpad_client / crashpad_util 等目标
     include(${CMAKE_SOURCE_DIR}/cmake/crashpad/crashpad.cmake)
+elseif(APP_ENABLE_CRASH_CAPTURE)
+    # 自研方案零第三方依赖，只需要这个宏让 src/core 编那套实现
+    add_compile_definitions(APP_ENABLE_CRASH_CAPTURE)
+endif()
+# none：两个宏都不定义，src/core 两个实现都不编，崩溃信号留给使用者
+
+# 登录认证：宏给 src/core 与 src/app 做条件编译
+if(APP_ENABLE_AUTH)
+    add_compile_definitions(APP_ENABLE_AUTH)
 endif()
 
 # QtTesting GUI测试库：UI 录制/回放的引擎。

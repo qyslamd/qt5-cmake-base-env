@@ -10,7 +10,7 @@
 #   - 「真崩一次 → dump 落盘」的端到端验证在演练里做（见
 #     docs/plan/崩溃报告回传链路设计.md），不进单元测试：它要拉起 handler，
 #     且结果依赖进程外进程的时序
-if(NOT APP_ENABLE_CRASHPAD)
+if(APP_ENABLE_CRASH_CAPTURE)
     add_unit_test(
         NAME test_core_crashhandler
         SOURCES crashhandler_test.cpp
@@ -19,7 +19,7 @@ if(NOT APP_ENABLE_CRASHPAD)
         LABELS CORE
         NO_GTEST_MAIN
     )
-else()
+elseif(APP_ENABLE_CRASHPAD)
     add_unit_test(
         NAME test_core_crash_report
         SOURCES crash_report_test.cpp
@@ -28,3 +28,4 @@ else()
         LABELS CORE
     )
 endif()
+# APP_CRASH_BACKEND=none 时两个测试都不注册：没有 CrashHandler 符号，也没有报告库

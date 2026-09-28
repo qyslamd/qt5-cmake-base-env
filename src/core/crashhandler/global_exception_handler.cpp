@@ -66,7 +66,8 @@ void GlobalExceptionHandler::init(bool enable_crash_signals) {
   initialized_ = true;
 
   LOG_INFO("EXCEPTION", "全局异常处理器初始化完成（崩溃信号: {}）",
-           enable_crash_signals ? "本模块接管" : "交给崩溃捕获模块");
+           enable_crash_signals ? "本模块接管"
+                                : "不接管（由崩溃捕获后端或使用者的方案负责）");
 }
 
 void GlobalExceptionHandler::shutdown() {

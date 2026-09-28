@@ -49,14 +49,18 @@
 
 #include "AppInfo.h"
 #include "AppVersion.h"
+#ifdef APP_ENABLE_AUTH
 #include "auth/auth_service.h"
+#endif
 #include "common/single_instance.h"
 #include "config/config_defs.h"
 #include "config/config_manager.h"
 #include "crashhandler/crash_bootstrap.h"
 #include "crashhandler/global_exception_handler.h"
 #include "dialogs/crash_report_dialog.h"
+#ifdef APP_ENABLE_AUTH
 #include "dialogs/login_dialog.h"
+#endif
 #include "guidance_app_flows.h"
 #include "launch_options.h"
 #include "logger/logger.h"
@@ -181,8 +185,12 @@ std::optional<int> HandleAlreadyRunning(SingleInstance& instance,
 // 单独成函数是为了让 Splash 那段只负责"报进度"，一眼分得清哪条线是进度、
 // 哪条线是干活——模板使用者替换时照着改这条线即可
 void InitializeSession() {
+#ifdef APP_ENABLE_AUTH
   const User current_user = AuthService::instance().currentUser();
   LOG_INFO("MAIN", "用户会话已建立: {}", current_user.user_name_.toStdString());
+#else
+  LOG_INFO("MAIN", "未启用登录认证（APP_ENABLE_AUTH=OFF），无用户会话");
+#endif
 }
 
 // Splash 第 3 步的实事：读回上次的窗口尺寸，并钳制，防止损坏的 INI
@@ -308,23 +316,24 @@ int main(int argc, char* argv[]) {
     Logger::init();
     LOG_INFO("MAIN", "应用程序启动，版本: {}", getProjectVersionAll());
 
-    // 信号捕获 + Qt 消息重定向。
-    //
-    // Crashpad 模式下必须传 false：crashpad_handler 通过进程外机制捕获崩溃，
-    // 若 GlobalExceptionHandler 用 std::signal 抢先接住 SIGSEGV/SIGABRT，
-    // handler 收不到通知，dump 不会生成。此时这里只保留 SIGINT/SIGTERM。
-    //
-    // 自研模式下传 true：WindowsCrashHandler 的 VEH 会先接住异常并
-    // TerminateProcess，走不到 CRT 信号这层，两者不冲突
-#ifdef APP_ENABLE_CRASHPAD
-    GlobalExceptionHandler::instance().init(/*enable_crash_signals=*/false);
+    // 信号捕获 + Qt 消息重定向。崩溃类信号要不要接，随崩溃后端而变
+    // （APP_CRASH_BACKEND）：
+    //   crashpad —— 必须让出：crashpad_handler 靠进程外机制捕获崩溃，若这里
+    //               用 std::signal 抢先接住 SIGSEGV/SIGABRT，handler 收不到
+    //               通知，dump 不会生成。只留 SIGINT/SIGTERM
+    //   builtin  —— 照常注册：CrashHandler 在本模块之后注册，Windows 侧更是
+    //               VEH 先响应，两者不冲突
+    //   none     —— 也传 false：本仓不装捕获，崩溃信号留给使用者自己的方案
+#ifdef APP_ENABLE_CRASH_CAPTURE
+    GlobalExceptionHandler::instance().init(/*enable_crash_signals=*/true);
 #else
-    GlobalExceptionHandler::instance().init();
+    GlobalExceptionHandler::instance().init(/*enable_crash_signals=*/false);
 #endif
 
-    // 崩溃捕获：两套实现由 APP_ENABLE_CRASHPAD 编译期切换
-    //   OFF → 自研（信号 / SEH + .log + .dmp，进程内解析符号）
-    //   ON  → Crashpad（crashpad_handler 独立进程 + minidump）
+    // 崩溃捕获：后端由 APP_CRASH_BACKEND 编译期三选一
+    //   crashpad —— crashpad_handler 独立进程 + minidump
+    //   builtin  —— 自研（信号 / SEH + .log + .dmp，进程内解析符号）
+    //   none     —— 不装捕获，这里只记元信息
     //
     // handler 生命周期由 crash::Init 内部维护（文件作用域静态对象），
     // 不需要在这里持有；数据库目录也由内部按 QStandardPaths 解析
@@ -346,11 +355,23 @@ int main(int argc, char* argv[]) {
           QString::fromLatin1(getProjectGitCommit()),
           QString::fromLatin1(APP_BUILD_TYPE)};
 
+#if defined(APP_ENABLE_CRASHPAD)
       if (crash::Init(handler_path, app_info)) {
-        LOG_INFO("MAIN", "崩溃捕获模块初始化完成");
+        LOG_INFO("MAIN", "崩溃捕获模块初始化完成（Crashpad）");
       } else {
         LOG_WARN("MAIN", "崩溃捕获初始化失败，本次运行不会生成崩溃报告");
       }
+#elif defined(APP_ENABLE_CRASH_CAPTURE)
+      if (crash::Init(handler_path, app_info)) {
+        LOG_INFO("MAIN", "崩溃捕获模块初始化完成（自研）");
+      } else {
+        LOG_WARN("MAIN", "崩溃捕获初始化失败，本次运行不会生成崩溃报告");
+      }
+#else
+      // none：调用 Init 只为把应用元信息记进 core，没有后端要装
+      crash::Init(handler_path, app_info);
+      LOG_INFO("MAIN", "未启用崩溃捕获（APP_CRASH_BACKEND=none）");
+#endif
     }
   }
 
@@ -388,6 +409,7 @@ int main(int argc, char* argv[]) {
   // 登录成功前不创建主窗口。回放模式跳过登录：录制入口在主窗口菜单里，
   // 也就是录制总是从「已登录」状态开始；回放只有从同一状态起步，脚本里
   // 记录的控件才存在
+#ifdef APP_ENABLE_AUTH
   if (opts.ui_test_script.isEmpty()) {
     LoginDialog login;
     if (login.exec() != QDialog::Accepted) {
@@ -402,6 +424,11 @@ int main(int argc, char* argv[]) {
     LOG_INFO("MAIN", "UI 测试回放模式，跳过登录: {}",
              opts.ui_test_script.toStdString());
   }
+#else
+  // 没编认证：登录这一关整个不存在，直接进主窗口。回放模式的日志留一句，
+  // 便于与带认证的构建对照（回放本来也跳过登录）
+  LOG_INFO("MAIN", "未启用登录认证（APP_ENABLE_AUTH=OFF），直接进入主界面");
+#endif
 
   // ========================= 6. Splash 与主窗口 =========================
   // Splash 只负责报进度，干活的是中间那几个具名函数——模板使用者把耗时初始化

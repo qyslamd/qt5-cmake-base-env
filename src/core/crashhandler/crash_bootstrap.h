@@ -23,9 +23,11 @@ struct PendingReport {
   qint64 size = 0;        // 报告文件字节数
 };
 
-// 初始化崩溃捕获。两套实现由 CMake 宏 APP_ENABLE_CRASHPAD 编译期切换：
-//   ON  → Crashpad（进程外捕获，生成 minidump）
-//   OFF → 自研（信号 / SEH，写 .log + .dmp）
+// 初始化崩溃捕获。后端由 CMake 的 APP_CRASH_BACKEND 编译期三选一，
+// 代码侧看到的是两个宏：
+//   APP_ENABLE_CRASHPAD        → Crashpad（进程外捕获，生成 minidump）
+//   APP_ENABLE_CRASH_CAPTURE   → 自研（信号 / SEH，写 .log + .dmp）
+//   两个都没定义（none）        → 不装捕获，本函数只记应用元信息
 //
 // 崩溃文件统一落在：
 //   Windows: %LOCALAPPDATA%/<Org>/<App>/crash/

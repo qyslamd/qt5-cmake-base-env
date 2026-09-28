@@ -1,17 +1,18 @@
 #include "crashhandler/crash_bootstrap.h"
 
-#ifndef APP_ENABLE_CRASHPAD
+#ifdef APP_ENABLE_CRASH_CAPTURE
 #include <memory>
 #endif
 
 #include <QDir>
 #include <QStandardPaths>
 
-#ifdef APP_ENABLE_CRASHPAD
+#if defined(APP_ENABLE_CRASHPAD)
 #include "crashhandler/crashpad_bootstrap.h"
-#else
+#elif defined(APP_ENABLE_CRASH_CAPTURE)
 #include "crashhandler/crash_handler.h"
 #endif
+// none：两个后端都不编，也就不 include 任何后端头
 
 namespace crash {
 
@@ -31,7 +32,7 @@ QString ResolveDumpDir() {
 QString g_db_dir;
 AppInfo g_app_info;
 
-#ifndef APP_ENABLE_CRASHPAD
+#ifdef APP_ENABLE_CRASH_CAPTURE
 // 自研方案：handler 对象必须活到进程结束，否则析构时会把信号处理器撤掉。
 // 用文件作用域静态变量持有，随进程退出自动析构
 std::unique_ptr<CrashHandler> g_crash_handler;
@@ -52,9 +53,9 @@ bool Init(const QString& handler_path, const AppInfo& info) {
   g_app_info = info;
   const QString db_dir = DatabaseDir();
 
-#ifdef APP_ENABLE_CRASHPAD
+#if defined(APP_ENABLE_CRASHPAD)
   return detail::InitCrashpad(db_dir, handler_path, info);
-#else
+#elif defined(APP_ENABLE_CRASH_CAPTURE)
   Q_UNUSED(handler_path);
 
   g_crash_handler = CrashHandler::create();
@@ -63,6 +64,11 @@ bool Init(const QString& handler_path, const AppInfo& info) {
   }
   g_crash_handler->setDumpPath(db_dir);
   return g_crash_handler->init();
+#else
+  // none：没有后端要装，但应用元信息与数据库目录照记（导出接口要读它们，
+  // 只是那两处会返回"没有报告"）。返回 true = 本次没有失败
+  Q_UNUSED(handler_path);
+  return true;
 #endif
 }
 

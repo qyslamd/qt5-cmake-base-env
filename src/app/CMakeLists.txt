@@ -29,23 +29,30 @@ set(TARGET_SRCS
     log_window.h
     dialogs/about_dialog.cpp
     dialogs/about_dialog.h
-    dialogs/add_edit_user_dialog.cpp
-    dialogs/add_edit_user_dialog.h
-    dialogs/change_password_dialog.cpp
-    dialogs/change_password_dialog.h
     dialogs/crash_report_dialog.cpp
     dialogs/crash_report_dialog.h
-    dialogs/login_dialog.cpp
-    dialogs/login_dialog.h
     dialogs/settings_dialog.cpp
     dialogs/settings_dialog.h
-    dialogs/user_manage_dialog.cpp
-    dialogs/user_manage_dialog.h
     log_filter_bar.cpp
     log_filter_bar.h
     log_output_panel.cpp
     log_output_panel.h
     )
+
+# 登录认证相关的三个对话框：APP_ENABLE_AUTH=OFF 时整块不编（core 侧的 auth/
+# 同理，登录段在 main.cpp 里也由同一个宏守）
+if(APP_ENABLE_AUTH)
+    list(APPEND TARGET_SRCS
+        dialogs/add_edit_user_dialog.cpp
+        dialogs/add_edit_user_dialog.h
+        dialogs/change_password_dialog.cpp
+        dialogs/change_password_dialog.h
+        dialogs/login_dialog.cpp
+        dialogs/login_dialog.h
+        dialogs/user_manage_dialog.cpp
+        dialogs/user_manage_dialog.h
+    )
+endif()
 
 # UI 测试录制/回放（QtTesting）：仅 BUILD_QT_TESTING 打开的构建包含这部分。
 # 开关见顶层 CMakeLists.txt
