@@ -10,6 +10,19 @@
 
 ### 新增
 
+- **崩溃报告回传链路**：程序发布给离线客户后，崩溃文件躺在数据目录里没人去
+  翻，链路就断在最后一步。现在崩溃后**下次启动**会弹「上次运行发生过崩溃」，
+  点「导出报告」把 `<uuid>.dmp` + 人可读 `summary.txt` 导出到桌面
+  `CrashReport-<时间戳>/`，客户把文件夹发回来即可。另有两个无界面入口：
+  `--export-report [目录]`（售后远程指导与自动化演练）与安装目录下的
+  `export_crash_report.bat`（主程序是 WIN32 子系统，cmd 读不到退出码，由它用
+  `start / wait` 兜住）。导出**不删除**报告，只调 `SkipReportUpload` 转入已交付
+  状态——不再提示，但客户弄丢文件也还能再导一次。注解补上 git 提交与构建配置，
+  崩溃报告因此能自证"来自哪个构建"，与 `dist/symbols/<版本>-<git 提交>-<架构>/`
+  的归档一一对上。实测两平台（Windows 用 `cdb` + PDB，Linux 用 `lldb` 直读
+  minidump）都能从回传的 dump 恢复出"函数名 + 文件:行"；Linux 侧的多层调用链
+  也能完整展开，不依赖帧指针（`-fno-omit-frame-pointer` 不必加）。
+  已知边界：Crashpad 固定写 `MiniDumpNormal`，dump 里没有全局变量与堆对象内容
 - **样式表分两层，底座层独立成模块**：`src/style/`（目标 `demo_style`）带
   `base/*.qss` 十份表与 `ApplyStyleSheet()`，只写类型/伪状态/子控件/属性选择器、
   不出现 objectName，别的程序链上模块调一次就有；`src/app/resources/styles/

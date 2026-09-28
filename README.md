@@ -16,6 +16,9 @@
   Inno Setup 生成安装程序；Linux 侧对应 linuxdeploy → appimagetool 生成
   AppImage
 - **符号自动归档**：按版本与提交归档 exe 与 PDB，崩溃转储事后可解析
+- **崩溃报告一键回传**：崩溃后下次启动提示导出（桌面 `CrashReport-<时间戳>/`，
+  含 minidump 与可读 summary），导出后不再提示；另有 `--export-report` 命令行
+  入口与安装目录下的 `export_crash_report.bat`，供离线客户与售后使用
 - **基础能力开箱可用**：单实例运行、崩溃捕获、日志系统（含界面日志面板与
   运行时格式开关）、配置管理、登录认证
 - **单元测试骨架**：含以子进程触发真实崩溃的集成测试样例
