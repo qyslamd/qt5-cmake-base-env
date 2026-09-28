@@ -169,6 +169,14 @@
 
 ### 变更
 
+- **`external/c-cmake-base-env` 移出主仓**：它是伴随开发的独立 C 基础环境
+  （`eph_log_crash`），主工程从不引用它——不 `add_subdirectory`、不链接、代码里
+  零引用，只在 README 的目录树里挂了个名字。留着它的代价是：每次 clone 都多拉
+  一个用不到的仓；它每改动一次主仓要跟着 bump pin；而主仓构建又不会验证它
+  （pin 一个不再验证的东西最容易悄悄腐烂）。改为独立仓库单独 clone 开发，需要
+  时并列放即可——`git submodule` 三项收尾（`deinit` / `rm` / 清 `.git/modules`
+  缓存）都做完了，仓本身在 gitee 上完好。`qt-libui` 不受影响，仍在 `external/`
+  下随本仓一起编译
 - **删掉 4 对从未使用的异常类，`GlobalExceptionHandler` 归位到 `crashhandler/`**：
   `common/{file,time,string,byte}_exception.*` 共 263 行，自 initial commit 起
   全仓零引用（只有 CMake 源清单与它们自己的配对）——而且与本仓惯例冲突：

@@ -82,7 +82,7 @@ src/
 ├── core/   无 UI 依赖：配置 / 日志 / 崩溃捕获 / 认证 / 单实例
 ├── style/  底座层样式表（QSS）与加载入口：链上即得一套通用的控件外观
 └── app/    界面骨架、资源与项目层样式
-external/   外部源码仓库（git submodule）：qt-libui 通用 UI 部件、c-cmake-base-env
+external/   外部源码仓库（git submodule）：qt-libui 通用 UI 部件，随本仓一起编译
 cmake/      构建脚本模块（版本、运行脚本、测试宏、符号归档、打包）
 scripts/    构建与打包入口脚本
 tests/      单元测试
