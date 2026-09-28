@@ -31,6 +31,8 @@ set(TARGET_SRCS
     dialogs/add_edit_user_dialog.h
     dialogs/change_password_dialog.cpp
     dialogs/change_password_dialog.h
+    dialogs/crash_report_dialog.cpp
+    dialogs/crash_report_dialog.h
     dialogs/login_dialog.cpp
     dialogs/login_dialog.h
     dialogs/settings_dialog.cpp
@@ -96,6 +98,11 @@ if(BUILD_RIBBON)
     target_compile_definitions(${TARGET_NAME} PRIVATE APP_ENABLE_RIBBON)
 endif()
 
+# --crash 测试开关：只影响命令行选项的注册与那一次主动崩溃，见顶层 CMakeLists
+if(APP_ENABLE_CRASH_TEST)
+    target_compile_definitions(${TARGET_NAME} PRIVATE APP_ENABLE_CRASH_TEST)
+endif()
+
 set_target_properties(${TARGET_NAME} PROPERTIES
     AUTOMOC ON
     AUTOUIC ON
@@ -110,6 +117,16 @@ endif()
 
 # 生成运行脚本（Windows 为 .bat，Linux 为 .sh），输出到可执行文件所在目录
 configure_run_script("run_${TARGET_NAME}")
+
+# 崩溃报告导出的命令行入口。主程序是 WIN32 子系统程序，交互式 cmd 不等它、
+# 也读不到退出码，交给这个 .bat 用 start /wait 兜住——售后让客户双击一次就行。
+# 非 Windows 平台不需要：终端能直接跑 demo_app --export-report
+if(WIN32)
+    configure_file(
+        "${CMAKE_SOURCE_DIR}/cmake/template/export_crash_report.bat.in"
+        "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/export_crash_report.bat"
+        @ONLY)
+endif()
 
 #=======================================
 # Crashpad 模式下拷贝 crashpad_handler 到可执行文件旁

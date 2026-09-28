@@ -7,8 +7,10 @@
 //    │    决定数据目录、单实例键与日志文件名，须与安装脚本的卸载路径一致
 //    ├─ 解析命令行
 //    ├─ 单实例检测 ─────────── 必须在 Logger 之前（拒绝回放时只能写 stderr）
-//    ├─ 样式 → ConfigManager → Logger → GEH → CrashHandler
+//    ├─ 样式 → ConfigManager → Logger → GEH → 崩溃捕获
 //    │    严格顺序，见各步注释
+//    ├─ 工具模式（--export-report / --crash）─ 无界面，跑完即退出
+//    ├─ 上次崩溃的报告提示 ─ 只在有报告时弹，且在登录之前
 //    ├─ 功能引导（控制器 + 桥接）─ 必须在登录之前
 //    │    外部脚本的第一步常常跑在登录对话框上，那时主窗口还不存在
 //    ├─ 登录
@@ -18,9 +20,10 @@
 //
 // 对象所有权的约定（三种并存是有意的，别随手改）：
 //   短生命周期                  → 栈对象（LoginDialog / SplashScreen /
-//   MainWindow） 活到进程结束，且是 QObject   → 挂到 app 或宿主窗口下，由 Qt
-//   父子负责回收 活到进程结束，但不是 QObject → unique_ptr（如
-//   GuidanceBridge——它不能有 Qt 父级）
+//                                 MainWindow）
+//   活到进程结束，且是 QObject   → 挂到 app 或宿主窗口下，由 Qt 父子回收
+//   活到进程结束，但不是 QObject → unique_ptr（如 GuidanceBridge，它不能有
+//                                 父级）
 //
 // 标了「可删」的段落不需要时整段拿掉即可，不影响其余部分。
 
@@ -42,6 +45,7 @@
 #include <QSize>
 #include <QString>
 #include <QTimer>
+#include <QVector>
 #include <QWidget>
 #include <qt-libui/splash_screen.h>
 
@@ -53,6 +57,7 @@
 #include "config/config_defs.h"
 #include "config/config_manager.h"
 #include "crashhandler/crash_bootstrap.h"
+#include "dialogs/crash_report_dialog.h"
 #include "dialogs/login_dialog.h"
 #include "guidance_app_flows.h"
 #include "logger/logger.h"
@@ -86,6 +91,12 @@ struct LaunchOptions {
   // 而 ParseCommandLine 跑在 Logger::init() 之前——那里 LOG_WARN 是空转的。
   // 解析与报错都放到 SetupUiTesting 里做（那儿 Logger 已经起来了）
   QString slow_text;
+  // --export-report：导出待发送的崩溃报告后退出。值为导出目录，空串表示用
+  // 默认目录（桌面）。分成两个字段是为了区分"没给这个选项"与"给了但没写目录"
+  bool export_report = false;
+  QString export_report_dir;
+  // --crash：主动触发一次崩溃，用于验证崩溃捕获与回传链路（仅测试用）
+  bool crash_test = false;
 };
 
 LaunchOptions ParseCommandLine(QApplication& app) {
@@ -109,12 +120,35 @@ LaunchOptions ParseCommandLine(QApplication& app) {
       QStringLiteral("毫秒"));
   parser.addOption(slow_option);
 
+  // 默认值是"空但非 null"的字符串：Qt 只在这种情况下才允许选项省略取值，
+  // 于是 --export-report 与 --export-report <目录> 两种写法都成立
+  const QCommandLineOption export_option(
+      QStringLiteral("export-report"),
+      QStringLiteral("导出待发送的崩溃报告到指定目录后退出"
+                     "（省略目录则用桌面），无界面"),
+      QStringLiteral("目录"), QStringLiteral(""));
+  parser.addOption(export_option);
+
+#ifdef APP_ENABLE_CRASH_TEST
+  // 只在开启崩溃测试的构建里存在：发布包不该带一个能让程序主动崩掉的开关
+  const QCommandLineOption crash_option(
+      QStringLiteral("crash"),
+      QStringLiteral("主动触发一次崩溃（用于验证崩溃捕获与回传链路）"));
+  parser.addOption(crash_option);
+#endif
+
   parser.process(app);
 
   LaunchOptions opts;
   opts.ui_test_script = parser.value(play_option);
 
   opts.slow_text = parser.value(slow_option);
+
+  opts.export_report = parser.isSet(export_option);
+  opts.export_report_dir = parser.value(export_option);
+#ifdef APP_ENABLE_CRASH_TEST
+  opts.crash_test = parser.isSet(crash_option);
+#endif
   return opts;
 }
 
@@ -127,9 +161,63 @@ void SetupAppMetadata(QApplication& app) {
   app.setApplicationVersion(getProjectVersionAll());
 }
 
+// 命令行导出崩溃报告：售后兜底（对话框不可用时让客户自己跑一次）与自动化
+// 演练都走这里。返回进程退出码：0 = 成功（含"本来就没有报告"），1 = 失败
+int RunCrashReportExport(const QString& target_dir) {
+  const QString dir =
+      target_dir.isEmpty() ? DefaultCrashReportDir() : target_dir;
+  const crash::ExportResult result = crash::ExportPendingReports(
+      crash::DatabaseDir(), dir, crash::CurrentAppInfo());
+  if (!result.ok()) {
+    LOG_WARN("MAIN", "导出崩溃报告失败: {}", result.error.toStdString());
+    return 1;
+  }
+  LOG_INFO("MAIN", "导出崩溃报告 {} 份到 {}", result.exported,
+           result.target_dir.toStdString());
+  return 0;
+}
+
+// 有待处理的崩溃报告就提示用户导出。无桌面环境时只记日志：模态框在那儿没人
+// 会点，会一直挂到被外力杀掉
+void MaybePromptCrashReport() {
+  if (QGuiApplication::platformName() == QStringLiteral("offscreen")) {
+    LOG_INFO("MAIN",
+             "无桌面环境，跳过崩溃报告提示（可用 --export-report 导出）");
+    return;
+  }
+
+  const QVector<crash::PendingReport> reports =
+      crash::ListPendingReports(crash::DatabaseDir());
+  if (reports.isEmpty()) {
+    return;
+  }
+  LOG_INFO("MAIN", "检测到 {} 份待导出的崩溃报告", reports.size());
+
+  CrashReportDialog dialog(reports);
+  dialog.exec();
+}
+
+#ifdef APP_ENABLE_CRASH_TEST
+// 主动崩溃。独立成函数是为了让崩溃栈里出现本函数的帧——演练要验证"符号能
+// 恢复出行号"，帧落在 libc 里就什么都验不出来。volatile 保证这次写内存不被
+// 优化掉
+void TriggerTestCrash() {
+  volatile int* null_pointer = nullptr;
+  *null_pointer = 42;
+}
+#endif
+
 // 已有实例时的处理。返回非空表示应当直接退出，值就是退出码
 std::optional<int> HandleAlreadyRunning(SingleInstance& instance,
                                         const LaunchOptions& opts) {
+  // 命令行工具模式（导出报告 / 测试崩溃）不参与单实例：
+  //   转发给首实例只会让对方闪一下窗口，不落地任何动作，调用方看到的是假成功；
+  //   而"因为已经有实例在跑所以退出"同样让脚本拿到假结果。这两种模式都不需要
+  //   界面，自己跑完自己的活即可
+  if (opts.export_report || opts.crash_test) {
+    return std::nullopt;
+  }
+
   if (!instance.isAppAlreadyRunning()) {
     return std::nullopt;
   }
@@ -263,7 +351,11 @@ int main(int argc, char* argv[]) {
   if (const auto exit_code = HandleAlreadyRunning(single_instance, opts)) {
     return *exit_code;
   }
-  single_instance.startListening();
+  // 工具模式不启动 IPC 服务：首实例可能已经在监听同一个服务名，去抢只会互相
+  // 干扰，而这两种模式本来也不需要被激活
+  if (!opts.export_report && !opts.crash_test) {
+    single_instance.startListening();
+  }
 
   // ========================= 3. 基础设施 =========================
   // 顺序有约束：配置要先于日志（日志读配置），异常/崩溃捕获要晚于日志
@@ -304,8 +396,8 @@ int main(int argc, char* argv[]) {
     //   OFF → 自研（信号 / SEH + .log + .dmp，进程内解析符号）
     //   ON  → Crashpad（crashpad_handler 独立进程 + minidump）
     //
-    // handler 生命周期由 crash::init 内部维护（文件作用域静态对象），
-    // 不需要在这里持有；dumpDir 也由内部按 QStandardPaths 解析
+    // handler 生命周期由 crash::Init 内部维护（文件作用域静态对象），
+    // 不需要在这里持有；数据库目录也由内部按 QStandardPaths 解析
     {
       const QString exe_dir = QCoreApplication::applicationDirPath();
 #ifdef Q_OS_WIN
@@ -316,8 +408,15 @@ int main(int argc, char* argv[]) {
           exe_dir + QStringLiteral("/crashpad_handler");
 #endif
 
-      if (crash::init(handler_path, QCoreApplication::applicationName(),
-                      QCoreApplication::applicationVersion())) {
+      // 应用元信息进 dump 的注解，也进导出的 summary.txt：崩溃报告得能自证
+      // "我是哪个构建"，才能和 dist/symbols/<版本>-<git hash>-<架构>/ 对上
+      const crash::AppInfo app_info{
+          QCoreApplication::applicationName(),
+          QString::fromLatin1(getProjectVersionAll()),
+          QString::fromLatin1(getProjectGitCommit()),
+          QString::fromLatin1(APP_BUILD_TYPE)};
+
+      if (crash::Init(handler_path, app_info)) {
         LOG_INFO("MAIN", "崩溃捕获模块初始化完成");
       } else {
         LOG_WARN("MAIN", "崩溃捕获初始化失败，本次运行不会生成崩溃报告");
@@ -325,9 +424,25 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  // ========================= 3.5 崩溃测试（临时，验证完删除）=====
-  // std::fprintf(stderr, "[crash-test] triggering null deref...\n");
-  // *(volatile int*)0 = 42;
+  // ========================= 3.5 工具模式与崩溃报告提示 =================
+  // 导出崩溃报告：无界面，跑完即退出（售后兜底与自动化演练都走这里）
+  if (opts.export_report) {
+    return RunCrashReportExport(opts.export_report_dir);
+  }
+
+#ifdef APP_ENABLE_CRASH_TEST
+  if (opts.crash_test) {
+    LOG_INFO("MAIN", "触发测试崩溃（--crash）");
+    TriggerTestCrash();
+  }
+#endif
+
+  // 上次崩溃的报告：客户不会自己去 %LOCALAPPDATA% 里翻，这里主动提示导出。
+  // 崩溃那一刻进程正在死、没有提示的机会，所以只能等下次启动
+  if (!opts.export_report && !opts.crash_test &&
+      opts.ui_test_script.isEmpty()) {
+    MaybePromptCrashReport();
+  }
 
   // ========================= 4. 功能引导（可删）=========================
   // 控制器驱动演示层（遮罩 + 高亮 + 气泡），桥接对象供外部脚本从进程外驱动。

@@ -170,6 +170,21 @@ QToolButton#loginCloseBtn:hover {
   font-size: 12px;
 }
 
+/* ========== CrashReportDialog（崩溃报告） ========== */
+/* 按钮走底座层的 role=primary/secondary，这里只给本体与两段文字 */
+#crashReportDialog {
+  background: white;
+}
+#crashReportTitle {
+  color: #1a237e;
+  font-size: 16px;
+  font-weight: 600;
+}
+#crashReportDetail {
+  color: #333333;
+  font-size: 13px;
+}
+
 /* ========== SettingsDialog（设置） ========== */
 #settingsDialog {
   background: #fafbfc;

@@ -13,4 +13,8 @@
 // 由 main 传给 SingleInstance；改由 CMake 统一产出，避免两处各写一份
 #define APP_MUTEX_NAME "@APP_MUTEX_NAME@"
 
+// 构建配置（Debug / RelWithDebInfo / ...）。进崩溃报告的注解与 summary.txt：
+// 发布包里出现 Debug 字样就说明这个包不该发出去（没有 PDB 以外的符号口径）
+#define APP_BUILD_TYPE "@CMAKE_BUILD_TYPE@"
+
 #endif  // FILE_CMAKE_APP_INFO_H_

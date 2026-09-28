@@ -58,6 +58,17 @@ project(${PROJECT_NAME_STR}
 option(APP_ENABLE_CRASHPAD "Use Crashpad for crash reporting" ON)
 
 #-------------------------------------------------------------------------------
+# 崩溃测试开关（可选）
+#
+# ON 时给 src/app 定义 APP_ENABLE_CRASH_TEST，于是多出一个 --crash 选项：主动
+# 触发一次崩溃，用来跑通"崩溃捕获 → 导出报告 → 开发机符号化"整条链路（见
+# docs/plan/崩溃报告回传链路设计.md）。发布构建若不想带这个开关就设为 OFF——
+# 客户不会去敲它，但一个"能让程序主动崩掉"的参数不该出现在发布包里
+#-------------------------------------------------------------------------------
+
+option(APP_ENABLE_CRASH_TEST "Enable --crash to trigger a test crash" ON)
+
+#-------------------------------------------------------------------------------
 # 由定制区变量派生，请勿手工修改
 #-------------------------------------------------------------------------------
 
@@ -109,7 +120,7 @@ if(WIN32)
     else()
         set(PATH_FOR_QT_INSTALLATION_X64 "X:/Qt/Qt5.12.12/5.12.12/msvc2019_64")
         set(PATH_FOR_QT_INSTALLATION_X86 "X:/Qt/Qt5.12.12/5.12.12/msvc2019")
-        configure_file("${CMAKE_SOURCE_DIR}/cmake/local.cmake.in"
+        configure_file("${CMAKE_SOURCE_DIR}/cmake/template/local.cmake.in"
             "${CMAKE_SOURCE_DIR}/local.cmake"
             @ONLY)
         message(FATAL_ERROR "Please change local.cmake to set your own Qt paths for both x64 and x86, then rerun CMake.")
