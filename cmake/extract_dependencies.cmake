@@ -195,3 +195,49 @@ message(STATUS "========================================")
 message(STATUS "Dependency extraction complete!")
 message(STATUS "========================================")
 message(STATUS "")
+
+
+#-------------------------------------------------------------------------------
+# 生成「清理解压产物」脚本（按平台二选一）
+#
+# 与 make_installer.bat / make_appimage.sh 同构：Windows 出 .bat，Linux 出 .sh，
+# 当前平台用不到的那个不生成——configure 本来就跑在具体平台上，没必要往
+# 源码树里塞一份对面平台的脚本。
+#
+# 目录列表从 DEPENDENCY_ARCHIVES 派生：加/删依赖时清理脚本自动跟上，不会出现
+# 「清单和实际解压的集合对不上」。只删解压出来的目录，压缩包本身保留。
+#-------------------------------------------------------------------------------
+
+# 已解压目录名（去掉压缩后缀），与 extract_if_needed 里的推导规则保持一致
+set(EXTRACTED_DIR_NAMES "")
+foreach(archive_file ${DEPENDENCY_ARCHIVES})
+    string(REGEX REPLACE "\\.(tar\\.gz|zip|7z)$" "" dir_name "${archive_file}")
+    list(APPEND EXTRACTED_DIR_NAMES "${dir_name}")
+endforeach()
+
+# 两个模板占位符内容一致：每行一个带引号的目录名。
+# 引号必须带——"Inno Setup 6" 含空格，不加会被 for/数组拆成两个 token
+set(CLEAN_DEPS_DIRS "")
+foreach(dir_name ${EXTRACTED_DIR_NAMES})
+    string(APPEND CLEAN_DEPS_DIRS "    \"${dir_name}\"\n")
+endforeach()
+
+if(WIN32)
+    configure_file(
+        "${CMAKE_SOURCE_DIR}/cmake/template/clean_deps.bat.in"
+        "${CMAKE_SOURCE_DIR}/scripts/clean_deps.bat"
+        @ONLY
+    )
+    message(STATUS "已生成清理脚本: scripts/clean_deps.bat")
+else()
+    configure_file(
+        "${CMAKE_SOURCE_DIR}/cmake/template/clean_deps.sh.in"
+        "${CMAKE_SOURCE_DIR}/scripts/clean_deps.sh"
+        @ONLY
+    )
+    file(CHMOD "${CMAKE_SOURCE_DIR}/scripts/clean_deps.sh"
+        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                    GROUP_READ GROUP_EXECUTE
+                    WORLD_READ WORLD_EXECUTE)
+    message(STATUS "已生成清理脚本: scripts/clean_deps.sh")
+endif()

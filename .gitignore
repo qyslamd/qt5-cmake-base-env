@@ -93,6 +93,8 @@ scripts/code_stats.bat
 scripts/code_stats.ps1
 scripts/clang_tidy.bat
 scripts/clang_tidy.ps1
+scripts/clean_deps.bat
+scripts/clean_deps.sh
 
 # ============================================================
 # CMake 构建产物
