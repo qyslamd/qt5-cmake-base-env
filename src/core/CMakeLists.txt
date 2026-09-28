@@ -21,22 +21,16 @@ set(ALL_HEADERS_SOURCES
     logger/log_history_buffer.h
     logger/log_pattern_builder.h
     logger/qt_console_sink.h
-    common/file_exception.cpp
-    common/time_exception.cpp
-    common/string_exception.cpp
-    common/byte_exception.cpp
-    common/global_exception_handler.cpp
     common/single_instance.cpp
-    common/file_exception.h
-    common/time_exception.h
-    common/string_exception.h
-    common/byte_exception.h
-    common/global_exception_handler.h
     common/single_instance.h
 
     # 统一入口：两套实现由 APP_ENABLE_CRASHPAD 切换，本文件两套都编
     crashhandler/crash_bootstrap.cpp
     crashhandler/crash_bootstrap.h
+    # 信号兜底 + Qt 消息重定向。它管的不只是崩溃，但崩溃信号那半与两套后端
+    # 的职责划分有关，所以放在这个目录（见文件头注释）
+    crashhandler/global_exception_handler.cpp
+    crashhandler/global_exception_handler.h
 )
 
 # 崩溃捕获两套实现二选一。

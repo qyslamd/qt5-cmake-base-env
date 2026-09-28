@@ -1,4 +1,4 @@
-#include "common/global_exception_handler.h"
+#include "crashhandler/global_exception_handler.h"
 
 #include <csignal>
 #include <cstdlib>

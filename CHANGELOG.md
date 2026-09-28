@@ -169,6 +169,17 @@
 
 ### 变更
 
+- **删掉 4 对从未使用的异常类，`GlobalExceptionHandler` 归位到 `crashhandler/`**：
+  `common/{file,time,string,byte}_exception.*` 共 263 行，自 initial commit 起
+  全仓零引用（只有 CMake 源清单与它们自己的配对）——而且与本仓惯例冲突：
+  `src/` 里一个 `throw` 都没有，错误处理一律"返回 bool/状态 + `LOG_*`"，摆着
+  一套没人抛的异常体系只会误导模板使用者。`global_exception_handler.*` 则移进
+  `crashhandler/`：它 85% 的篇幅是信号兜底，且与两套崩溃后端有明确职责划分
+  （自研模式下 CrashHandler 接管崩溃信号、它退为二线；Crashpad 模式下它只留
+  SIGINT/SIGTERM），这层关系此前只写在 main.cpp 的注释里，现在落到目录结构上。
+  头文件顺带写清它管的是两件事（信号 + Qt 消息重定向）、以及 `exceptionCaught`
+  信号目前没有消费者（留作扩展点）。移到了新目录，但 `挂起事项.md` 里那条
+  "SIGTERM 杀不掉应用"的缺陷仍在，只是线索路径跟着改了
 - **删掉从未被使用的 googletest 1.10.0 与 crashpad 自带的测试封装**：
   `cmake/crashpad/crashpad.cmake` 只 include 了 9 个库模块，`gtest.cmake`、
   9 个 `crashpad-*-test.cmake`、`CTestCustom.cmake`（合计约 1200 行）以及
