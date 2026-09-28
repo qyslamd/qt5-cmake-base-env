@@ -86,6 +86,18 @@ endif()
 
 #------------------------------------------------------------------------------
 # 库定义（顺序有依赖，保持如下顺序）
+#
+# 只有下面这 9 个库模块参与构建，它们是本仓真正用到的那部分。
+#
+# crashpad 自带的测试封装（gtest.cmake、各 crashpad-*-test.cmake、
+# CTestCustom.cmake）与 macOS 的 crashpad-mig.cmake 已删除：
+#   - 测试封装：本仓不开发 crashpad，不跑它的自测。它们也确实编不过——
+#     gtest.cmake 自建 gtest 目标，却要求调用方提供 googletest_SOURCE_DIR。
+#     将来若真要接入，从 git 历史取回，并按本仓在用的 googletest 1.17.0 适配，
+#     而不是把全仓降级到 crashpad 当年的 1.10
+#   - crashpad-mig.cmake：只在 crashpad-util.cmake 的 if(APPLE) 分支里被
+#     include，而本仓只支持 Windows 与 Linux。将来要支持 macOS 时从 git
+#     历史取回即可
 #------------------------------------------------------------------------------
 include(minichromium)
 include(crashpad-common)

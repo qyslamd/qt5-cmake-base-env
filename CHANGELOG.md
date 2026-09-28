@@ -169,6 +169,17 @@
 
 ### 变更
 
+- **删掉从未被使用的 googletest 1.10.0 与 crashpad 自带的测试封装**：
+  `cmake/crashpad/crashpad.cmake` 只 include 了 9 个库模块，`gtest.cmake`、
+  9 个 `crashpad-*-test.cmake`、`CTestCustom.cmake`（合计约 1200 行）以及
+  `crashpad-mig.cmake`（macOS 的 `mig` 工具封装，`find_package(Python2)`）
+  从未参与构建——本仓不开发 crashpad，也不跑它的自测，留着只会让人以为它们
+  在生效。随之删掉 `3rdparty/googletest-release-1.10.0.tar.gz` 与解压清单里
+  的对应条目：它唯一的潜在消费者就是那些测试文件。本仓测试继续用 1.17.0
+  （`cmake/test_helpers.cmake` 与顶层 `add_subdirectory` 本就在用它）。
+  为什么不是反过来"将就 crashpad 用 1.10"：1.10.0 的
+  `cmake_minimum_required(2.8.8)` 在 CMake 移除 <3.5 兼容后是硬错误（WSL 的
+  3.31 必踩），为它降级还得再打一个补丁，而收益为零
 - **第三方改动一律走 patch 文件，不再用 CMake 文本替换**：SARibbon 与
   QWindowKit 一共 5 处改动（Qt5 锁定、`cmake_minimum_required` 抬到 3.15、
   QWindowKit 改走 in-tree 目标、去掉 `install(EXPORT)`、qmsetup 源码路径），

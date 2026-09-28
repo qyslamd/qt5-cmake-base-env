@@ -90,6 +90,8 @@ if(APPLE)
     find_file(EXC_DEFS exc.defs PATH_SUFFIXES /mach)
     find_file(MACH_EXC_DEFS mach_exc.defs PATH_SUFFIXES /mach)
     find_file(NOTIFY_DEFS notify.defs PATH_SUFFIXES /mach)
+    # 注：crashpad-mig.cmake 已被本仓删除（只 macOS 用得到，而本仓只支持
+    # Windows/Linux）。将来要支持 macOS 时从 git 历史取回该文件即可
     include(crashpad-mig)
 
     target_add_mig_sources(crashpad_util ${EXC_DEFS}
