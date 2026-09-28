@@ -19,7 +19,7 @@ macro(configure_run_script output_basename)
         # cmd 的 cd 不认正斜杠路径，bat 内必须用原生反斜杠形式
         file(TO_NATIVE_PATH "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}" RUN_DIR)
     elseif(UNIX)
-        set(_template "${CMAKE_SOURCE_DIR}/cmake/run_app.sh.in")
+        set(_template "${CMAKE_SOURCE_DIR}/cmake/template/run_app.sh.in")
         set(_output "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${output_basename}.sh")
         set(RUN_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
     endif()
