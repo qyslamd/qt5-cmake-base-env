@@ -31,7 +31,7 @@ if "%~1"=="" (
     start /wait "" "%EXE%" --export-report
 ) else (
     echo Exporting crash reports to "%~1"...
-    start /wait "" "%EXE%" --export-report "%~1"
+    start /wait "" "%EXE%" --export-report --export-dir "%~1"
 )
 
 set "RC=%ERRORLEVEL%"

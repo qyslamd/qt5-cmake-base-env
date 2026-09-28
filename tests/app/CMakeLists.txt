@@ -17,3 +17,21 @@ if(BUILD_QT_TESTING)
         ENVIRONMENT "${TEST_ENV_QT}"
     )
 endif()
+
+# 命令行解析的单测。被测代码在 src/app 下、且没有任何可链接的库承载它（app 是
+# 可执行目标），故直接把那个 .cpp 编进测试，用 INCLUDES 把 src/app 挂上头文件路径。
+# 一个 70 行的纯解析文件编两遍，比为一个函数新建静态库划算。
+add_unit_test(
+    NAME test_app_launch_options
+    SOURCES launch_options_test.cpp
+        ${CMAKE_SOURCE_DIR}/src/app/launch_options.cpp
+    INCLUDES ${CMAKE_SOURCE_DIR}/src/app
+    QT_MODULES Core
+    LABELS APP
+)
+
+# 被测代码里的 --crash 由这个宏控制是否注册，测试得跟着同一个开关走
+if(APP_ENABLE_CRASH_TEST)
+    target_compile_definitions(test_app_launch_options
+        PRIVATE APP_ENABLE_CRASH_TEST)
+endif()

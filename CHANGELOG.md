@@ -14,7 +14,8 @@
   翻，链路就断在最后一步。现在崩溃后**下次启动**会弹「上次运行发生过崩溃」，
   点「导出报告」把 `<uuid>.dmp` + 人可读 `summary.txt` 导出到桌面
   `CrashReport-<时间戳>/`，客户把文件夹发回来即可。另有两个无界面入口：
-  `--export-report [目录]`（售后远程指导与自动化演练）与安装目录下的
+  `--export-report [--export-dir <目录>]`（售后远程指导与自动化演练，不写目录
+  则导出到桌面的 `CrashReport-<时间戳>/`）与安装目录下的
   `export_crash_report.bat`（主程序是 WIN32 子系统，cmd 读不到退出码，由它用
   `start / wait` 兜住）。导出**不删除**报告，只调 `SkipReportUpload` 转入已交付
   状态——不再提示，但客户弄丢文件也还能再导一次。注解补上 git 提交与构建配置，

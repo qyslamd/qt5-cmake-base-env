@@ -23,6 +23,8 @@ set(TARGET_SRCS
     mainwindow.h
     guidance_app_flows.cpp
     guidance_app_flows.h
+    launch_options.cpp
+    launch_options.h
     log_window.cpp
     log_window.h
     dialogs/about_dialog.cpp

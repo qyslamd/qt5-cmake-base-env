@@ -38,8 +38,6 @@
 
 #include <QApplication>
 #include <QByteArray>
-#include <QCommandLineOption>
-#include <QCommandLineParser>
 #include <QDialog>
 #include <QIcon>
 #include <QSize>
@@ -60,6 +58,7 @@
 #include "dialogs/crash_report_dialog.h"
 #include "dialogs/login_dialog.h"
 #include "guidance_app_flows.h"
+#include "launch_options.h"
 #include "logger/logger.h"
 #include "mainwindow.h"
 
@@ -80,77 +79,6 @@ static void InitRibbonResources() { Q_INIT_RESOURCE(SARibbonResource); }
 #endif
 
 namespace {
-
-// 命令行参数。只有回放一个开关；--help / --version 由 QCommandLineParser 白送。
-// 用 QCommandLineParser 而不是手写扫 arguments()：加参数时能顺带拿到帮助文案与
-// 拼写检查，未知参数会直接报错，而不是被静默忽略
-struct LaunchOptions {
-  // 非空 = UI 测试回放模式（跳过登录，播完即退出，退出码就是测试结果）
-  QString ui_test_script;
-  // --slow 的原始文本。留着不解析成数字，是因为校验不通过时要报一句人话，
-  // 而 ParseCommandLine 跑在 Logger::init() 之前——那里 LOG_WARN 是空转的。
-  // 解析与报错都放到 SetupUiTesting 里做（那儿 Logger 已经起来了）
-  QString slow_text;
-  // --export-report：导出待发送的崩溃报告后退出。值为导出目录，空串表示用
-  // 默认目录（桌面）。分成两个字段是为了区分"没给这个选项"与"给了但没写目录"
-  bool export_report = false;
-  QString export_report_dir;
-  // --crash：主动触发一次崩溃，用于验证崩溃捕获与回传链路（仅测试用）
-  bool crash_test = false;
-};
-
-LaunchOptions ParseCommandLine(QApplication& app) {
-  QCommandLineParser parser;
-  parser.setApplicationDescription(
-      QStringLiteral("Qt/CMake 工程模板：分层结构，自带日志、配置、单实例、"
-                     "崩溃捕获与注入式 UI 测试"));
-  parser.addHelpOption();
-  parser.addVersionOption();
-
-  const QCommandLineOption play_option(
-      QStringLiteral("play"),
-      QStringLiteral("回放 UI 测试脚本后退出（需要 BUILD_QT_TESTING 的构建）"),
-      QStringLiteral("脚本"));
-  parser.addOption(play_option);
-
-  const QCommandLineOption slow_option(
-      QStringLiteral("slow"),
-      QStringLiteral("回放时每条事件之间等待的毫秒数。只对人看着回放有用，"
-                     "给 CI 跑不要加"),
-      QStringLiteral("毫秒"));
-  parser.addOption(slow_option);
-
-  // 默认值是"空但非 null"的字符串：Qt 只在这种情况下才允许选项省略取值，
-  // 于是 --export-report 与 --export-report <目录> 两种写法都成立
-  const QCommandLineOption export_option(
-      QStringLiteral("export-report"),
-      QStringLiteral("导出待发送的崩溃报告到指定目录后退出"
-                     "（省略目录则用桌面），无界面"),
-      QStringLiteral("目录"), QStringLiteral(""));
-  parser.addOption(export_option);
-
-#ifdef APP_ENABLE_CRASH_TEST
-  // 只在开启崩溃测试的构建里存在：发布包不该带一个能让程序主动崩掉的开关
-  const QCommandLineOption crash_option(
-      QStringLiteral("crash"),
-      QStringLiteral("主动触发一次崩溃（用于验证崩溃捕获与回传链路）"));
-  parser.addOption(crash_option);
-#endif
-
-  parser.process(app);
-
-  LaunchOptions opts;
-  opts.ui_test_script = parser.value(play_option);
-
-  opts.slow_text = parser.value(slow_option);
-
-  opts.export_report = parser.isSet(export_option);
-  opts.export_report_dir = parser.value(export_option);
-#ifdef APP_ENABLE_CRASH_TEST
-  opts.crash_test = parser.isSet(crash_option);
-#endif
-  return opts;
-}
 
 void SetupAppMetadata(QApplication& app) {
   // 组织名/应用名来自 CMake，决定 %LOCALAPPDATA% 数据目录、单实例键与
@@ -343,7 +271,9 @@ int main(int argc, char* argv[]) {
   // ========================= 1. 应用与参数 =========================
   QApplication app(argc, argv);
   SetupAppMetadata(app);
-  const LaunchOptions opts = ParseCommandLine(app);
+  // 命令行解析独立成文件（src/app/launch_options.*）：它是全流程里唯一一处
+  // 纯解析、既不碰界面也不参与启动顺序的逻辑
+  const LaunchOptions opts = ParseCommandLine(QCoreApplication::arguments());
 
   // ========================= 2. 单实例（可删）=========================
   SingleInstance single_instance(QCoreApplication::applicationName(),
