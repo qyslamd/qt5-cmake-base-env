@@ -45,10 +45,19 @@ project(${PROJECT_NAME_STR}
     DESCRIPTION "a complete qt cmake basic demo."
     LANGUAGES CXX C)
 
-#-------------------------------------------------------------------------------
-# 崩溃捕获后端（三态）
+#===============================================================================
+#   构建开关区 —— 本仓全部 option()/CACHE 开关集中声明于此
 #
-# 开关放在 project() 之后而不是定制区：它是功能开关，不属于项目元信息。
+#   覆盖方式：cmake --preset <名>（预设见 CMakePresets.json，可给预设加
+#   cacheVariables 固化某组开关），或 -D<开关>=<值>；改完重新 configure 生效
+#
+#   两个"分发块"受约束必须留在后文原位，勿搬到这里：
+#     - add_compile_definitions(...)：目录作用域，须先于 add_subdirectory(src)
+#     - include(cmake/crashpad/crashpad.cmake)：须后于 3rdparty 的解压步骤
+#===============================================================================
+
+#-------------------------------------------------------------------------------
+# APP_CRASH_BACKEND —— 崩溃捕获后端（三态）
 #
 #   crashpad —— 进程外捕获（crashpad_handler + minidump）。默认，代价是拖进
 #               crashpad / mini_chromium / zlib / linux-syscall-support 四个包
@@ -83,7 +92,7 @@ if(NOT APP_CRASH_BACKEND MATCHES "^(crashpad|builtin|none)$")
 endif()
 
 # 派生给 CMake 侧用（源码选择、链接库、打包脚本都读这两个），C++ 侧的宏在
-# 下面"基础设施"那一段统一加
+# 后文"第三方库"段落统一加
 if(APP_CRASH_BACKEND STREQUAL "crashpad")
     set(APP_ENABLE_CRASHPAD ON)
     set(APP_ENABLE_CRASH_CAPTURE OFF)
@@ -97,7 +106,7 @@ endif()
 message(STATUS "崩溃捕获后端：${APP_CRASH_BACKEND}")
 
 #-------------------------------------------------------------------------------
-# 登录认证与用户管理（可选）
+# APP_ENABLE_AUTH —— 登录认证与用户管理
 #
 # OFF 时：core 不编 auth/，app 不编登录 / 改密 / 用户管理三个对话框，main 跳过
 # 登录直接进主窗口。注意这不是"关掉一个功能"那么简单——它是一道贯穿 core 与
@@ -112,7 +121,7 @@ message(STATUS "崩溃捕获后端：${APP_CRASH_BACKEND}")
 option(APP_ENABLE_AUTH "启用登录认证与用户管理" ON)
 
 #-------------------------------------------------------------------------------
-# 崩溃测试开关（可选）
+# APP_ENABLE_CRASH_TEST —— 崩溃测试选项
 #
 # ON 时给 src/app 定义 APP_ENABLE_CRASH_TEST，于是多出一个 --crash 选项：主动
 # 触发一次崩溃，用来跑通"崩溃捕获 → 导出报告 → 开发机符号化"整条链路（见
@@ -121,6 +130,54 @@ option(APP_ENABLE_AUTH "启用登录认证与用户管理" ON)
 #-------------------------------------------------------------------------------
 
 option(APP_ENABLE_CRASH_TEST "Enable --crash to trigger a test crash" ON)
+
+#-------------------------------------------------------------------------------
+# BUILD_QT_TESTING —— QtTesting UI 录制/回放
+#
+# 默认 ON，各构建类型都能用。它是静态库，开了会整套链进 exe，并在主窗口挂出
+# 「测试」菜单；不需要时（例如准备发布包）用 -DBUILD_QT_TESTING=OFF 关掉，
+# 省一份编译与体积
+#-------------------------------------------------------------------------------
+
+option(BUILD_QT_TESTING "启用 QtTesting UI 录制/回放" ON)
+
+#-------------------------------------------------------------------------------
+# BUILD_FUNQ —— funq 注入式 GUI 测试库
+#
+# 与 QtTesting 同为 UI 测试工具但用法不同：不链进被测程序，而是测试运行时把
+# Funq.dll 注入进去（机制见后文"第三方库"段落）。默认 ON，不需要时（例如准备
+# 发布包）用 -DBUILD_FUNQ=OFF 关掉
+#-------------------------------------------------------------------------------
+
+option(BUILD_FUNQ "构建 funq GUI 测试库（注入式，产物供测试运行时使用）" ON)
+
+#-------------------------------------------------------------------------------
+# BUILD_RIBBON —— SARibbon 功能区界面
+#
+# 默认 ON。OFF 时主窗口的菜单栏那一行退回普通菜单栏（见 src/app/mainwindow.cpp
+# 的条件编译），同时不再编 SARibbon / QWindowKit 两个库
+#-------------------------------------------------------------------------------
+
+option(BUILD_RIBBON "启用 SARibbon Ribbon 界面（主窗口的功能区菜单）" ON)
+
+#-------------------------------------------------------------------------------
+# BUILD_LIBUI_GALLERY —— qt-libui 的 gallery 示例
+#
+# gallery 是本仓 funq UI 测试的被测程序（控件多，适合当靶场）。它默认只在
+# qt-libui 作为顶层项目时编，本仓把 qt-libui 当子模块，故在此显式打开。
+# 关掉后 funq 的 gallery 测试（tests/gallery_funq）没有被测程序
+#-------------------------------------------------------------------------------
+
+option(BUILD_LIBUI_GALLERY
+    "构建 qt-libui 的 gallery 示例（funq UI 测试的被测程序）" ON)
+
+#-------------------------------------------------------------------------------
+# BUILD_TESTS —— 单元测试
+#
+# 默认 ON。OFF 时不注册任何 ctest 用例（tests/ 整个不进构建）
+#-------------------------------------------------------------------------------
+
+option(BUILD_TESTS "Build unit tests" ON)
 
 #-------------------------------------------------------------------------------
 # 由定制区变量派生，请勿手工修改
@@ -291,12 +348,7 @@ if(APP_ENABLE_AUTH)
     add_compile_definitions(APP_ENABLE_AUTH)
 endif()
 
-# QtTesting GUI测试库：UI 录制/回放的引擎。
-# 开关 BUILD_QT_TESTING 默认 ON，各构建类型都能用。它是静态库，开了会整套
-# 链进 exe，并在主窗口挂出「测试」菜单；不需要时（例如准备发布包）用
-# -DBUILD_QT_TESTING=OFF 关掉，省一份编译与体积
-option(BUILD_QT_TESTING "启用 QtTesting UI 录制/回放" ON)
-
+# QtTesting GUI测试库：UI 录制/回放的引擎。（开关声明见顶部「构建开关区」）
 if(BUILD_QT_TESTING)
     # 该库自带的 9 个上游用例已由 patches/QtTesting/ 的补丁关掉（它们按
     # ParaView 的运行环境编写，实测全部超时，会拖死整轮 ctest），此处不必
@@ -310,9 +362,7 @@ endif()
 # 被测程序，而是在测试运行时把 Funq.dll 注入进去（Windows 走 CreateRemoteThread，
 # Linux 走 LD_PRELOAD），详见 3rdparty/funq-master/server/funq_server/runner_*.py。
 # 产物落在 bin/Funq.dll 与 lib/FunqStatic.lib，没有任何目标链接它们。
-# 开关 BUILD_FUNQ 默认 ON，不需要时（例如准备发布包）用 -DBUILD_FUNQ=OFF 关掉
-option(BUILD_FUNQ "构建 funq GUI 测试库（注入式，产物供测试运行时使用）" ON)
-
+# （开关声明见顶部「构建开关区」）
 if(BUILD_FUNQ)
     # 该库自带的三个测试目标（player_tester / testLibFunq / testProtocole）已由
     # patches/funq/ 的补丁改为默认不编，且其 Qt 查找锁定到 Qt5
@@ -371,10 +421,7 @@ else()
 endif()
 
 # SARibbon Ribbon 界面库：把主窗口的菜单栏换成功能区（Ribbon）。静态库，
-# 随本仓一次编译。开关 BUILD_RIBBON 默认 ON，不需要时用 -DBUILD_RIBBON=OFF
-# 关掉——主窗口会退回普通菜单栏（见 src/app/mainwindow.cpp 的条件编译）
-option(BUILD_RIBBON "启用 SARibbon Ribbon 界面（主窗口的功能区菜单）" ON)
-
+# 随本仓一次编译。（开关声明见顶部「构建开关区」）
 if(BUILD_RIBBON)
     # 无边框窗口（frameless）由 QWindowKit 提供，而它要求 Qt ≥ 5.14：低版本
     # 连编都不该编，故这里跳过整个 QWindowKit，SARibbon 侧对应关掉 frameless。
@@ -416,9 +463,8 @@ endif()
 # 克隆本仓后若该目录为空，先执行 git submodule update --init --recursive
 #
 # gallery 示例是本仓 funq UI 测试的被测程序（控件多，适合当靶场）。它默认
-# 只在 qt-libui 作为顶层项目时编，本仓把 qt-libui 当子模块，故在此显式打开
-option(BUILD_LIBUI_GALLERY
-    "构建 qt-libui 的 gallery 示例（funq UI 测试的被测程序）" ON)
+# 只在 qt-libui 作为顶层项目时编，本仓把它当子模块，故按开关显式打开
+# （开关声明见顶部「构建开关区」）
 if(BUILD_LIBUI_GALLERY)
     set(BUILD_EXAMPLES ON)
 endif()
@@ -435,8 +481,7 @@ add_subdirectory(src)
 # 目标，所以放在 src 之后。不需要时删掉这一行即可
 add_subdirectory(examples)
 
-# 单元测试（仅在配置了 BUILD_TESTS 时启用）
-option(BUILD_TESTS "Build unit tests" ON)
+# 单元测试（开关声明见顶部「构建开关区」）
 if(BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)

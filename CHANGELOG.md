@@ -169,6 +169,17 @@
 
 ### 变更
 
+- **顶层 CMakeLists 的 8 处开关集中到「构建开关区」**：此前 `option()` 与
+  `APP_CRASH_BACKEND` 散落在各功能段落（最远的 `BUILD_TESTS` 在 440 行附近），
+  现全部集中在 `project()` 之后（71–180 行），各自的说明注释跟着走，原位置只留
+  一句指引。**两处受约束的分发块刻意留在原位**并写明原因：
+  `add_compile_definitions(...)` 是目录作用域且必须先于 `add_subdirectory(src)`；
+  `include(cmake/crashpad/crashpad.cmake)` 必须后于 3rdparty 解压步骤。验证时
+  踩到一个 CMake 行为：`-DBUILD_TESTS=OFF` 重新 configure 后，旧构建目录里
+  上一轮 ON 时生成的 `CTestTestfile.cmake` 不会被清掉，`ctest -N` 读它显示测试
+  还在——生成物只增不删，判定开关是否生效要看新 configure 的产物（全新目录
+  实测 OFF 完全生效）。另：切开关组合走 CMakePresets.json 的 `cacheVariables`
+  即可（`build_ninja.bat` 本就 `--preset` 调用），无需给脚本加 `-D` 透传
 - **`external/c-cmake-base-env` 移出主仓**：它是伴随开发的独立 C 基础环境
   （`eph_log_crash`），主工程从不引用它——不 `add_subdirectory`、不链接、代码里
   零引用，只在 README 的目录树里挂了个名字。留着它的代价是：每次 clone 都多拉
