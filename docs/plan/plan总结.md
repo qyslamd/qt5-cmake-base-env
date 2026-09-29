@@ -1,7 +1,8 @@
 # plan 文档归档总结
 
-`docs/plan/` 只留还在进行的方案；收尾的方案提炼到这里后删原文，原文用
-`git log --diff-filter=D -- docs/plan/<文件名>` 查。
+`docs/plan/` 只留这一份：已收尾的方案提炼到这里后删原文，原文用
+`git log --diff-filter=D -- docs/plan/<文件名>` 查；未处理的问题作为活清单
+放在最后一节。新写方案时在 `docs/plan/` 下另起文件，收尾后再并进来。
 
 ## 单实例 + 崩溃捕获接入，与 Linux 构建支持（2026-09-11，原同名文档）
 
@@ -32,13 +33,14 @@
   （`showChildren()` 跳过 `isHidden()` 的子控件）→ `guidance_presentation.cpp:387`
 
 B1 / B2 只在多主题、且其中一条是实操式时显形；`guidance_demo` 三条主题跑一遍
-「全部演示」即覆盖。未做完的两条 → `挂起事项.md` 第 6、7 条。
+「全部演示」即覆盖。未做完的两条见文末挂起清单第 5、6 条。
 
 ## libui 抽离为独立 CMake 库（2026-09-14，原同名文档）
 
 抽出 `src/libui`（40 文件 / 3196 行）连同 gallery 成独立仓 `qt-libui`。
 **接入方式后反转**：§9 判定"已评估未采用"的 submodule 最终被采纳（源码内嵌，
-只取 `qt-libui::libui` 目标、不登记 install 规则）。
+只取 `qt-libui::libui` 目标、不登记 install 规则）；**再后被整包移除**——
+本仓现在不含任何 submodule，仅 `SwitchButton` 源码内联进 `src/app/widgets/`。
 
 **坑**
 
@@ -52,11 +54,213 @@ B1 / B2 只在多主题、且其中一条是实操式时显形；`guidance_demo`
 - 库内源文件只能"同目录裸名"包含，写成从 src 根出发的路径：库编得过、
   消费方必炸
 
-**仍有效**：QSS 与 libui 的 objectName 构成跨仓隐式契约（`#splashContent` 等
-5 个），改一侧另一侧的样式会静默失效；libui 冻结（见 `挂起事项.md`）。
+**已作废**：QSS 与 libui 的 objectName 跨仓隐式契约、libui 冻结——契约随库
+一起消失（见文末"已决定不做"）。
 
-## 不归档
+## 通用样式表分层（2026-09-23，原《通用样式表设计》）
 
-- `guidance接入funq.md`——四条约束（可见 QWidget、早于登录、单 QVariant
-  签名、只认最后一段 objectName）目前只记在它里面
-- `挂起事项.md`——活清单
+一份 704 行、135 个规则块的表里，滚动条/下拉框/微调框/分割器四个控件吃掉 65 块，
+而 25 个常见控件连裸类型规则都没有；43% 的规则块挂在 `#objectName` 上，对别的
+项目是死规则。改成**底座层 + 项目层**两层，底座层独立成模块。
+
+**仍有效**
+
+- **三档定位**（优先级从低到高）：类型 + 伪状态 + 子控件 → 动态属性
+  （`setProperty("role", "primary")` 配 `[role="primary"]`；改完属性要
+  `unpolish` + `polish`，否则不刷新）→ `#objectName`（仅项目层，且仅在无法用
+  属性表达时）。**objectName 是 funq 与 QtTesting 的锚点，不拿来当样式角色**
+- **两层顺序**：底座 → 项目层；**层内从宽到窄**——QSS 里同具体度的类型选择器
+  "后写优先"，所以最宽的 `widget.qss` 必须置首，否则会盖掉 `input.qss` 之类
+- 底座层做成模块（`src/style/`，目标 `demo_style`）而非散在 app 资源里，是为了
+  "拿走即用"名副其实：链上模块调一次 `ApplyStyleSheet` 就有，文件清单只在
+  `style.cpp` 一处
+- 全局字体走 `QApplication::setFont`，不用 `* { font-family }`；拼接多份表要
+  显式补 `\n`（末尾无换行会出现 `}QPushButton{` 粘连）
+- **全局表的裸类型规则会打进功能区**：`setRibbonTheme()` 最终是
+  `w->setStyleSheet(...)`——打在**主窗口**上的 widget 级表，而主题里只有
+  `SARibbon*` 选择器；SARibbon 的控件全是标准件子类（`SARibbonBar : QMenuBar`、
+  `SARibbonToolButton : QToolButton`、`SARibbonPanel : QFrame`…），不冲突的属性
+  仍由 app 级表提供。**新增 `QMenuBar` / `QToolBar` / `QToolButton` / `QLabel` /
+  `QListView` / `QAbstractButton` / `QScrollArea` 的规则时必须回看功能区**
+- 自定义 `QWidget` 子类设 `background-color` 无效：要
+  `setAttribute(Qt::WA_StyledBackground, true)` 或重画 `PE_Widget`。最容易让人
+  以为"QSS 没生效"的一条
+- 原生对话框（`QFileDialog`）与非客户区（窗口边框、标题栏）不在 QSS 能管的范围
+
+**偏离方案的两处**：① guidance 那份表**仍**追加到应用级（原计划改打自己子树）
+——实操模式下气泡会被 reparent 到 viewport、离开首页子树，只设在首页盖不到；
+真要切断这层顺序依赖，做法是设到顶层窗口上，需引导模块拿到宿主窗口。
+② `QFrame` 与 `QSplitterHandle` 故意不给裸规则：`SARibbonPanel` /
+`SARibbonGallery` 都是 QFrame 子类，一条裸 `QFrame` 会直接改功能区；
+QSplitterHandle 只能通过 `QSplitter::handle` 表达。
+
+**未做人眼确认**：功能区（画廊、滚动条）、登录框勾选框、主按钮是最可能露馅的
+三处。底座层靠 `examples/style_demo`（按控件族分六页）眼验。
+
+## guidance 接入 funq（2026-09-22，原同名文档）
+
+把引导的演示层当 funq 的**可视化层**：脚本每动一个控件，屏幕上就有高亮框指到它。
+平时给用户当新手引导，跑脚本时给自动化当"看得见的光标"。
+
+**仍有效**
+
+- **矩形在 C++ 侧按 path 解析，不依赖 funq**：bridge 收路径字符串，用引擎自己
+  那套 `mapToGlobal` 算矩形——零依赖（guidance 库保持干净）、与引擎同源（不会
+  出现"算出来的框和引擎画的对不上"）。解析规则照 `libFunq/objectpath.cpp`
+  **重写**：名字取 objectName、为空退类名、同名兄弟带 `-<序号>` 后缀、按 `::`
+  下钻，所以含**合成段**的路径（`...settingsRow-1::QSpinBox`）也能解析。
+  **不抄源码**：funq 是 CeCILL v2.1（copyleft），拷进来会把 guidance 卷进那个
+  许可证；算法本身不受版权保护
+- 桥接的三条硬约束，都是实测撞出来的：**必须是可见的 QWidget**（`call_slot` 走
+  `qobject_cast<QWidget*>`，纯 `QObject` 判 `NotAWidget`，且 `client.widget()`
+  默认还要等 `visible`）；**必须早于登录就存在**（脚本第一步跑在登录对话框上，
+  那时主窗口还没建）→ 独立顶层窗口（`Qt::Tool` 不进任务栏）；**签名必须是
+  "单个 QVariant 进、QVariant 出"**（funq 固定按那种 `invokeMethod` 调，多形参
+  直接 `NoMethodInvoked`）
+- **别在 Python 侧自己凑全局坐标**：funq 的 QtJson 序列化拿不到 `geometry` /
+  `pos` / `size`（直接跳过），只给 int 的 `x` / `y` / `width` / `height`，且
+  `x`/`y` 是**父相对**的
+- 目标是 `QWidget`（引擎的目标类型只有控件 / 矩形 / 图），`QAction` 指不了——
+  需要时改指它所在的菜单
+- 目标不可见或尺寸为空时**拒绝高亮并回报原因**：踩过——菜单栏里的 `QMenu` 从没
+  显示过，几何是未初始化的 `(0,0,100x30)`，指它会把遮罩铺到屏幕左上角一个小方块
+
+**结构**：拆成两个类——`GuidanceBridge`（**QWidget**：被动模式 + 按 path 高亮，
+两个 `Q_INVOKABLE` 槽）与 `GuidanceMenu`（`QObject`：给 QMainWindow 宿主挂菜单、
+懒建主题主页）。原先合成一个 `GuidanceSupport`，结果是菜单那半白白背着 QWidget
+基类和"0 尺寸 + 必须 `show()`"的包袱——**它之所以是 QWidget 纯粹是 funq 对桥接
+的要求**。被动模式加在 `GuidancePresentation`（渲染层）而非 controller。
+
+## 崩溃报告回传链路（2026-09-28，原《崩溃报告回传链路设计》）
+
+程序发给**离线客户**，崩溃后 dump 躺在 `%LOCALAPPDATA%` / `~/.local/share` 里
+没人翻——"捕获"与"归档"都就绪，断在**回传**。崩溃那一刻进程正在死，没有弹窗
+机会，所以提示只能放**下次启动**。
+
+**能力边界（源码实证，别再重复讨论）**
+
+- crashpad 固定写 `MiniDumpNormal`（`minidump_file_writer.cc:51`），**没有**
+  DataSegs / FullMemory → 全局变量与堆对象内容不在 dump 里；extra memory ranges
+  仅 Windows 有效；indirectly-referenced memory 的实现在 `snapshot/win/`
+- handler 注解确实写进 dump，但落在 CrashpadInfo 扩展流里，**cdb / WinDbg 看不见**
+  → 人可读副本走 `summary.txt`，dump 里那份只作留档
+- 口径：只保证"栈 + 寄存器 + 模块 + 注解"。**RelWithDebInfo 下被优化掉的局部
+  变量看不到是预期内的**
+
+**决策**
+
+- D1 导出成**目录**不压缩：Qt5 没有公开的 zip 写入口，为压缩引依赖不值当
+- D2 提示放**登录前**（崩溃可能发生在登录前，且此时还没有主窗口）；回放模式与
+  无桌面（`QT_QPA_PLATFORM=offscreen`）跳过
+- D3 `--crash` 由 `APP_ENABLE_CRASH_TEST` 控制（模板默认 ON，发布可关）
+- D4 自研模式本期不导出，只保证调用不崩
+- D5 导出**不删除**报告：`SkipReportUpload(uuid, kUploadsDisabled)` 转入
+  `completed/`——不再提示，又不会因为客户弄丢导出文件而永久失去唯一副本
+- D6 报告标识用 **UUID 不用下标**：`GetPendingReports()` 每次返回新快照，按下标
+  实现时"第一份被转移后原本的第 i+1 项顶到 i 位"会被跳过
+
+**坑**
+
+- **"取值可选"的选项在 Qt 里做不到**：`QCommandLineParser` 只要给了 valueName，
+  即便默认值传空串，`process()` 仍报 `Missing value after '--export-report'.` 并
+  结束进程 → 拆成 `--export-report` + `--export-dir <目录>`
+- **导出入口不能被单实例逻辑吞掉**：`HandleAlreadyRunning` 只对 `--play` 特判，
+  其余一律"转发给首实例后 return 0"，而转发对端只做窗口激活、不落地任何动作
+  → 脚本会看到**假成功**。`--export-report` 与 `--play` 同等对待
+- Windows 是 WIN32 子系统程序，交互式 cmd 不等它、也读不到退出码 → 由
+  `export_crash_report.bat`（内部 `start /wait`）兜住，放 bin/ 随安装包发到客户机
+- 无桌面时要用 `QT_QPA_PLATFORM=offscreen`：`QApplication` 先于参数解析构造，
+  没有 DISPLAY 时进程在构造阶段就死
+- Windows 上取库会**短暂独占锁** → 只在启动早期调用一次，不进循环 / 定时器；
+  失败即视为 0 份继续启动
+- 核心 API 一律做成**参数给全的纯函数**（`db_dir` / `target_dir` / `AppInfo` 由
+  调用方传）：单元测试才能指向临时目录、不碰开发者本机的真实崩溃库。测试用
+  `PrepareNewCrashReport()` + `FinishedWritingCrashReport()` 造假报告，
+  **不需要真崩溃、不需要 GUI**
+- `CrashReportDatabase::Initialize` 失败要当成"0 份"而不是错误——首次运行没有库
+  是正常状态
+
+**验收口径（唯一的硬验收）**：开发者拿到回传的 dump 能恢复出"函数名 + 文件:行"。
+Windows 用 `cdb -z <dmp> -y <归档符号目录>`；Linux 用 lldb 直读 minidump——
+**选项必须写在可执行文件之前**（`lldb -b -o "bt" -c <dmp> ./exe < /dev/null`），
+写后面会挂住（gdb 9.2 不支持 minidump，别用它）。
+
+## 挂起事项（原 `挂起事项.md`，活清单）
+
+记录**已知但未处理**的问题与待办，每条都带证据或复现方式。做完一条就删掉这条。
+
+### 1. SIGTERM 杀不掉应用
+
+**现象**：WSL 里 `timeout 10 <AppImage>` 启动，超时后进程仍存活——实测有一个实例
+残留 5 分 54 秒，并在 WSLg 桌面上留下无法操作的窗口。
+
+**影响**：用户 Ctrl+C、服务停止、CI 结束作业时进程不会退出。
+
+**待分辨的两种可能**（需分别验证，不要直接猜）：① AppImage 的 `AppRun` 包装没有
+把 SIGTERM 转发给子进程；② `GlobalExceptionHandler` 的信号处理没有真正终止进程。
+
+**线索**：`src/core/crashhandler/global_exception_handler.*`；GEH 的职责包含
+SIGINT/SIGTERM（见本文件归档的 D6），即这是**声称已覆盖但实际未验证**的能力。
+
+**入手点**：先补一个子进程测试区分上述两种可能——现有
+`tests/core/crashhandler_test.cpp` 的"父进程拉起子进程"骨架可直接复用。
+
+### 2. GEH 与 SingleInstance 无测试
+
+**现状**：两个模块都没有测试覆盖——`GlobalExceptionHandler`（Qt 消息重定向、
+SIGINT/SIGTERM）、`SingleInstance`（第二实例转发参数并激活首实例窗口，非 Windows
+走 `showApplication` 信号那条路）。
+
+**已有旁证**：进程被 SIGTERM 杀掉后，单实例痕迹（QLocalServer 套接字、
+QSharedMemory 段）会残留，导致下一次启动静默转发参数并以 0 退出——日志为空，
+因为它退在 `Logger::init()` 之前。这条旁证同时指向第 1 条。
+
+**入手点**：第二实例的行为可用现有子进程骨架测：父进程起首实例 → 再起一个 →
+断言第一个收到激活请求且第二个以 0 退出。
+
+### 3. 崩溃栈符号链路无测试
+
+**现状**：符号归档的两条通道都已就绪（Windows `make_symbols` 归档 exe + PDB；
+Linux `make_appimage` 归档未 strip 的可执行文件），但没有测试锁住"事后能解析出
+调用栈"这条链。
+
+**已验证到哪一步**：Linux 侧实测归档 25.8 MB / 3579 个符号 / 带调试信息，而
+AppImage 内是 0.96 MB / stripped / 0 个符号，两者对照成立。但**没有人真的拿崩溃
+日志里的地址跑过一次 `addr2line`**，Windows 侧也没有解析过 minidump。
+
+**入手点**：在崩溃子进程测试里，从生成的崩溃日志中取一个地址交给
+`addr2line -e <归档二进制>`，断言解析出的符号名非空；Windows 侧用归档的
+exe + PDB 解析 minidump。
+
+### 4. 待你拍板：`scripts/make_appimage.sh` 是否入库
+
+该文件由 configure 生成且烘焙本机路径，目前已在 `.gitignore` 中忽略。Windows 侧
+的同类生成物（`scripts/make_installer.bat`、`scripts/make_install_package.iss`）
+是入库的，所以这是一处**约定不一致**，需要决定沿用哪一边。
+
+### 5. guidance 库的告警通道：`qWarning` 还是 `Logger` 宏
+
+**现状**：`guidance_bridge.cpp:128`、`guidance_config.cpp:12/16/39/43`、
+`guidance_controller.cpp:98/105/122/131`、`guidance_style.cpp:46` 共 9 处用
+`qWarning()`，而项目规则要求尽可能走封装的 `Logger` 宏。
+
+**卡在哪**：`src/guidance` 的依赖只有 `Qt5::Gui/Widgets/Core`——它**不链 core**，
+而且刻意如此（库可整包拷到别的工程用）。要用 `LOG_*` 就得把 core 拖进来，会破坏
+这个卖点。两条路：① 链 core 换 Logger 宏（统一日志，代价是库不再零依赖）；
+② 保留 `qWarning`，把"为什么不链 core"写成注释，免得下次又被当缺陷报一遍。
+
+### 6. 待你拍板：guidance 的告警文案与链式构造器 API 风格
+
+`guidance_config.cpp:12/16/39/43` 的告警文案是 `"foolish! step is nullptr!"`
+一类，措辞不像本仓手笔，疑为外部移植残留；`withTitle` / `withStep` / `addFlow`
+那套链式构造器 API 与本仓其余部分的风格也不一致。保留（尊重上游写法）还是改写
+（与本仓风格统一，涉及库的公开 API），需要定。
+
+### 已决定不做
+
+- **libui 冻结**：`src/libui` 的标签栏外观与进度条控件不再扩展。它们是学习性质
+  的绘制练习，9 种外观 / 4 种进度条已超出模板所需。**该判断已由后续动作落实到底**：
+  整个 `src/libui` 先抽为独立仓库、以 submodule 内嵌，后又整包移除——本仓现在不含
+  任何 submodule，也不再用该库；仅 `SwitchButton` 源码内联进 `src/app/widgets/`
+- **Linux 打包边界**：只做 `configure + build + test + AppImage`，不移植
+  deb/rpm 等发行版打包
