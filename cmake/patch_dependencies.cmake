@@ -116,6 +116,13 @@ apply_patch_to_dir("${3RDPARTY_DIR}/qwindowkit-1.5.0"
 
 apply_patch_to_dir("${3RDPARTY_DIR}/zlib-v1.2.11"
     "${PATCHES_DIR}/zlib/0001-bump-cmake-minimum-version.patch")
+# zlib 的 CMakeLists 会给自己那四个示例程序（example / minigzip / example64 /
+# minigzip64）无条件 add_test，而本仓拿它只为给 crashpad 供 zlibstatic——那些
+# 目标被 EXCLUDE_FROM_ALL 排除、从不编译，ctest 因此多出两条 Not Run。
+# 整段删掉：add_test 没有开关可关，而跨目录 set_tests_properties 依赖 CMake
+# 3.28 的 DIRECTORY 选项，本仓声明的是 3.19
+apply_patch_to_dir("${3RDPARTY_DIR}/zlib-v1.2.11"
+    "${PATCHES_DIR}/zlib/0002-drop-example-binaries.patch")
 
 message(STATUS "Patches applied.")
 message(STATUS "")

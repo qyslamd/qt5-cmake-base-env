@@ -332,6 +332,18 @@
 
 ### 修复
 
+- **Linux 侧 ctest 多报两条 `example`/`example64` 失败**（`patches/zlib/0002`）：
+  crashpad 模式下 `cmake/crashpad/crashpad.cmake` 会把 `3rdparty/zlib-v1.2.11`
+  以 `EXCLUDE_FROM_ALL` 加进来给 crashpad 供 `zlibstatic`，而 zlib 自己的
+  `CMakeLists.txt` 给四个示例程序（`example`/`minigzip`/`example64`/`minigzip64`）
+  无条件 `add_test` ——目标从不编译，测试却进了 ctest，于是报两条 `Not Run`，
+  一轮跑下来是 67% passed。`builtin` 模式不 include crashpad.cmake，所以
+  Windows 侧看不到。**关不掉，只能补丁**：`add_test` 没有开关；从别的目录作用域
+  `set_tests_properties` 要写 `DIRECTORY`，那是 CMake 3.28 才有的选项，而本仓
+  声明 `cmake_minimum_required(VERSION 3.19)`（`DISABLED` 属性本身 3.9 就有，
+  卡住的是作用域——文档写明「If the test is not found, CMake will report an
+  error」，测试的查找是按目录作用域走的）。补丁整段删掉「Example binaries」，
+  实测 WSL 的 `ctest -N` 从 6 条回到 4 条，全集 100% passed
 - **底座层的下拉框与微调框看不到箭头**：`base/input.qss` 里只给箭头子控件写了
   尺寸、没给 `image`——子控件一旦被规则接管，Qt 就不再画原生箭头，结果是一个
   都没有（离屏探针实测整个控件里最暗的像素是边框色 204，箭头区域零墨迹）。
