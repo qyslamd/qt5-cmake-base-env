@@ -247,6 +247,18 @@
 - `qttesting_xml.h` 的校验事件回放补齐：上游 `Examples/TestingDemo.cxx` 的源端
   只读 `command` 并把事件类型写死为动作事件，导致录下的校验事件回放时既不带
   命令也不报错。现按 `property` 属性对称解析，还原成 CHECK_EVENT
+- **把"只写在代码注释里"的几块知识落成文档**：新增
+  [第三方依赖补丁](docs/guide/第三方依赖补丁.md)——补丁目录约定与注册、**option
+  与补丁的分工判据**（上游有开关就别打补丁）、`git apply` 对被 gitignore 的
+  未跟踪文件会**静默 skip 并返回 0**（不设 `GIT_CEILING_DIRECTORIES` 时"打了"
+  与"没打"看起来一模一样）、幂等标记失效的三种情形、接新依赖的检查单（依赖的
+  `option()` 与本仓同名的静默后果、带 `install(TARGETS … EXPORT)` 的依赖不能补
+  `INTERFACE` 包含目录、依赖自带 `add_test` 会污染 ctest）。funq 文档补上
+  "注入失败先查缺不缺 DLL"（`Qt5Test.dll` 那条误导性症状），并把排错里的
+  杀进程命令改成 `pkill -x`——`-f` 会连执行者自己那条命令行一起匹配
+- **新增根目录 `AGENTS.md`**：非 Claude 的 agent 工具普遍默认读它，内容是指向
+  `CLAUDE.md` 与 `docs/` 的入口表。顺带订正两处失效链接
+  （`examples/funq/` → `examples/funq-client-demo/`）
 
 ### 变更
 

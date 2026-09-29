@@ -134,7 +134,8 @@ Windows 侧的 `build/ninja-<类型>-<架构>` 分开——WSL 与 Windows 常�
 | [构建配置与崩溃排查](docs/guide/构建配置与崩溃排查.md) | 各构建配置的差异、符号归档与崩溃转储解析 |
 | [funq 注入式 UI 测试](docs/guide/funq注入式UI测试.md) | 零侵入的界面回归：注入被测进程、用 Python 写用例、控件路径怎么查 |
 | [调试 libFunq](docs/guide/调试libFunq.md) | 注入库没有可 F5 的工程：附加到进程、断在注入前后的步骤与坑 |
-| [funq 手动分离运行示例](examples/funq/README.md) | 两个终端各起一边，拿本仓的 demo_app 走一遍 funq 的 server / client 分工 |
+| [第三方依赖补丁](docs/guide/第三方依赖补丁.md) | 上游源码怎么改才留得住：补丁目录约定、option 与补丁的分工、接新依赖的检查单 |
+| [funq 手动分离运行示例](examples/funq-client-demo/README.md) | 两个终端各起一边，拿本仓的 demo_app 走一遍 funq 的 server / client 分工 |
 
 ## 许可证
 

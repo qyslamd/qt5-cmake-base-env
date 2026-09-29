@@ -232,8 +232,12 @@ taskkill /F /IM funq_target.exe
 ```
 
 ```bash
-pkill -f funq_target
+pkill -x funq_target
 ```
+
+**用 `-x` 而不是 `-f`**：`-f` 匹配的是整条命令行，而执行者自己那条
+`pkill -f funq_target` 里也含这个字符串——实测在 WSL 里把自己那个 shell 一起
+杀了，症状是命令跑一半终端就断。
 
 Linux 侧走不到「库被占用删不掉」那一段——允许删除正在使用的文件——但残留进程
 一样占着显示连接与端口，仍要清掉。
@@ -259,6 +263,17 @@ relwithdebinfo 构建里这条用例每个方法都 `ERROR`，然后挂到 ctest
 列进 `._pth`**。本仓自带的那两份就是 CMake 在解压后这么写的
 （`cmake/extract_dependencies.cmake` 的 `configure_embedded_python_pth`），随安装包
 分发的那份同理（见 `src/app/CMakeLists.txt` 的 `make_funq_kit`）。
+
+**注入失败先查缺不缺 DLL，别急着怀疑位数。** `libFunQ.dll` 是在被测进程里被
+`LoadLibrary` 载入的，它**有自己的依赖**，而 windeployqt 只按**主程序**的依赖
+决定部署哪些 Qt DLL。本仓实测缺的是 `Qt5Test.dll`（funq 的库链了 `Qt5::Test`，
+主程序在 `BUILD_QT_TESTING=OFF` 时不链），症状极具误导性：`LoadLibraryW` 返回
+0，且 **last error 也是 0**，runner 的提示是
+`Maybe x86/x64 mismatch between python.exe and Qt DLLs?`——看上去像位数问题，
+实际是缺一个 DLL。源码树里跑测试撞不到这条：`add_test` 会把 Qt 的 bin 拼进
+PATH，整个 bin 都在，注入库要什么有什么；只有按「只部署主程序依赖」的原则打
+出来的包才会缺。随包分发的那份由构建期的 `cmake/collect_funq_qt_deps.cmake`
+补齐（拷进 `funq\qt\`，启动脚本把该目录挂进 PATH），见[发布指南](发布指南.md)。
 
 **需要桌面环境。** 测试要真实窗口与事件循环，纯 CI 容器里跑不了；WSL 下靠 WSLg。
 
