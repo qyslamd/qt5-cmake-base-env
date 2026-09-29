@@ -1,5 +1,8 @@
 """funq 客户端示例：把 demo_app 从登录一路驱动到设置对话框。
 
+带登录框的构建走完整七步；带 APP_ENABLE_AUTH=OFF 的构建没有登录对话框，
+脚本探测到之后跳过登录那三步，从主窗口继续（第 5 步起）。
+
 这是 funq 的「client 侧」。它不启动被测程序、不碰它的进程，只往一条 TCP
 连接上发消息。被驱动的那一端要先用另一个终端跑起来：
 
@@ -190,33 +193,46 @@ def main():
           % opts.dwell)
     guide = Guidance(client, dwell=opts.dwell)
 
-    banner(2, "看一眼登录界面上有什么")
-    print("登录对话框在 funq 眼里长这样：")
-    print("    %s" % LOGIN_USERNAME)
-    print("    %s" % LOGIN_PASSWORD)
-    print("    %s" % LOGIN_BUTTON)
-    print("    %s   <- 提示文字在这里" % LOGIN_HINT)
-    guide.highlight(LOGIN_USERNAME, "用户名", "脚本接下来要动这个控件")
+    # 登录这三步只在带登录框的构建里成立：程序可能带 APP_ENABLE_AUTH=OFF 编，
+    # 那样根本没有登录对话框、主窗口启动即建。判据只能问界面——脚本是经 TCP
+    # 连过来的，看不到对方的编译开关
+    if exists(client, LOGIN_USERNAME):
+        banner(2, "看一眼登录界面上有什么")
+        print("登录对话框在 funq 眼里长这样：")
+        print("    %s" % LOGIN_USERNAME)
+        print("    %s" % LOGIN_PASSWORD)
+        print("    %s" % LOGIN_BUTTON)
+        print("    %s   <- 提示文字在这里" % LOGIN_HINT)
+        guide.highlight(LOGIN_USERNAME, "用户名", "脚本接下来要动这个控件")
 
-    banner(3, "故意输错密码")
-    client.widget(path=LOGIN_USERNAME).set_property("text", GOOD_USER)
-    guide.highlight(LOGIN_PASSWORD, "密码", "这一步故意填错")
-    client.widget(path=LOGIN_PASSWORD).set_property("text", BAD_PASSWORD)
-    client.widget(path=LOGIN_BUTTON).click()
-    # 界面的反应不是同步的：点击只是把事件投进 Qt 队列，得给它一点时间
-    time.sleep(1.0)
-    hint = client.widget(path=LOGIN_HINT).properties()["text"]
-    print("输错后，提示文字 = %r" % hint)
-    print("此时主窗口在不在：%s（应该不在）" % exists(client, MAIN_WINDOW))
-    assert hint == "用户名或密码错误", "提示文字与预期不符：%r" % hint
-    guide.highlight(LOGIN_HINT, "看提示", "提示文字变了：登录失败")
-    print("断言通过：登录失败这条路走对了。")
+        banner(3, "故意输错密码")
+        client.widget(path=LOGIN_USERNAME).set_property("text", GOOD_USER)
+        guide.highlight(LOGIN_PASSWORD, "密码", "这一步故意填错")
+        client.widget(path=LOGIN_PASSWORD).set_property("text", BAD_PASSWORD)
+        client.widget(path=LOGIN_BUTTON).click()
+        # 界面的反应不是同步的：点击只是把事件投进 Qt 队列，得给它一点时间
+        time.sleep(1.0)
+        hint = client.widget(path=LOGIN_HINT).properties()["text"]
+        print("输错后，提示文字 = %r" % hint)
+        print("此时主窗口在不在：%s（应该不在）" % exists(client, MAIN_WINDOW))
+        assert hint == "用户名或密码错误", "提示文字与预期不符：%r" % hint
+        guide.highlight(LOGIN_HINT, "看提示", "提示文字变了：登录失败")
+        print("断言通过：登录失败这条路走对了。")
 
-    banner(4, "换正确密码，进主窗口")
-    guide.highlight(LOGIN_PASSWORD, "换对密码", "这次能进主窗口")
-    client.widget(path=LOGIN_PASSWORD).set_property("text", GOOD_PASSWORD)
-    client.widget(path=LOGIN_BUTTON).click()
-    # 登录成功后主窗口才创建，等一下它出来
+        banner(4, "换正确密码，进主窗口")
+        guide.highlight(LOGIN_PASSWORD, "换对密码", "这次能进主窗口")
+        client.widget(path=LOGIN_PASSWORD).set_property("text", GOOD_PASSWORD)
+        client.widget(path=LOGIN_BUTTON).click()
+    else:
+        banner(2, "没有登录框的构建：跳过登录三步")
+        print("目标程序带 APP_ENABLE_AUTH=OFF 编：没有登录对话框，启动即建主窗口，")
+        print("所以「输错密码 → 看提示文字 → 登录后才建主窗口」这几条断言在这里")
+        print("无从谈起，直接往下走。")
+        print("（判据是问界面有没有 %s，不是读对方的编译开关。）"
+              % LOGIN_USERNAME)
+
+    # 两条路的汇合点：带登录时主窗口刚由登录按钮创建，不带时启动就有，都在
+    # 这里等它出来
     main_window = client.widget(path=MAIN_WINDOW, timeout=10.0)
     print("主窗口已出现：%s" % brief(main_window, ("visible", "enabled")))
     print("中央占位控件的标题：%r"

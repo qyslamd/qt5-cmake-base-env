@@ -18,66 +18,12 @@ if(NOT BUILD_FUNQ)
     return()
 endif()
 
-# 解释器按这个顺序找：**仓库自带的那份**（按目标架构挑）→ -DFUNQ_PYTHON 指定的
-# → PATH 上的。
-#
-# 自带那份优先，为的是让测试不依赖"这台机器上装了什么"：版本（3.8.8）与位数都由
-# 仓库定死，也就不会再出现"64 位 Python 注不进 32 位靶子"那类只有超时能看出来的
-# 问题——注入是 Python 进程在调 CreateRemoteThread + LoadLibrary，跨位数是不允许的。
-# 两份的解释器在解压阶段就位（见 cmake/extract_dependencies.cmake），且随安装包
-# 一起发（见 src/app/CMakeLists.txt 的 make_funq_kit）
-if(WIN32)
-    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        set(FUNQ_BUNDLED_PYTHON
-            "${CMAKE_SOURCE_DIR}/3rdparty/python-3.8.8-embed-amd64/python.exe")
-    else()
-        set(FUNQ_BUNDLED_PYTHON
-            "${CMAKE_SOURCE_DIR}/3rdparty/python-3.8.8-embed-win32/python.exe")
-    endif()
-endif()
-
-set(FUNQ_PYTHON "" CACHE FILEPATH
-    "funq UI 测试用的 Python 解释器（留空则用仓库自带的那份，再退回 PATH；位数须与目标架构一致）")
-
-if(FUNQ_PYTHON)
-    set(PYTHON_EXECUTABLE "${FUNQ_PYTHON}")
-elseif(FUNQ_BUNDLED_PYTHON AND EXISTS "${FUNQ_BUNDLED_PYTHON}")
-    set(PYTHON_EXECUTABLE "${FUNQ_BUNDLED_PYTHON}")
-    message(STATUS "funq 的 UI 测试用仓库自带的 Python: ${PYTHON_EXECUTABLE}")
-else()
-    find_program(PYTHON_EXECUTABLE NAMES python python3)
-endif()
+# 解释器必须与目标架构同位数——规则、理由与选择顺序见 cmake/funq_python.cmake，
+# 与 examples/funq-client-demo 共用同一份（那处当初漏了，挑到 64 位 Python 去注
+# x86 目标）。可用 -DFUNQ_PYTHON=<路径> 覆盖。
+include(${CMAKE_SOURCE_DIR}/cmake/funq_python.cmake)
+funq_find_python(PYTHON_EXECUTABLE "funq 的 UI 测试")
 if(NOT PYTHON_EXECUTABLE)
-    message(WARNING
-        "未找到 Python，funq 的 UI 测试不会注册。"
-        "funq 需要 Python 3.8+（仅测试需要，编译不需要）")
-    return()
-endif()
-
-# 位数核对：让候选解释器自己报一次指针宽度，与目标架构比对
-execute_process(COMMAND "${PYTHON_EXECUTABLE}" -c
-                    "import struct; print(struct.calcsize('P') * 8)"
-    OUTPUT_VARIABLE FUNQ_PYTHON_BITS
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    ERROR_QUIET
-    RESULT_VARIABLE FUNQ_PYTHON_PROBE_RESULT)
-if(NOT FUNQ_PYTHON_PROBE_RESULT EQUAL 0)
-    message(WARNING
-        "${PYTHON_EXECUTABLE} 跑不起来（探针返回 ${FUNQ_PYTHON_PROBE_RESULT}），"
-        "funq 的 UI 测试不会注册。可用 -DFUNQ_PYTHON=<路径> 另指定一个")
-    return()
-endif()
-
-set(FUNQ_TARGET_BITS 32)
-if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    set(FUNQ_TARGET_BITS 64)
-endif()
-if(NOT FUNQ_PYTHON_BITS STREQUAL "${FUNQ_TARGET_BITS}")
-    message(WARNING
-        "Python 是 ${FUNQ_PYTHON_BITS} 位而目标是 ${FUNQ_TARGET_BITS} 位，"
-        "funq 的 UI 测试不会注册——注入要跨位数，Windows 不允许，"
-        "而这里不注册它就会以 180 秒超时的形式表现出来。"
-        "用 -DFUNQ_PYTHON=<${FUNQ_TARGET_BITS} 位 python 的路径> 指定一个匹配的")
     return()
 endif()
 

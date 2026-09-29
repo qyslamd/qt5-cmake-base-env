@@ -15,11 +15,12 @@ if(NOT BUILD_FUNQ)
     return()
 endif()
 
-find_program(PYTHON_EXECUTABLE NAMES python python3)
+# 解释器必须与目标架构同位数——注入是「Python 进程调 CreateRemoteThread +
+# LoadLibrary」，跨位数 Windows 不允许，而错配只表现为注入失败/超时。规则与
+# 理由见 cmake/funq_python.cmake，与 tests/funq_demo 共用同一份
+include(${CMAKE_SOURCE_DIR}/cmake/funq_python.cmake)
+funq_find_python(PYTHON_EXECUTABLE "funq 手动示例")
 if(NOT PYTHON_EXECUTABLE)
-    message(WARNING
-        "未找到 Python，funq 手动示例不会生成。"
-        "funq 需要 Python 3.8+（仅测试需要，编译不需要）")
     return()
 endif()
 
