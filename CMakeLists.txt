@@ -162,6 +162,16 @@ option(BUILD_FUNQ "构建 funq GUI 测试库（注入式，产物供测试运行
 option(BUILD_RIBBON "启用 SARibbon Ribbon 界面（主窗口的功能区菜单）" ON)
 
 #-------------------------------------------------------------------------------
+# BUILD_FFTW —— 频谱计算库
+#
+# 默认 ON。OFF 时不再引入 FFTW，examples/fft_demo 也不编（它是唯一的使用方）。
+# 除崩溃后端外，这是唯一一个**静态**链进本仓的第三方库——静态是为了省掉 DLL
+# 部署那一段，代价是 exe 大几 MB
+#-------------------------------------------------------------------------------
+
+option(BUILD_FFTW "启用 FFTW 频谱计算（examples/fft_demo 用到）" ON)
+
+#-------------------------------------------------------------------------------
 # BUILD_TESTS —— 单元测试
 #
 # 默认 ON。OFF 时不注册任何 ctest 用例（tests/ 整个不进构建）
@@ -344,6 +354,41 @@ add_subdirectory(3rdparty/QCustomPlot)
 
 # QXlsx Excel读写库
 add_subdirectory(3rdparty/QXlsx-1.5.0/QXlsx)
+
+# FFTW 频谱计算：静态、单精度、线程合并进主库，取 3rdparty 目录里那份
+# build_msvc2019_ninja.bat 的口径
+if(BUILD_FFTW)
+    # BUILD_TESTS 默认 ON：会 enable_testing 并把 32x64 / ib256 这些 bench 用例
+    # 塞进本仓的 ctest、还多编一个 bench 工具。上游给了开关，钉掉即可——zlib
+    # 那边是同一件事但它没给开关，所以只能打补丁
+    set(BUILD_TESTS OFF CACHE BOOL "不编 FFTW 自带的 bench 与测试" FORCE)
+    set(ENABLE_FLOAT ON CACHE BOOL "只编单精度 fftw3f" FORCE)
+    set(ENABLE_LONG_DOUBLE OFF CACHE BOOL "不编长双精度" FORCE)
+    set(ENABLE_QUAD_PRECISION OFF CACHE BOOL "不编四倍精度" FORCE)
+    set(ENABLE_THREADS ON CACHE BOOL "允许单个 FFT 用多线程" FORCE)
+    set(WITH_COMBINED_THREADS ON CACHE BOOL "线程符号并进主库" FORCE)
+    set(ENABLE_SSE2 ON CACHE BOOL "SSE2 内核，CPU 不支持时自动退化" FORCE)
+    set(ENABLE_AVX ON CACHE BOOL "AVX 内核，CPU 不支持时自动退化" FORCE)
+    set(ENABLE_AVX2 ON CACHE BOOL "AVX2 内核，CPU 不支持时自动退化" FORCE)
+    set(DISABLE_FORTRAN ON CACHE BOOL "不编 Fortran 包装" FORCE)
+
+    # BUILD_SHARED_LIBS 是 CMake 的通用变量，本仓后面还有依赖在读它（QtTesting /
+    # SARibbon / zlib），所以刻意用**普通变量**而非 CACHE：补丁把 FFTW 的
+    # cmake_minimum_required 抬到了 3.15，它的 CMP0077 因此是 NEW，option() 见到
+    # 同名普通变量就不覆盖——既让 FFTW 拿到 OFF，又不写进 cache 波及后面。
+    # add_subdirectory 之后立刻 unset 收尾。这三件事都实测过
+    set(BUILD_SHARED_LIBS OFF)
+    add_subdirectory(3rdparty/fftw-3.3.11)
+    unset(BUILD_SHARED_LIBS)
+
+    # FFTW 只登记了 $<INSTALL_INTERFACE:include>，树内消费者拿不到头文件路径。
+    # 但**不能**在这里给 fftw3f 补 INTERFACE 目录：上游有
+    # install(TARGETS fftw3f EXPORT FFTW3LibraryDepends)，而导出目标的接口里
+    # 不允许出现源码/构建树路径——CMake 在 generate 阶段直接报错（实测：
+    # "INTERFACE_INCLUDE_DIRECTORIES property contains path ... which is prefixed
+    # in the source directory"）。所以包含目录由消费者自己加，与本仓对 crashpad
+    # 的做法一致，见 examples/fft_demo/CMakeLists.txt
+endif()
 
 # 崩溃捕获后端：宏与第三方引入（三态见顶部 APP_CRASH_BACKEND 的说明）。
 # 必须在 add_subdirectory(src) 之前：

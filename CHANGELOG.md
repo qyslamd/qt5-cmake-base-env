@@ -10,6 +10,36 @@
 
 ### 新增
 
+- **接入 FFTW，新增频谱示例 `examples/fft_demo`**：FFTW 3.3.11 走本仓其他源码
+  依赖同样的路子（tarball 入库 → configure 解压 → 打补丁 → `add_subdirectory`），
+  静态、单精度（`fftw3f`）、线程合并进主库。**五个值得记的点**：① `BUILD_TESTS`
+  默认 ON，会 `enable_testing`、把 32x64/ib256 这些 bench 用例塞进我们的 ctest
+  还多编一个 bench 工具——上游给了开关，用 `set(... CACHE BOOL ... FORCE)` 钉掉
+  （zlib 那份是同一件事但它没给开关，所以只能打补丁）；② `cmake_minimum_required
+  (VERSION 3.0)` 在 CMake 4.x 下直接配置失败，`patches/fftw/0001` 抬到 3.15；
+  ③ FFTW 只登记了 `$<INSTALL_INTERFACE:include>`，树内消费者拿不到头文件路径，
+  但**不能**给 `fftw3f` 补 INTERFACE 目录——上游有 `install(TARGETS ... EXPORT)`，
+  导出目标的接口里出现源码树路径会在 generate 阶段报错（实测），所以包含目录由
+  消费者自己加，与 crashpad 同款；④ `BUILD_SHARED_LIBS` 是 CMake 通用变量、后面
+  还有依赖在读（QtTesting / SARibbon / zlib），所以用**普通变量**在
+  `add_subdirectory` 前后夹住而不是写进 cache——补丁把 FFTW 的 policy 抬到 3.15
+  之后 CMP0077 是 NEW，`option()` 不覆盖同名普通变量，这三件事都实测过；
+  ⑤ x64 下 `HAVE_SSE2` 探测不到（`/arch:SSE2` 不是合法的 x64 选项，SSE2 本就是
+  基线），但 AVX / AVX2 正常打开，x86 下三个都开。示例本身是一条完整链路：
+  合成信号（三个可调分量 + 噪声）→ 加窗（矩形 / Hann / Hamming）→ 单精度 r2c →
+  **三种谱视图**（单边幅度 / 双边幅度 / 单边 PSD dB·Hz⁻¹，切换即重算，因为那是
+  视图不是信号）→ **插值找峰**（报出各分量的频率与幅度，频率细化到 bin 以内）→
+  **频域阈值去噪 + 逆变换**（`c2r`，时域图上叠一条去噪后的波形）。三个归一化口径
+  在一个文件里对齐：幅度谱除窗之和、PSD 除窗的平方和与采样率、逆变换自己补 1/N
+  （FFTW 的 c2r 不做归一）。数值用一次性探针逐项核对：bin 上的分量峰值精确等于
+  幅度、双边谱在 ±f 各半且关于 0 对称、**PSD × bin 宽 = a²/2**（口径与物理量对得
+  上）、噪声底实测 −59.4 与理论 −57.9 dB/Hz 差 1.55 dB（正好是中位数相对均值的
+  ln2 因子）、非 bin 分量 100.4 Hz 被插值到 100.36、去噪后与真值的 RMS 从 0.2104
+  降到 0.1760。过程中抓出三个错：**use-after-free**（原先在 `fftwf_free` 之后才读
+  输出数组，Debug 下峰值能到 1e15，Release 下则常常"看着是对的"）；**找峰门槛
+  只比中位数**（无噪声时中位数≈0，矩形窗那些衰减到 −190 dB 的旁瓣被全报成分量，
+  64 个）→ 补一条"不低于最强谱线的 5%"；**把未归一的 `|X|` 拿去报峰值幅度**
+  （差 N/2 倍，而峰的位置不变，所以这个错只错一半、图上看不出来）
 - **中文化第三方控件的自带文案**：本仓自己的文案一直是硬编码中文，于是界面上
   唯一的英文来自第三方——功能区的标题栏按钮提示（`Maximize` / `Restore`）、
   标题图标右键菜单（`Restore(R)` / `Move(M)` / `Close(C)` …）、以及 Qt 自带

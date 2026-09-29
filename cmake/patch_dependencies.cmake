@@ -128,5 +128,10 @@ apply_patch_to_dir("${3RDPARTY_DIR}/zlib-v1.2.11"
 apply_patch_to_dir("${3RDPARTY_DIR}/zlib-v1.2.11"
     "${PATCHES_DIR}/zlib/0002-drop-example-binaries.patch")
 
+# FFTW 的 cmake_minimum_required 是 3.0，而 CMake 4.0 起已经删掉对 <3.5 的兼容，
+# 不改的话 Windows 侧（CMake 4.2）配置阶段直接失败。不是 option，改不了，只能补丁
+apply_patch_to_dir("${3RDPARTY_DIR}/fftw-3.3.11"
+    "${PATCHES_DIR}/fftw/0001-bump-cmake-minimum-version.patch")
+
 message(STATUS "Patches applied.")
 message(STATUS "")

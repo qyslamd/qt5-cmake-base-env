@@ -15,6 +15,7 @@ set(DEPENDENCY_ARCHIVES
     "SARibbon-2.5.7.tar.gz"
     "qwindowkit-1.5.0.tar.gz"
     "qmsetup-4a3ff82.tar.gz"
+    "fftw-3.3.11.tar.gz"
     "zlib-v1.2.11.tar.gz"
     "mini_chromium-9cdc2a7.tar.gz"
     "crashpad-7b9686b.tar.gz"

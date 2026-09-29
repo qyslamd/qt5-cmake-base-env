@@ -1,3 +1,4 @@
+add_subdirectory(fft_demo)
 add_subdirectory(funq-client-demo)
 add_subdirectory(funq_target)
 add_subdirectory(guidance_demo)
