@@ -169,6 +169,23 @@
 
 ### 变更
 
+- **补丁生成器入库（`patches/tools/`）**：`patches/` 下 16 个补丁原先只有两条链
+  留有生成脚本，且它们散在 `temp/` 里、把仓库路径写死成 `D:/trae_workspace/...`。
+  连同 `temp/` 的清理一起收进仓库：`make_saribbon_patches.py`（SARibbon 四条 +
+  QWindowKit，`OUT_QWK` 已备好但目前无 QWindowKit 补丁）与 `make_pick_patch.py`
+  （funq 0008）。两者的 `REPO` 改为从 `__file__` 上溯两级推导，docstring 补上
+  pristine 工作目录的重建步骤——工作目录本身是 `3rdparty/*.tar.gz` 的普通解压
+  产物，删掉不留隐患。`patch_dependencies.cmake` 头部指到这里
+- **`temp/` 从 97 MB 清到 893 KB**：清掉的是历次会话的工作残渣——约 40 个
+  构建/ctest/cdb 日志、崩溃回传演练的 `crash_export*`、补丁机制的试验副本
+  （`applytest{,2,3}` + `ribbon-pristine` 共 54 MB，都能从 tar.gz 重解压）、
+  三张截图、当时的改动快照压缩包，以及 libui 时代的绘制试验源码。28 个
+  `wsl_*.sh` 一并清掉：它们全部指向 `$HOME/eph205-linux-verify` 与
+  `/mnt/d/sb/eph205/workspace/eph205-qt`，实测两个路径都已不存在，脚本已无
+  落脚点。留下 4 项：`qss_stats.py` 与 `qss_probe/`（被「通用样式表设计」点名）、
+  `build_noribbon.ps1`、`wsl_kill_apps.sh`。c-cmake-base-env 的消费者工程与
+  构建脚本挪到它自己的仓（`/d/trae_workspace/c-cmake-base-env/temp/`），不再
+  寄存在本仓
 - **移除 `qt-libui` 依赖，本仓不再含任何 submodule**：`external/qt-libui`
   是当初把 `src/libui` 抽出去后的回填，本仓实际只用到它的三处，为这三处
   背一个跨仓 submodule 不划算——每次 clone 都要 `--recursive`、改一行库代码

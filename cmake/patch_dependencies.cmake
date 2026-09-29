@@ -12,6 +12,10 @@
 #
 # 幂等：apply 成功后写一个 .patch_applied_<stem> 标记文件；
 #       下次 configure 看到标记就跳过。重解压时标记消失，patch 会重放。
+#
+# 生成这些补丁的工具在 patches/tools/（两条链留有脚本：SARibbon/QWindowKit
+# 的四条，以及 funq 的 0008）。脚本头的 docstring 写明 pristine 工作目录
+# 怎么重建——它们在 temp/ 下，用完即弃。
 
 set(3RDPARTY_DIR "${CMAKE_SOURCE_DIR}/3rdparty")
 set(PATCHES_DIR  "${CMAKE_SOURCE_DIR}/patches")
