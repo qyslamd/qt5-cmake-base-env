@@ -285,20 +285,45 @@ find_package(Qt5 COMPONENTS
     Core Gui Widgets PrintSupport Test Xml Svg Network Concurrent Sql SerialPort OpenGL
     CONFIG REQUIRED)
 
+# 翻译工具（lrelease）单独找一次，刻意不与上一行合并、也不带 REQUIRED：
+# 它来自 Qt 的 qttools（Debian 系是 qttools5-dev-tools），装机时可能没有，
+# 缺了只该失去翻译，不该让整个配置失败。
+#
+# 为什么不能直接 find_package(Qt5LinguistTools)：本仓 local.cmake 只给
+# Qt5_DIR、不设 CMAKE_PREFIX_PATH，而 CMake 不会因为 Qt5_DIR 指向 Qt 的
+# lib/cmake 就去那里找别的包——实测直接找是 NOTFOUND。走 Qt5 的 components
+# 机制则由 Qt5Config 自己按 Qt5_DIR 解析出 Qt5LinguistTools_DIR
+find_package(Qt5 COMPONENTS LinguistTools CONFIG QUIET)
+if(NOT Qt5LinguistTools_FOUND)
+    message(STATUS
+        "未找到 Qt5LinguistTools（lrelease）：跳过翻译编译，"
+        "第三方控件的自带文案保持英文")
+endif()
+
 # 本仓只用 Qt5，这里把版本号显式钉死：部分第三方库（qmsetup 的 qm_find_qt）
 # 只在 QT_VERSION_MAJOR 未定义时才做「版本无关查找」——那个查找走的是包名
 # QT，认的是 QT_DIR，与本仓 local.cmake 只提供 Qt5_DIR 的写法对不上，会直接
 # 配置失败；钉死之后它们转为 find_package(Qt5 ...)，正好复用已解析的 Qt5_DIR
 set(QT_VERSION_MAJOR 5)
 
-# Qt 运行时目录推导仅服务 Windows 消费方（run_app.bat、测试环境变量）。
-# qmake 按定义位于 Qt 安装的 bin 目录下，由它反推最直接；不要在各子目录
-# 另起一套推导，否则改动假设时容易漏改。
-if(Qt5_FOUND AND WIN32)
+# Qt 的目录推导集中在这里，不要在各子目录另起一套，否则改动假设时容易漏改。
+if(Qt5_FOUND)
     get_target_property(_qt_qmake Qt5::qmake IMPORTED_LOCATION)
-    get_filename_component(QT_BIN_DIR "${_qt_qmake}" DIRECTORY)
-    get_filename_component(QT_LIB_DIR "${QT_BIN_DIR}/../lib" ABSOLUTE)
-    get_filename_component(QT_PLUGINS_DIR "${QT_BIN_DIR}/../plugins" ABSOLUTE)
+
+    # Qt 自带翻译（qt_zh_CN.qm 等）所在目录。这里必须问 qmake：Windows 侧它
+    # 是 <Qt>/translations，能由 bin 反推，但 Debian 系在 /usr/share/qt5/
+    # translations，离 bin 很远，推不出来。构建时要把 qt_zh_CN.qm 拷到可执行
+    # 文件旁（见 src/app/CMakeLists.txt）
+    execute_process(COMMAND "${_qt_qmake}" -query QT_INSTALL_TRANSLATIONS
+        OUTPUT_VARIABLE QT_TRANSLATIONS_DIR
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+    # 下面这几个仅服务 Windows 消费方（run_app.bat、测试环境变量）
+    if(WIN32)
+        get_filename_component(QT_BIN_DIR "${_qt_qmake}" DIRECTORY)
+        get_filename_component(QT_LIB_DIR "${QT_BIN_DIR}/../lib" ABSOLUTE)
+        get_filename_component(QT_PLUGINS_DIR "${QT_BIN_DIR}/../plugins" ABSOLUTE)
+    endif()
 endif()
 
 #-------------------------------------------------------------------------------

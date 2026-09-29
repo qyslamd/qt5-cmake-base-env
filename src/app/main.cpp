@@ -9,6 +9,7 @@
 //    ├─ 单实例检测 ─────────── 必须在 Logger 之前（拒绝回放时只能写 stderr）
 //    ├─ 样式 → ConfigManager → Logger → GEH → 崩溃捕获
 //    │    严格顺序，见各步注释
+//    ├─ 翻译（Qt 自带控件 + 功能区）── 必须在任何界面构造之前
 //    ├─ 工具模式（--export-report / --crash）─ 无界面，跑完即退出
 //    ├─ 上次崩溃的报告提示 ─ 只在有报告时弹，且在登录之前
 //    ├─ 功能引导（控制器 + 桥接）─ 必须在登录之前
@@ -40,9 +41,11 @@
 #include <QByteArray>
 #include <QDialog>
 #include <QIcon>
+#include <QLibraryInfo>
 #include <QSize>
 #include <QString>
 #include <QTimer>
+#include <QTranslator>
 #include <QVector>
 #include <QWidget>
 
@@ -180,9 +183,9 @@ std::optional<int> HandleAlreadyRunning(SingleInstance& instance,
   return 2;
 }
 
-// Splash 第 2 步的实事：把当前用户会话准备好。
-// 单独成函数是为了让 Splash 那段只负责"报进度"，一眼分得清哪条线是进度、
-// 哪条线是干活——模板使用者替换时照着改这条线即可
+// 初始化三步的第一步：把当前用户会话准备好。
+// 前两步各成函数、与主窗口构造分开，顺序在调用处一眼可见——模板使用者要插
+// 自己的耗时初始化，就插在它们与 MainWindow 之间
 void InitializeSession() {
 #ifdef APP_ENABLE_AUTH
   const User current_user = AuthService::instance().currentUser();
@@ -192,7 +195,7 @@ void InitializeSession() {
 #endif
 }
 
-// Splash 第 3 步的实事：读回上次的窗口尺寸，并钳制，防止损坏的 INI
+// 初始化三步的第二步：读回上次的窗口尺寸并钳制，防止损坏的 INI
 // 产生不可用窗口
 QSize LoadWindowSize() {
   const int saved_width = ConfigManager::instance().get<int>(
@@ -207,6 +210,41 @@ void SaveWindowSize(const QWidget& window) {
   cfg.set<int>(QString::fromLatin1(kConfigWindowWidth), window.width());
   cfg.set<int>(QString::fromLatin1(kConfigWindowHeight), window.height());
   cfg.sync();
+}
+
+// 装载中文翻译。两个 QTranslator 由调用方持有——installTranslator 只记指针，
+// 对象一析构那指针就悬空，所以不能在这里建成局部对象。
+//
+// 界面语言是写死的：本仓自己的文案全是硬编码中文（规矩是不用 tr()），需要翻
+// 译的只有第三方控件的自带串。所以这里不问系统语言，一律 zh_CN——否则中文
+// 界面里会混进一段英文。
+void InstallTranslations(QApplication& app, QTranslator& qt_translator,
+                         QTranslator& saribbon_translator) {
+  // Qt 自带控件的文案（QMessageBox / QFileDialog 的按钮等）。目录问
+  // QLibraryInfo：Windows 下是安装目录旁的 translations/（windeployqt
+  // 已拷过去），Linux 下是 /usr/share/qt5/translations
+  const QString qt_qm = QLibraryInfo::location(QLibraryInfo::TranslationsPath) +
+                        QStringLiteral("/qt_zh_CN.qm");
+  if (qt_translator.load(qt_qm)) {
+    app.installTranslator(&qt_translator);
+    LOG_INFO("MAIN", "已装载 Qt 中文翻译: {}", qt_qm.toStdString());
+  } else {
+    LOG_WARN("MAIN", "Qt 中文翻译装载失败，标准对话框按钮将显示英文: {}",
+             qt_qm.toStdString());
+  }
+
+  // 功能区（SARibbon）的文案：标题栏按钮的提示、标题图标右键菜单等。.qm 由
+  // 构建期从 src/app/translations/SARibbon_zh_CN.ts 编出来并嵌进资源
+  // （见 src/app/CMakeLists.txt）。没装 Qt 的 LinguistTools 时它不存在，
+  // 这里只降级、不拦启动
+  const QString saribbon_qm =
+      QStringLiteral(":/translations/SARibbon_zh_CN.qm");
+  if (saribbon_translator.load(saribbon_qm)) {
+    app.installTranslator(&saribbon_translator);
+    LOG_INFO("MAIN", "已装载功能区中文翻译: {}", saribbon_qm.toStdString());
+  } else {
+    LOG_WARN("MAIN", "功能区中文翻译装载失败，功能区自带文案将显示英文");
+  }
 }
 
 // 窗口已显示之后的收尾接线：单实例激活 + 退出前落盘。
@@ -374,7 +412,15 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  // ========================= 3.5 工具模式与崩溃报告提示 =================
+  // ========================= 3.5 应用翻译（可删）=========================
+  // 必须早于任何界面构造：SARibbon 的文案多数在构造期就取走了（标题栏、窗口
+  // 按钮都在 SARibbonMainWindow 的构造里建），晚一步就只有后建的部件是中文。
+  // 两个 translator 必须活在 main 的作用域里，出了这个作用域就悬空
+  QTranslator qt_translator;
+  QTranslator saribbon_translator;
+  InstallTranslations(app, qt_translator, saribbon_translator);
+
+  // ========================= 3.6 工具模式与崩溃报告提示 =================
   // 导出崩溃报告：无界面，跑完即退出（售后兜底与自动化演练都走这里）
   if (opts.export_report) {
     return RunCrashReportExport(opts.export_report_dir);
@@ -430,9 +476,8 @@ int main(int argc, char* argv[]) {
 #endif
 
   // ========================= 6. 初始化与主窗口 =========================
-  // 三步实事按原顺序执行（曾套在 Splash 启动画面里报进度，画面随 qt-libui
-  // 停用而移除）。顺序有约束：会话与配置都先于主窗口构造——要把耗时初始化
-  // 插进来，就插在这两步与 MainWindow 之间
+  // 三步按原顺序执行。顺序有约束：会话与配置都先于主窗口构造——要把耗时
+  // 初始化插进来，就插在这两步与 MainWindow 之间
   InitializeSession();
   const QSize window_size = LoadWindowSize();
 

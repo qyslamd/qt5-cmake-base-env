@@ -66,6 +66,33 @@ if(BUILD_QT_TESTING)
         )
 endif()
 
+# 翻译：把 .ts 编成 .qm 并嵌进资源，由 main.cpp 装载（见 InstallTranslations）。
+#
+# .ts 是自有文件（拷自 SARibbon 2.5.7 的 i18n/，要补/改文案开 linguist 改它），
+# 上游那份留在 3rdparty 里不动。用 qt5_add_translation 而不是 create_translation：
+# 后者会先跑 lupdate 回写 .ts，而 .ts 在源码树里，构建不该改源码。
+#
+# .qm 落构建目录、不写回源码树，所以 qrc 必须生成（它要写 .qm 的绝对路径）。
+# 这里刻意不给 .ts 设 OUTPUT_LOCATION：那会把 .qm 落到源码树去。
+#
+# 没有 LinguistTools 时整块跳过——.qm 不存在，main.cpp 的 load 失败并降级，
+# 不需要编译期开关
+if(Qt5LinguistTools_FOUND)
+    set(TRANSLATION_TS
+        translations/SARibbon_zh_CN.ts
+        )
+    qt5_add_translation(QM_FILES ${TRANSLATION_TS})
+
+    set(QM_DIR "${CMAKE_CURRENT_BINARY_DIR}")
+    configure_file(translations/i18n.qrc.in
+        "${CMAKE_CURRENT_BINARY_DIR}/i18n.qrc" @ONLY)
+    qt5_add_resources(I18N_RESOURCES "${CMAKE_CURRENT_BINARY_DIR}/i18n.qrc")
+
+    # QM_FILES 一起入列只为让它们成为本目标的产物：qrc 里引用了 .qm，构建顺序
+    # 由 qt5_add_resources 解析 qrc 得到的依赖保证，但列出来 IDE 里看得见
+    list(APPEND TARGET_SRCS ${QM_FILES} ${I18N_RESOURCES})
+endif()
+
 add_executable(${TARGET_NAME} WIN32 ${TARGET_SRCS})
 
 #=======================================
@@ -178,6 +205,28 @@ if(EXISTS "${CONFIG_FILES_SOURCE_DIR}")
             "${CONFIG_FILES_OUTPUT_DIR}" # destination.either file or directory
         COMMENT "Copying calibration file to output directory..."
     )
+endif()
+
+# Qt 自带控件的中文翻译。main.cpp 从 QLibraryInfo::TranslationsPath（= 可执行
+# 文件旁的 translations/）加载它，所以必须在运行目录里，安装包才会带上。
+#
+# 为什么不能指望 windeployqt：它是遍历 Qt 翻译目录里的 qtbase_*.qm、用 lconvert
+# 拼出 qt_<语言>.qm，而 Qt 5.15.2 的安装里没有 qtbase_zh_CN.qm（只有
+# qtbase_zh_TW.qm）——现成的 qt_zh_CN.qm 因此永远不会被它拷出来。实测 deploy
+# 之后 bin/translations/ 有 23 个语言，独缺 zh_CN
+if(EXISTS "${QT_TRANSLATIONS_DIR}/qt_zh_CN.qm")
+    add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:${TARGET_NAME}>/translations"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${QT_TRANSLATIONS_DIR}/qt_zh_CN.qm"
+            "$<TARGET_FILE_DIR:${TARGET_NAME}>/translations/qt_zh_CN.qm"
+        COMMENT "Copying Qt Chinese translation..."
+    )
+else()
+    message(STATUS
+        "Qt 翻译目录里没有 qt_zh_CN.qm（${QT_TRANSLATIONS_DIR}）："
+        "Qt 标准对话框将显示英文")
 endif()
 
 

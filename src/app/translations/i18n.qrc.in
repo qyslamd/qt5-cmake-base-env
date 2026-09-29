@@ -1,0 +1,14 @@
+<!-- i18n.qrc 模板：由 src/app/CMakeLists.txt 按构建目录生成，不入库。
+     .qm 是构建期由 lrelease 产出的（落在构建目录），而本模板在源码树里，
+     所以下面的 file 元素里只能写绝对路径——那个占位符由 configure_file
+     替换成构建目录。
+
+     注意：本注释里不要出现尖括号紧跟 file 的字样。qt5_add_resources 是用
+     正则从 qrc 里抓依赖清单的（匹配 file 元素的开标签），注释里那种文本会
+     被当成一条文件路径，配置期不报、构建期由 ninja 抛出“文件名、目录名或
+     卷标语法不正确”，实测踩过 -->
+<RCC>
+    <qresource prefix="/translations">
+        <file alias="SARibbon_zh_CN.qm">@QM_DIR@/SARibbon_zh_CN.qm</file>
+    </qresource>
+</RCC>

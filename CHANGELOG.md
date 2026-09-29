@@ -10,6 +10,23 @@
 
 ### 新增
 
+- **中文化第三方控件的自带文案**：本仓自己的文案一直是硬编码中文，于是界面上
+  唯一的英文来自第三方——功能区的标题栏按钮提示（`Maximize` / `Restore`）、
+  标题图标右键菜单（`Restore(R)` / `Move(M)` / `Close(C)` …）、以及 Qt 自带
+  对话框的按钮。**上游其实带了中文 .ts**（`SARibbon 2.5.7` 的
+  `src/SARibbonBar/i18n/SARibbon_zh_CN.ts`，实测 lrelease：38 条已译、11 条
+  未译且全是开发者警告），问题在于它从没被编译、更没被加载——SARibbon 自己的
+  CMake 只把 `.qm` 挂成静态库的构建产物，它的 qrc 与代码里都没有 `QTranslator`，
+  加载得由宿主程序做。做法：`.ts` 拷进 `src/app/translations/` 由本仓持有，
+  构建期 `qt5_add_translation`（只 lrelease、不 lupdate，避免构建回写源码）编成
+  `.qm` 落构建目录，用 `configure_file` 生成 qrc 把它嵌进 exe，`main.cpp` 在
+  **任何界面构造之前**装 `QTranslator`——SARibbon 的文案多数在构造期就取走了。
+  Qt 自带那份（`qt_zh_CN.qm`）走文件部署而不是嵌入，并且**得自己拷**：
+  windeployqt 是遍历 Qt 翻译目录里的 `qtbase_*.qm` 用 `lconvert` 拼出
+  `qt_<语言>.qm`，而 5.15.2 的安装里没有 `qtbase_zh_CN.qm`（只有 `qtbase_zh_TW.qm`），
+  现成的 `qt_zh_CN.qm` 因此永远不会被它拷出来（实测 deploy 出 23 个语言、独缺
+  zh_CN）。两个平台都实测装载成功（Windows 从 `bin/translations/`，功能区那份
+  从 `:/translations/`）
 - **崩溃报告回传链路**：程序发布给离线客户后，崩溃文件躺在数据目录里没人去
   翻，链路就断在最后一步。现在崩溃后**下次启动**会弹「上次运行发生过崩溃」，
   点「导出报告」把 `<uuid>.dmp` + 人可读 `summary.txt` 导出到桌面
