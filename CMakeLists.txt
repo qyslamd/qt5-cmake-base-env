@@ -161,17 +161,6 @@ option(BUILD_FUNQ "构建 funq GUI 测试库（注入式，产物供测试运行
 option(BUILD_RIBBON "启用 SARibbon Ribbon 界面（主窗口的功能区菜单）" ON)
 
 #-------------------------------------------------------------------------------
-# BUILD_LIBUI_GALLERY —— qt-libui 的 gallery 示例
-#
-# gallery 是本仓 funq UI 测试的被测程序（控件多，适合当靶场）。它默认只在
-# qt-libui 作为顶层项目时编，本仓把 qt-libui 当子模块，故在此显式打开。
-# 关掉后 funq 的 gallery 测试（tests/gallery_funq）没有被测程序
-#-------------------------------------------------------------------------------
-
-option(BUILD_LIBUI_GALLERY
-    "构建 qt-libui 的 gallery 示例（funq UI 测试的被测程序）" ON)
-
-#-------------------------------------------------------------------------------
 # BUILD_TESTS —— 单元测试
 #
 # 默认 ON。OFF 时不注册任何 ctest 用例（tests/ 整个不进构建）
@@ -402,7 +391,8 @@ if(BUILD_FUNQ)
             # 知道，故退回无后缀名字——与改动前一致
             set(FUNQ_INJECTOR_CONFIGURED_NAME "${FUNQ_INJECTOR_STAGE_NAME}")
         endif()
-        # 供消费方（tests/gallery_funq 的注入器包装、examples/funq 的 serve 脚本）
+        # 供消费方（tests/funq_demo 的注入器包装、examples/funq-client-demo 的
+        # serve 脚本）
         # 经 configure_file 注入到生成的脚本里
         set(FUNQ_INJECTOR_LIBRARY
             "${FUNQ_INJECTOR_STAGE_DIR}/${FUNQ_INJECTOR_CONFIGURED_NAME}")
@@ -452,23 +442,6 @@ if(BUILD_RIBBON)
 else()
     message(STATUS "BUILD_RIBBON=OFF，跳过 SARibbon（主窗口用普通菜单栏）")
 endif()
-
-#-------------------------------------------------------------------------------
-# 外部源码仓库（git submodule）
-#-------------------------------------------------------------------------------
-
-# qt-libui 通用 UI 部件。以 submodule 引入并源码内嵌，随本仓一次构建：
-# 库内按「非顶层构建」处理——不读它自己的 local.cmake（Qt 由本仓解析）、
-# 不登记 install 规则，只提供 qt-libui::libui 目标。
-# 克隆本仓后若该目录为空，先执行 git submodule update --init --recursive
-#
-# gallery 示例是本仓 funq UI 测试的被测程序（控件多，适合当靶场）。它默认
-# 只在 qt-libui 作为顶层项目时编，本仓把它当子模块，故按开关显式打开
-# （开关声明见顶部「构建开关区」）
-if(BUILD_LIBUI_GALLERY)
-    set(BUILD_EXAMPLES ON)
-endif()
-add_subdirectory(external/qt-libui)
 
 #-------------------------------------------------------------------------------
 # 本仓库模块

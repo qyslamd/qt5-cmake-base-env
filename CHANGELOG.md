@@ -169,6 +169,26 @@
 
 ### 变更
 
+- **移除 `qt-libui` 依赖，本仓不再含任何 submodule**：`external/qt-libui`
+  是当初把 `src/libui` 抽出去后的回填，本仓实际只用到它的三处，为这三处
+  背一个跨仓 submodule 不划算——每次 clone 都要 `--recursive`、改一行库代码
+  要跨两个仓提交、pin 的提交还不被主仓的构建验证。三处逐一处理：
+  **① funq 的测试靶子**换成新的 `examples/funq_target`（三页签小窗口，
+  文本/下拉/微调/复选/进度条/列表/按钮齐全，控件全带 `objectName`），
+  测试目录随 `git mv` 从 `tests/gallery_funq` 改名 `tests/funq_demo`，
+  用例名 `test_gallery_funq` → `test_funq_demo`。新靶子的路径就是
+  `窗口::控件`，不必再从运行中的进程里探（旧 gallery 的控件没有 objectName，
+  路径由「类名 + 同名兄弟序号」拼成，界面一动就得重探）；旧用例只能把属性
+  原样读回来，新用例多了跨控件联动与真实点击这两类可断言的行为。
+  **② 启动画面（splash）删除**：它靠 `SwitchButton` 之外的 libui UI 撑场面，
+  而模板的立场是"删掉比留着更好"——启动画面不属于模板要提供的能力。
+  **③ `SwitchButton` 源码内联**进 `src/app/widgets/`（源自 qt-libui 6e9fdba，
+  头文件里注明），仍是设置对话框在用。踩到一个坑：libui 的 AUTOMOC 把
+  所有 moc 汇进单个 `mocs_compilation.cpp`，只要 `demo_app` 还链 libui，
+  它的 `SwitchButton::staticMetaObject` 就会被一起拉进来，与本仓内联的那份
+  撞成 LNK2005/LNK1169——所以内联与解链必须同步做完（这也是删 splash 的
+  顺带收益：删完 `demo_app` 对 libui 再无引用）。完成后 `external/` 整个
+  目录消失，README 与各文档里的 submodule 克隆说明一并撤掉
 - **顶层 CMakeLists 的 8 处开关集中到「构建开关区」**：此前 `option()` 与
   `APP_CRASH_BACKEND` 散落在各功能段落（最远的 `BUILD_TESTS` 在 440 行附近），
   现全部集中在 `project()` 之后（71–180 行），各自的说明注释跟着走，原位置只留
@@ -186,8 +206,8 @@
   一个用不到的仓；它每改动一次主仓要跟着 bump pin；而主仓构建又不会验证它
   （pin 一个不再验证的东西最容易悄悄腐烂）。改为独立仓库单独 clone 开发，需要
   时并列放即可——`git submodule` 三项收尾（`deinit` / `rm` / 清 `.git/modules`
-  缓存）都做完了，仓本身在 gitee 上完好。`qt-libui` 不受影响，仍在 `external/`
-  下随本仓一起编译
+  缓存）都做完了，仓本身在 gitee 上完好。`qt-libui` 当时不受影响，仍在
+  `external/` 下随本仓一起编译（后来也移除了，见上一条）
 - **删掉 4 对从未使用的异常类，`GlobalExceptionHandler` 归位到 `crashhandler/`**：
   `common/{file,time,string,byte}_exception.*` 共 263 行，自 initial commit 起
   全仓零引用（只有 CMake 源清单与它们自己的配对）——而且与本仓惯例冲突：

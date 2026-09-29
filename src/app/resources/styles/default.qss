@@ -6,7 +6,7 @@
  *
  * 不用 objectName 表达"角色"（主按钮、表单输入、报错文本…）：那是底座层的
  * 动态属性（role="primary"/"form"/"error"）。objectName 留给功能性标识——
- * funq 的控件路径、QtTesting 录制的 XML、gallery.alias 都依赖它。
+ * funq 的控件路径、QtTesting 录制的 XML、funq_target.alias 都依赖它。
  */
 
 /* ========== LoginDialog ========== */

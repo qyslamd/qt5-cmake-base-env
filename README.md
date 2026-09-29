@@ -8,8 +8,8 @@
 
 - **定制面收敛**：新建项目只需改顶层 `CMakeLists.txt` 的「项目定制区」
   （5 个变量），其余文件无需改动
-- **分层模块**：`core`（无 UI 依赖）/ `app`（界面骨架），依赖方向单向；
-  通用 UI 部件见独立库 `qt-libui`（以 submodule 引入，随本仓一起编译）
+- **分层模块**：`style`（底座层样式）/ `core`（无 UI 依赖）/ `app`（界面骨架），
+  依赖方向单向
 - **版本号由 git 派生**：tag 提供主版本号，提交数提供 build 号，exe 版本
   资源中记录提交 hash，同一提交在任何机器上构建结果一致
 - **一键构建部署打包**：一条命令完成编译 → 归档符号 → windeployqt →
@@ -37,20 +37,16 @@
 | linuxdeploy / appimagetool | 生成 AppImage（Linux），`3rdparty/` 内已附 |
 
 第三方库随仓库提供（spdlog、googletest、QCustomPlot、QXlsx），首次
-configure 时自动解压，无需另行下载。通用 UI 部件库 `qt-libui` 以 git
-submodule 放在 `external/` 下，随本仓一次编译，克隆时需一并拉取。
+configure 时自动解压，无需另行下载。仓库不含 git submodule，克隆后即可
+直接构建。
 
 ## 快速开始
 
-1. **获取本模板**：克隆或复制本仓库为新项目目录。`qt-libui` 以 submodule
-   形式引入，克隆时要一并拉取：
+1. **获取本模板**：克隆或复制本仓库为新项目目录：
 
    ```bat
-   git clone --recursive <本仓库地址>
+   git clone <本仓库地址>
    ```
-
-   已克隆但 `external/qt-libui/` 为空的，执行
-   `git submodule update --init --recursive` 补齐
 
 2. **修改定制区**：编辑 `CMakeLists.txt` 顶部的「项目定制区」，共 5 项——
    项目名、组织名、应用名、项目主页、目标名前缀。每项的作用见文件内注释
@@ -81,8 +77,7 @@ submodule 放在 `external/` 下，随本仓一次编译，克隆时需一并拉
 src/
 ├── core/   无 UI 依赖：配置 / 日志 / 崩溃捕获 / 认证 / 单实例
 ├── style/  底座层样式表（QSS）与加载入口：链上即得一套通用的控件外观
-└── app/    界面骨架、资源与项目层样式
-external/   外部源码仓库（git submodule）：qt-libui 通用 UI 部件，随本仓一起编译
+└── app/    界面骨架、资源与项目层样式（通用控件在 widgets/）
 cmake/      构建脚本模块（版本、运行脚本、测试宏、符号归档、打包）
 scripts/    构建与打包入口脚本
 tests/      单元测试

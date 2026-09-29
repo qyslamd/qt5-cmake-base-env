@@ -14,8 +14,9 @@
 
 本文讲的是**自动化**那条链路：一条 ctest 命令跑完，被测程序由用例自己拉起。
 想先看清 funq 的 server 侧与 client 侧是怎么分工的，看
-[examples/funq](../../examples/funq/)——两个终端各起一边，被测程序是**本仓自己的
-demo_app**，七步从登录一路驱动到设置对话框，每步都打印它看到了什么。
+[examples/funq-client-demo](../../examples/funq-client-demo/)——两个终端各起一边，
+被测程序是**本仓自己的 demo_app**，七步从登录一路驱动到设置对话框，每步都打印
+它看到了什么。
 
 ## 前置条件
 
@@ -29,14 +30,18 @@ Python 3.10+ 也已无法运行：依赖被移除的 `imp` 模块）。
 
 ## 跑测试
 
+靶子是 `examples/funq_target`：一个三页签的小窗口，输入页（文本框 / 下拉框 /
+微调框 / 复选框）、显示页（标签 / 进度条 / 列表）、动作页（两个按钮 + 计数
+标签），控件之间有几条真实的联动——改文本框的文本，显示页的标签跟着变。
+
 ```bat
 :: Windows：只跑 funq 用例
-ctest --test-dir build\ninja-debug-x64 -R test_gallery_funq --output-on-failure
+ctest --test-dir build\ninja-debug-x64 -R test_funq_demo --output-on-failure
 ```
 
 ```bash
 # Linux / WSL（构建见 scripts/build_ninja.sh）
-ctest --test-dir build/linux-ninja-debug -R test_gallery_funq --output-on-failure
+ctest --test-dir build/linux-ninja-debug -R test_funq_demo --output-on-failure
 ```
 
 去掉 `-R` 就是全套（含单元测试与 QtTesting 回放）。
@@ -50,14 +55,14 @@ ctest --test-dir build/linux-ninja-debug -R test_gallery_funq --output-on-failur
 
 ```text
 FunqTestCase（用例）
-   │  按 funq.conf 拉起被测程序：cmd = [funq_attach] + [libui_gallery]
+   │  按 funq.conf 拉起靶子：cmd = [funq_attach] + [funq_target]
    ▼
 funq_attach.bat / funq_attach.sh → python -m funq_server.runner
    │  Windows：启动程序 → sleep 1s → 检查进程存活
    │           → CreateRemoteThread + LoadLibrary（runner_win.py）
    │  Linux  ：把 libFunq.so 塞进 LD_PRELOAD 再 exec（runner_linux.py）
    ▼
-libFunq.dll / libFunq.so（注入进 gallery 进程，在里面起 JSON 服务）
+libFunq.dll / libFunq.so（注入进靶子进程，在里面起 JSON 服务）
    ▲
    │  TCP：按控件路径操作界面、读属性
    └─ Python 客户端
@@ -97,31 +102,38 @@ libFunq.dll / libFunq.so（注入进 gallery 进程，在里面起 JSON 服务�
 
 ## 写用例
 
-### 控件路径必须从运行中的进程里查
+### 控件路径优先来自 objectName
 
-被测的 gallery 示例没有给控件设 `objectName`，funq 的路径由「类名 + 同名兄弟的
-序号后缀」拼成（`objectpath.cpp` 的 `rawObjectName`），而序号取决于子对象的创建
-顺序；布局与分裂器还会改变父子关系——源码里写 `new QTabWidget(this)`，实际被
-`addWidget(splitter)` 挪到了 `QSplitter` 下。**所以路径不能读源码推**。
+靶子（`examples/funq_target`）里每个被测控件都显式设了 `objectName`，而 funq 的
+objectpath 优先用 objectName，于是路径就是 `窗口objectName::控件objectName`——
+稳定、可读，改界面不必重探。页签内的控件多一层
+`qt_tabwidget_stackedwidget`，那是 Qt 给 `QTabWidget` 内部堆叠窗口起的
+objectName，不是本仓的命名，省不掉。
+
+**没设 `objectName` 的控件则回退**到「类名 + 同名兄弟的序号后缀」
+（`objectpath.cpp` 的 `rawObjectName`），而序号取决于子对象的创建顺序；布局与
+分裂器还会改变父子关系——源码里写 `new QTabWidget(this)`，实际被
+`addWidget(splitter)` 挪到了 `QSplitter` 下。**那种路径不能读源码推**，得用
+探针从运行中的进程里查。所以往靶子里加控件时，记得顺手设上 objectName。
 
 ```bat
 :: Windows，从仓库根目录执行
-set D=build\ninja-debug-x64\tests\gallery_funq
+set D=build\ninja-debug-x64\tests\funq_demo
 set FUNQ_CONF=%CD%\%D%\funq.conf
 set FUNQ_ATTACH_EXE=%CD%\%D%\funq_attach.bat
 set FUNQ_CLIENT_DIR=%CD%\3rdparty\funq-master\client
 set FUNQ_SERVER_DIR=%CD%\3rdparty\funq-master\server
-python tests\gallery_funq\probe_widgets.py SwitchButton
+python tests\funq_demo\probe_widgets.py QComboBox
 ```
 
 ```bash
 # Linux / WSL，同样从仓库根目录执行
-D=build/linux-ninja-debug/tests/gallery_funq
+D=build/linux-ninja-debug/tests/funq_demo
 FUNQ_CONF=$PWD/$D/funq.conf \
 FUNQ_ATTACH_EXE=$PWD/$D/funq_attach.sh \
 FUNQ_CLIENT_DIR=$PWD/3rdparty/funq-master/client \
 FUNQ_SERVER_DIR=$PWD/3rdparty/funq-master/server \
-python3 tests/gallery_funq/probe_widgets.py SwitchButton
+python3 tests/funq_demo/probe_widgets.py QComboBox
 ```
 
 四个环境变量都要给：探针靠 `FUNQ_CONF` / `FUNQ_ATTACH_EXE` 拉起程序并注入，靠
@@ -129,8 +141,8 @@ python3 tests/gallery_funq/probe_widgets.py SwitchButton
 没有别的地方替它加）。`ctest` 跑用例时这几项由 CMake 在 `add_test` 里注入，
 手工调用才要自己设。
 
-探针会拉起程序、注入、把路径含该关键字的控件全部打印出来。改完界面后重新跑一遍，
-把新路径更新到 `gallery.alias`。
+探针会拉起靶子、注入、把路径含该关键字的控件全部打印出来。拿到路径后更新到
+`funq_target.alias`，或在用例里直接写。
 
 **只想确认某一个控件时，用 pick 模式更直接**——它不开 TCP 服务，而是在整个
 应用上装事件钩子（`libFunq/pick.cpp`），**按住 Ctrl+Shift 点任何控件**，它的
@@ -171,8 +183,9 @@ runner 把它翻译成环境变量 `FUNQ_MODE_PICK=1` 塞进被测进程，自�
   	text: "登录"
   ```
 
-  于是 demo_app 的界面日志窗口与日志文件（`%LOCALAPPDATA%/<组织>/<应用>/logs/`）、
-  gallery 的界面日志面板里**都能看到**。要看路径就打开日志窗口点，最省事
+  于是被测程序的界面日志窗口与日志文件（`%LOCALAPPDATA%/<组织>/<应用>/logs/`）
+  里**都能看到**（装了 Qt 消息重定向的才有界面日志面板，demo_app 有）。要看路径
+  就打开日志窗口点，最省事
   （日志窗口的条目样式带 `white-space:pre-wrap`，否则富文本会把这块压成一行——
   见 `log_output_panel.cpp` 的 `buildEntryHtml`）
 - **别指望 stdout 一定有人接**：被测程序是 GUI 程序，若它是被 Python 经管道链
@@ -187,8 +200,9 @@ runner 把它翻译成环境变量 `FUNQ_MODE_PICK=1` 塞进被测进程，自�
 
 ### 用别名让用例不怕路径变化
 
-`tests/gallery_funq/gallery.alias` 是 funq 的别名表（`友好名 = 路径`），用例里可以
-写 `self.funq.widget('switch_button')`。路径变了只改这一处。
+`tests/funq_demo/funq_target.alias` 是 funq 的别名表（`友好名 = 路径`），用例里可以
+写 `self.funq.widget('submit_button')` 而不必铺开一长串路径。靶子的控件都带
+objectName，路径本身已经稳定，这份表存在的意义只是缩短写法。
 
 ### 两个坑
 
@@ -212,18 +226,18 @@ runner 把它翻译成环境变量 `FUNQ_MODE_PICK=1` 塞进被测进程，自�
 处理：
 
 ```bat
-taskkill /F /IM libui_gallery.exe
+taskkill /F /IM funq_target.exe
 ```
 
 ```bash
-pkill -f libui_gallery
+pkill -f funq_target
 ```
 
 Linux 侧走不到「库被占用删不掉」那一段——允许删除正在使用的文件——但残留进程
 一样占着显示连接与端口，仍要清掉。
 
 **构建类型与位数必须一致。** Debug 的 `libFunq.dll` 链 `Qt5Cored.dll`，注入 Debug 的
-gallery 才有同一套 Qt 运行时；拿 Release 的库注入 Debug 的程序会在一个进程里加载
+靶子才有同一套 Qt 运行时；拿 Release 的库注入 Debug 的程序会在一个进程里加载
 两套 Qt。位数同理（`runner_win.py` 走 `CreateRemoteThread`，32 位注不进 64 位进程）。
 
 **需要桌面环境。** 测试要真实窗口与事件循环，纯 CI 容器里跑不了；WSL 下靠 WSLg。
@@ -238,7 +252,7 @@ gallery 才有同一套 Qt 运行时；拿 Release 的库注入 Debug 的程序�
 | 注入时机 | 被测程序已在运行 | 构造器跑在 `main()` 之前，库内线程自旋等 `QCoreApplication` 就绪 |
 
 两侧的包装脚本都由 CMake 生成到构建目录，模板分别是
-`tests/gallery_funq/funq_attach.bat.in` 与 `funq_attach.sh.in`。
+`tests/funq_demo/funq_attach.bat.in` 与 `funq_attach.sh.in`。
 
 **全新编出来的第一次运行可能卡在连接超时。** 实测出现过一次：刚编完的二进制
 第一次被拉起时，funq 客户端 10 秒的连接预算（`client.py` 的 `wait_for`）没等到

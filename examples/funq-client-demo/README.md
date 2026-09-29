@@ -3,13 +3,13 @@
 用两个终端把 funq 的 server 侧与 client 侧**分开**跑，看清它的分工。被测程序
 是本仓自己的 `demo_app`——「怎么测我自己的程序」才是这个示例要回答的问题。
 
-与本仓另一套 funq 测试（[tests/gallery_funq](../../tests/gallery_funq/)）的分工：
+与本仓另一套 funq 测试（[tests/funq_demo](../../tests/funq_demo/)）的分工：
 
-| | `tests/gallery_funq` | 本示例 |
+| | `tests/funq_demo` | 本示例 |
 |---|---|---|
 | 形态 | 一条命令跑完的回归测试 | 两个终端各起一边的手动示例 |
 | 被测程序由谁拉起 | 用例自己拉起（`add_test` → Python → funq） | **你已经手动起好了**，client 只管连 |
-| 靶子 | gallery（qt-libui 仓的示例） | `demo_app`（本仓的产品） |
+| 靶子 | `examples/funq_target`（专门的测试靶子） | `demo_app`（本仓的产品） |
 | 适合 | 卡住 funq 的集成不回归 | 理解 funq 怎么用、摸清自己程序的控件路径 |
 
 ## 跑起来
@@ -52,7 +52,7 @@ python -m funq_server.runner              FunqClient(host, port)
 怎么起、Qt 在哪），client 侧只知道一个 `host:port`。所以用例可以完全不管被测
 程序是 exe 还是 AppImage、是 Debug 还是 Release——换个端口就能接管另一个程序。
 
-对照 `tests/gallery_funq` 那条链路就看得更清楚：那边 client 手里还攥着一份
+对照 `tests/funq_demo` 那条链路就看得更清楚：那边 client 手里还攥着一份
 `funq.conf`（写明了可执行文件路径与工作目录），由它负责把程序拉起来。那是
 **自动化**需要的，不是 funq 的必需。
 
@@ -103,7 +103,7 @@ page->setObjectName(QStringLiteral("settingsPageLog"));
 ```
 
 **该实测就实测，别推。** 本仓的探针在
-[tests/gallery_funq/probe_widgets.py](../../tests/gallery_funq/probe_widgets.py)，
+[tests/funq_demo/probe_widgets.py](../../tests/funq_demo/probe_widgets.py)，
 能列出运行中程序的全部控件路径，也能按路径查属性。
 
 **③ 脚本半途失败会把对话框留在屏幕上。**
@@ -158,7 +158,7 @@ stderr 说明原因。
 2. 你的程序要是也需要 Qt 的库路径，把它加进 `PATH`（Windows）/ `LD_LIBRARY_PATH`
    （Linux）——示例里 Windows 那行就是干这个的
 3. 控件路径自己跑一遍探针拿。本仓的探针在
-   [tests/gallery_funq/probe_widgets.py](../../tests/gallery_funq/probe_widgets.py)，
+   [tests/funq_demo/probe_widgets.py](../../tests/funq_demo/probe_widgets.py)，
    能列出运行中程序的全部控件路径、也能按路径查属性
 
 ## 前置条件
