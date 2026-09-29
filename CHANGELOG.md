@@ -12,7 +12,7 @@
 
 - **接入 FFTW，新增频谱示例 `examples/fft_demo`**：FFTW 3.3.11 走本仓其他源码
   依赖同样的路子（tarball 入库 → configure 解压 → 打补丁 → `add_subdirectory`），
-  静态、单精度（`fftw3f`）、线程合并进主库。**五个值得记的点**：① `BUILD_TESTS`
+  静态、单精度（`fftw3f`）、线程合并进主库。**六个值得记的点**：① `BUILD_TESTS`
   默认 ON，会 `enable_testing`、把 32x64/ib256 这些 bench 用例塞进我们的 ctest
   还多编一个 bench 工具——上游给了开关，用 `set(... CACHE BOOL ... FORCE)` 钉掉
   （zlib 那份是同一件事但它没给开关，所以只能打补丁）；② `cmake_minimum_required
@@ -25,7 +25,14 @@
   `add_subdirectory` 前后夹住而不是写进 cache——补丁把 FFTW 的 policy 抬到 3.15
   之后 CMP0077 是 NEW，`option()` 不覆盖同名普通变量，这三件事都实测过；
   ⑤ x64 下 `HAVE_SSE2` 探测不到（`/arch:SSE2` 不是合法的 x64 选项，SSE2 本就是
-  基线），但 AVX / AVX2 正常打开，x86 下三个都开。示例本身是一条完整链路：
+  基线），但 AVX / AVX2 正常打开，x86 下三个都开（Linux 侧三个都探测得到）；
+  ⑥ **上游一处只在 GCC 侧炸的 CMake 缺陷**：它把 AVX2 与 FMA 两个编译标志分写成
+  两句 `set_source_files_properties`，而两句写的是同一个 `COMPILE_FLAGS`——后一句
+  覆盖前一句。GCC 侧探测得到 `-mfma`，于是 avx2-128 的源文件只带 `-mfma` 去编，
+  撞上 `simd-avx2-128.h` 里「GCC 且未定义 `__AVX2__` 就 `#error`」的守卫，构建
+  直接失败；MSVC 侧侥幸躲过（`/arch:FMA` 不是它的合法选项，探测失败、覆盖没发生，
+  所以它一直是正确的 `/arch:AVX2`）。`patches/fftw/0002` 把两句合成一句、两个
+  标志都给上。示例本身是一条完整链路：
   合成信号（三个可调分量 + 噪声）→ 加窗（矩形 / Hann / Hamming）→ 单精度 r2c →
   **三种谱视图**（单边幅度 / 双边幅度 / 单边 PSD dB·Hz⁻¹，切换即重算，因为那是
   视图不是信号）→ **插值找峰**（报出各分量的频率与幅度，频率细化到 bin 以内）→

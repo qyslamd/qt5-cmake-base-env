@@ -132,6 +132,14 @@ apply_patch_to_dir("${3RDPARTY_DIR}/zlib-v1.2.11"
 # 不改的话 Windows 侧（CMake 4.2）配置阶段直接失败。不是 option，改不了，只能补丁
 apply_patch_to_dir("${3RDPARTY_DIR}/fftw-3.3.11"
     "${PATCHES_DIR}/fftw/0001-bump-cmake-minimum-version.patch")
+# FFTW 的 CMakeLists 把 AVX2 与 FMA 两个编译标志分写成两句
+# set_source_files_properties，而它们写的是同一个 COMPILE_FLAGS —— 后一句覆盖前
+# 一句。GCC 侧探测得到 -mfma，于是 avx2-128 的源文件只带 -mfma 去编，撞上
+# simd-avx2-128.h 里「GCC 且没定义 __AVX2__ 就 #error」的守卫，直接构建失败；
+# MSVC 侧侥幸躲过（/arch:FMA 不是它的合法选项，探测失败、覆盖没发生）。
+# 合成一句把两个标志都给上，两个平台都正确
+apply_patch_to_dir("${3RDPARTY_DIR}/fftw-3.3.11"
+    "${PATCHES_DIR}/fftw/0002-fix-avx2-compile-flags.patch")
 
 message(STATUS "Patches applied.")
 message(STATUS "")
