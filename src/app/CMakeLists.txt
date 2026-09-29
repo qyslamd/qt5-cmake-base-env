@@ -37,6 +37,8 @@ set(TARGET_SRCS
     log_filter_bar.h
     log_output_panel.cpp
     log_output_panel.h
+    widgets/switch_button.cpp
+    widgets/switch_button.h
     )
 
 # 登录认证相关的三个对话框：APP_ENABLE_AUTH=OFF 时整块不编（core 侧的 auth/
@@ -87,7 +89,6 @@ target_link_libraries(${TARGET_NAME} PRIVATE
     ${APP_TARGET_PREFIX}_style
     ${APP_TARGET_PREFIX}_guidance
     ${APP_TARGET_PREFIX}_core
-    qt-libui::libui
     qcustomplot
     Qt5::Widgets
     Qt5::Core

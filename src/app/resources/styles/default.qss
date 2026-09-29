@@ -118,36 +118,6 @@ QToolButton#loginCloseBtn:hover {
   gridline-color: #f0f0f0;
 }
 
-/* ========== SplashScreen（启动画面） ========== */
-/* 跨仓契约：下列 objectName 由 qt-libui 的 SplashScreen 设置（见其
-   splash_screen.cpp）。改名前请同步确认该库未改名，否则此处样式静默失效。
-   进度条的底色、高度、文字居中已由底座层的 QProgressBar 提供，这里只覆盖
-   它自己的强调色 */
-#splashContent {
-  background: white;
-  border: 1px solid #D0D0D0;
-  border-radius: 12px;
-}
-#splashLogo {
-  background: transparent;
-}
-#splashTitle {
-  background: transparent;
-  color: #1E1E1E;
-  font-size: 24px;
-  font-weight: bold;
-}
-#splashStatus {
-  background: transparent;
-  color: #666666;
-  font-size: 13px;
-}
-#splashProgressBar::chunk {
-  background-color: #007ACC;
-  border-radius: 4px;
-}
-
-/* ========== LogWindow（日志窗口） ========== */
 #logWindow {
   background: white;
 }

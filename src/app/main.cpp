@@ -14,12 +14,12 @@
 //    ├─ 功能引导（控制器 + 桥接）─ 必须在登录之前
 //    │    外部脚本的第一步常常跑在登录对话框上，那时主窗口还不存在
 //    ├─ 登录
-//    ├─ Splash：会话 → 配置 → 主窗口
+//    ├─ 初始化三步（会话 → 配置 → 主窗口）
 //    ├─ 主窗口之后接线（引导的 viewport/主题/菜单、单实例激活、退出保存）
 //    └─ app.exec() → 清理
 //
 // 对象所有权的约定（三种并存是有意的，别随手改）：
-//   短生命周期                  → 栈对象（LoginDialog / SplashScreen /
+//   短生命周期                  → 栈对象（LoginDialog /
 //                                 MainWindow）
 //   活到进程结束，且是 QObject   → 挂到 app 或宿主窗口下，由 Qt 父子回收
 //   活到进程结束，但不是 QObject → unique_ptr（如 GuidanceBridge，它不能有
@@ -45,7 +45,6 @@
 #include <QTimer>
 #include <QVector>
 #include <QWidget>
-#include <qt-libui/splash_screen.h>
 
 #include "AppInfo.h"
 #include "AppVersion.h"
@@ -430,36 +429,15 @@ int main(int argc, char* argv[]) {
   LOG_INFO("MAIN", "未启用登录认证（APP_ENABLE_AUTH=OFF），直接进入主界面");
 #endif
 
-  // ========================= 6. Splash 与主窗口 =========================
-  // Splash 只负责报进度，干活的是中间那几个具名函数——模板使用者把耗时初始化
-  // 插在步骤之间即可，Splash 不需要知道主窗口内部结构
-  SplashScreen splash;
-  // logo 由消费方提供（库不携带资源），用应用图标
-  splash.setLogo(QIcon(":/resources/icons/icon.ico"));
-  splash.show();
-  QCoreApplication::processEvents();
-
-  splash.setStatusText(QStringLiteral("初始化用户会话"));
-  splash.setProgress(25);
-  QCoreApplication::processEvents();
+  // ========================= 6. 初始化与主窗口 =========================
+  // 三步实事按原顺序执行（曾套在 Splash 启动画面里报进度，画面随 qt-libui
+  // 停用而移除）。顺序有约束：会话与配置都先于主窗口构造——要把耗时初始化
+  // 插进来，就插在这两步与 MainWindow 之间
   InitializeSession();
-
-  splash.setStatusText(QStringLiteral("加载用户配置"));
-  splash.setProgress(50);
-  QCoreApplication::processEvents();
   const QSize window_size = LoadWindowSize();
 
-  splash.setStatusText(QStringLiteral("创建主界面"));
-  splash.setProgress(80);
-  QCoreApplication::processEvents();
   MainWindow w;
   w.resize(window_size);
-
-  splash.setStatusText(QStringLiteral("启动完成"));
-  splash.setProgress(100);
-  QCoreApplication::processEvents();
-  splash.finish();
-
   w.show();
 
   // ========================= 7. 窗口之后的接线 =========================
