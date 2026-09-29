@@ -252,10 +252,13 @@ Linux 侧走不到「库被占用删不掉」那一段——允许删除正在�
 relwithdebinfo 构建里这条用例每个方法都 `ERROR`，然后挂到 ctest 的 180 秒超时——
 看着像卡死，实际是注入从未成功。
 
-用**嵌入式（embeddable）**分发包当这个 Python 时多一步：它自带的
-`python312._pth` 会让解释器**忽略 `PYTHONPATH`**（`funq_attach` 脚本正是靠它挂
-funq 的两个包），要么把 `._pth` 里的 `import site` 放开，要么直接把 client /
-server 两个目录列进 `._pth`。位数对得上但导入失败时，报的会是另一个错，别混。
+用**嵌入式（embeddable）**分发包当这个 Python 时多一步：它自带 `pythonNN._pth`，
+而这个文件一旦存在，解释器就进**隔离模式——`PYTHONPATH` 会被整个忽略**（`funq_attach`
+脚本正是靠 PYTHONPATH 挂 funq 的两个包，所以到这儿就断了）。写 `import site` 也救不
+回来：它只补 `<home>/site-packages`。**必须把 funq 的 client / server 两个目录直接
+列进 `._pth`**。本仓自带的那两份就是 CMake 在解压后这么写的
+（`cmake/extract_dependencies.cmake` 的 `configure_embedded_python_pth`），随安装包
+分发的那份同理（见 `src/app/CMakeLists.txt` 的 `make_funq_kit`）。
 
 **需要桌面环境。** 测试要真实窗口与事件循环，纯 CI 容器里跑不了；WSL 下靠 WSLg。
 

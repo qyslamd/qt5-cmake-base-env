@@ -83,7 +83,15 @@ function(extract_if_needed archive_file)
     # - .tar.gz 使用 tar 命令解压
     # - .zip 使用 CMake 内置的 file(ARCHIVE_EXTRACT) 解压
     # - .7z 使用 7z 命令解压
-    if("${archive_file}" MATCHES "\\.zip$")
+    # python 的 embeddable zip 与别的包不同：里面**没有顶层目录**（python.exe 就在
+    # 根上），而通用分支是直接解到 3rdparty/ 的——照那条走会把 python.exe、DLL、
+    # 标准库全撒在 3rdparty 根下。这类包按"自己一个目录"解
+    if("${archive_file}" MATCHES "^python-.*-embed-.*\\.zip$")
+        message(STATUS "  Detected embedded-python zip (no top level dir), extracting into its own folder...")
+        file(MAKE_DIRECTORY "${dir_path}")
+        file(ARCHIVE_EXTRACT INPUT "${archive_path}" DESTINATION "${dir_path}")
+        set(extract_success TRUE)
+    elseif("${archive_file}" MATCHES "\\.zip$")
         message(STATUS "  Detected zip format, using CMake built-in extract...")
         file(ARCHIVE_EXTRACT INPUT "${archive_path}" DESTINATION "${3RDPARTY_DIR}")
         set(extract_success TRUE)
@@ -172,6 +180,29 @@ function(extract_if_needed archive_file)
     endif()
 endfunction()
 
+# python embeddable 的 sys.path 由紧挨着 python.exe 的 python38._pth 决定，而且
+# 一旦存在这个文件，解释器就进**隔离模式**：**PYTHONPATH 会被整个忽略**（实测踩过，
+# 当时误以为是"没写 import site"——写 `import site` 只补 <home>/site-packages，
+# 并不能让 PYTHONPATH 生效）。所以 funq 那两个包目录只能**列在这里**：
+#
+#   ..\funq-master\client / server    解析自本文件所在目录（3rdparty/python-*），
+#                                     于是 -DFUNQ_PYTHON 指向这份解释器时，注入
+#                                     脚本里那句 PYTHONPATH 有没有都无所谓
+#
+# 每次 configure 重写一遍（幂等且便宜）：解压产物会被重解压覆盖，而这几行必须始终在
+function(configure_embedded_python_pth dir_name)
+    set(dir_path "${3RDPARTY_DIR}/${dir_name}")
+    if(NOT EXISTS "${dir_path}")
+        return()
+    endif()
+    file(GLOB pth_files "${dir_path}/*._pth")
+    foreach(pth_file ${pth_files})
+        file(WRITE "${pth_file}"
+            "python38.zip\n.\n..\\funq-master\\client\n..\\funq-master\\server\n")
+        message(STATUS "  [OK]   ${dir_name} 的 ._pth 已写入（含 funq 的两个包目录）")
+    endforeach()
+endfunction()
+
 # 主执行逻辑
 message(STATUS "")
 message(STATUS "========================================")
@@ -190,6 +221,16 @@ endif()
 foreach(archive_file ${DEPENDENCY_ARCHIVES})
     extract_if_needed(${archive_file})
 endforeach()
+
+# python 只 Windows 需要（Linux 用系统 python3），所以不进上面那张"所有平台"的
+# 清单。两份都解出来，用哪一份由消费方按目标架构决定（见 tests/funq_demo 与
+# src/app/CMakeLists.txt 里打安装包的那段）
+if(WIN32)
+    extract_if_needed("python-3.8.8-embed-amd64.zip")
+    extract_if_needed("python-3.8.8-embed-win32.zip")
+    configure_embedded_python_pth("python-3.8.8-embed-amd64")
+    configure_embedded_python_pth("python-3.8.8-embed-win32")
+endif()
 
 message(STATUS "========================================")
 message(STATUS "Dependency extraction complete!")

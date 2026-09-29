@@ -18,14 +18,32 @@ if(NOT BUILD_FUNQ)
     return()
 endif()
 
-# 注入是 Python 进程在调 CreateRemoteThread + LoadLibrary，而 Windows 不允许跨
-# 位数注入——64 位 Python 注不进 32 位靶子（反过来也一样）。机器 PATH 上那个
-# python 未必匹配，所以留一个指定入口；留空则自动找
+# 解释器按这个顺序找：**仓库自带的那份**（按目标架构挑）→ -DFUNQ_PYTHON 指定的
+# → PATH 上的。
+#
+# 自带那份优先，为的是让测试不依赖"这台机器上装了什么"：版本（3.8.8）与位数都由
+# 仓库定死，也就不会再出现"64 位 Python 注不进 32 位靶子"那类只有超时能看出来的
+# 问题——注入是 Python 进程在调 CreateRemoteThread + LoadLibrary，跨位数是不允许的。
+# 两份的解释器在解压阶段就位（见 cmake/extract_dependencies.cmake），且随安装包
+# 一起发（见 src/app/CMakeLists.txt 的 make_funq_kit）
+if(WIN32)
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        set(FUNQ_BUNDLED_PYTHON
+            "${CMAKE_SOURCE_DIR}/3rdparty/python-3.8.8-embed-amd64/python.exe")
+    else()
+        set(FUNQ_BUNDLED_PYTHON
+            "${CMAKE_SOURCE_DIR}/3rdparty/python-3.8.8-embed-win32/python.exe")
+    endif()
+endif()
+
 set(FUNQ_PYTHON "" CACHE FILEPATH
-    "funq UI 测试用的 Python 解释器（留空则从 PATH 找；位数须与目标架构一致）")
+    "funq UI 测试用的 Python 解释器（留空则用仓库自带的那份，再退回 PATH；位数须与目标架构一致）")
 
 if(FUNQ_PYTHON)
     set(PYTHON_EXECUTABLE "${FUNQ_PYTHON}")
+elseif(FUNQ_BUNDLED_PYTHON AND EXISTS "${FUNQ_BUNDLED_PYTHON}")
+    set(PYTHON_EXECUTABLE "${FUNQ_BUNDLED_PYTHON}")
+    message(STATUS "funq 的 UI 测试用仓库自带的 Python: ${PYTHON_EXECUTABLE}")
 else()
     find_program(PYTHON_EXECUTABLE NAMES python python3)
 endif()

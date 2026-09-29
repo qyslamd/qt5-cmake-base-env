@@ -232,11 +232,13 @@ AppImage 内是 0.96 MB / stripped / 0 个符号，两者对照成立。但**没
 `addr2line -e <归档二进制>`，断言解析出的符号名非空；Windows 侧用归档的
 exe + PDB 解析 minidump。
 
-### 4. 待你拍板：`scripts/make_appimage.sh` 是否入库
+### 4. ~~待你拍板：`scripts/make_appimage.sh` 是否入库~~（已了结：前提是错的）
 
-该文件由 configure 生成且烘焙本机路径，目前已在 `.gitignore` 中忽略。Windows 侧
-的同类生成物（`scripts/make_installer.bat`、`scripts/make_install_package.iss`）
-是入库的，所以这是一处**约定不一致**，需要决定沿用哪一边。
+原判据是"Windows 侧的同类生成物是入库的，所以两平台约定不一致"。**实测否定**：
+`git check-ignore` 逐个查过，`scripts/make_installer.bat`、
+`scripts/make_install_package.iss`、`scripts/make_appimage.sh` **三个都被忽略**，
+全是 configure 生成、入库没有意义的产物。结论：约定本来就是一致的，没有要拍的
+板。（2026-09-29 做 funq 随包分发时顺手核的。）
 
 ### 5. guidance 库的告警通道：`qWarning` 还是 `Logger` 宏
 

@@ -299,6 +299,13 @@ if(WIN32)
     else()
         set(ISCC_APP_HAS_CRASHPAD "0")
     endif()
+    # funq 测试工具是否随包分发。BUILD_FUNQ=ON 就带上整套（客户端 + 服务端 +
+    # 注入库 + 位数匹配的 Python），装完即用、用户不必自备解释器
+    if(BUILD_FUNQ)
+        set(ISCC_APP_HAS_FUNQ "1")
+    else()
+        set(ISCC_APP_HAS_FUNQ "0")
+    endif()
 
     configure_file(
         "${CMAKE_SOURCE_DIR}/cmake/template/make_install_package.iss.in"
@@ -310,6 +317,112 @@ if(WIN32)
         "${CMAKE_SOURCE_DIR}/scripts/make_installer.bat"
         @ONLY
     )
+
+    #=======================================
+    # make_funq_kit target — 组装随包分发的 funq 工具目录（<bin>/funq）
+    #
+    # "装完就能用"全在这个目录**是相对**的：._pth 的条目、两个 .bat 里的路径
+    # 都以本目录为根解析（%~dp0 / ..\ ），所以装到哪台机器、哪个目录都成立。
+    # 这是本仓唯一一处"发布件里带测试工具"的地方，由 BUILD_FUNQ 决定要不要
+    if(BUILD_FUNQ)
+        set(FUNQ_KIT_DIR "${CMAKE_BINARY_DIR}/bin/funq")
+        # 解释器按目标架构挑一份。两份在解压阶段就已就位
+        # （见 cmake/extract_dependencies.cmake），这里只负责挑与拷
+        if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+            set(FUNQ_KIT_PYTHON_SRC
+                "${CMAKE_SOURCE_DIR}/3rdparty/python-3.8.8-embed-amd64")
+        else()
+            set(FUNQ_KIT_PYTHON_SRC
+                "${CMAKE_SOURCE_DIR}/3rdparty/python-3.8.8-embed-win32")
+        endif()
+
+        # 装出来的那份 ._pth：条目都是相对 python\ 的（._pth 按它所在目录解析
+        # 每一条），因此不依赖安装位置；也不写 import site——这里不需要
+        # PYTHONPATH，路径直接列出来少一层变数
+        set(FUNQ_KIT_PTH "${CMAKE_CURRENT_BINARY_DIR}/funq-kit-python38._pth")
+        file(WRITE "${FUNQ_KIT_PTH}" "python38.zip\n.\n..\\client\n..\\server\n")
+
+        # 注入库（libFunQ.dll）链的 Qt 模块。取自 dumpbin /dependents 的实测结果：
+        # 换 funq 版本或改它的构建选项后要重新核对这一行
+        set(FUNQ_KIT_QT_REQUIRED Qt5Core Qt5Gui Qt5Widgets Qt5Network Qt5Test)
+
+        add_custom_target(make_funq_kit
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${FUNQ_KIT_DIR}"
+            # 解释器整目录同步：重复构建不反复拷十几兆
+            COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+                "${FUNQ_KIT_PYTHON_SRC}" "${FUNQ_KIT_DIR}/python"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${FUNQ_KIT_PTH}" "${FUNQ_KIT_DIR}/python/python38._pth"
+            # 客户端与服务端两个**包**（Python 包本身就是源码，CeCILL 要求的
+            # "随包提供源码"对这部分自然成立）。只拷包目录，不带文档与用例
+            COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+                "${CMAKE_SOURCE_DIR}/3rdparty/funq-master/client/funq"
+                "${FUNQ_KIT_DIR}/client/funq"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+                "${CMAKE_SOURCE_DIR}/3rdparty/funq-master/server/funq_server"
+                "${FUNQ_KIT_DIR}/server/funq_server"
+            # 源码树里的 __pycache__ 是别的 Python 编的，随包发只会让杀软多看
+            # 两眼（本仓就被隔离过一个 .pyc）。删掉，让目标机的解释器自己生成
+            COMMAND ${CMAKE_COMMAND} -E rm -rf
+                "${FUNQ_KIT_DIR}/client/funq/__pycache__"
+            COMMAND ${CMAKE_COMMAND} -E rm -rf
+                "${FUNQ_KIT_DIR}/server/funq_server/__pycache__"
+            # 注入库**必须是本构建配置那一份**：暂存目录里按配置分名放着三份，
+            # 拿 Debug 的注进 release 程序会在一个进程里载入两套 Qt，症状是
+            # LoadLibrary 返回 0 或连接超时。runner 只认 libFunQ.dll 这个名字
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${FUNQ_INJECTOR_LIBRARY}"
+                "${FUNQ_KIT_DIR}/server/funq_server/libFunQ.dll"
+            # 自测入口（驱动被测程序走几步）与单实例探针
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_SOURCE_DIR}/examples/funq-client-demo/funq_client_demo.py"
+                "${FUNQ_KIT_DIR}/funq_client_demo.py"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_SOURCE_DIR}/examples/funq-client-demo/check_no_instance.py"
+                "${FUNQ_KIT_DIR}/check_no_instance.py"
+            # 许可证与源码：CeCILL v2.1 是 copyleft，随**分发**就带这些义务。
+            # 成本几乎为零——源码包只有 168 KB，而它一劳永逸地把这件事做干净
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_SOURCE_DIR}/3rdparty/funq-master/LICENCE.txt"
+                "${FUNQ_KIT_DIR}/LICENCE.txt"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_SOURCE_DIR}/3rdparty/funq-master/LICENCE-fr.txt"
+                "${FUNQ_KIT_DIR}/LICENCE-fr.txt"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${FUNQ_KIT_DIR}/source"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_SOURCE_DIR}/3rdparty/funq-master.tar.gz"
+                "${FUNQ_KIT_DIR}/source/funq-master.tar.gz"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+                "${CMAKE_SOURCE_DIR}/patches/funq" "${FUNQ_KIT_DIR}/source/patches"
+            # 注入库独有、主程序不需要的 Qt DLL（实测缺 Qt5Test 会报成"像是
+            # 位数不匹配"）。windeployqt 只知道主程序要什么，所以这一步要在它
+            # 之后、按 bin\ 里实际有什么来算——故用 -P 脚本在构建期做
+            COMMAND ${CMAKE_COMMAND}
+                -DQT_BIN_DIR="${QT_BIN_DIR}"
+                -DBIN_DIR="${CMAKE_BINARY_DIR}/bin"
+                -DDEST_DIR="${FUNQ_KIT_DIR}/qt"
+                "-DFUNQ_QT_REQUIRED=${FUNQ_KIT_QT_REQUIRED}"
+                -P "${CMAKE_SOURCE_DIR}/cmake/collect_funq_qt_deps.cmake"
+            # 三份给用户看的脚本/说明，路径全相对
+            COMMENT "Assembling the funq tool kit (bin/funq)..."
+        )
+        add_dependencies(make_funq_kit ${TARGET_NAME} stage_funq_injector)
+
+        # 随包那份用的端口。与 examples/funq-client-demo 里那份是同名 CACHE 变量
+        # （同一个默认值）：谁先被处理谁建条目，用户 -D 覆盖时两边一起变。
+        # 这里必须自己有默认值——src/app 比 examples 先处理，等不到那边定义
+        set(FUNQ_DEMO_PORT 9000 CACHE STRING
+            "funq 工具监听的端口（手动示例与随包工具共用）")
+
+        # 生成到 <bin>/funq 下，configure_file 要求目标目录已存在
+        file(MAKE_DIRECTORY "${FUNQ_KIT_DIR}")
+        configure_file("${CMAKE_SOURCE_DIR}/cmake/template/funq-server.bat.in"
+            "${FUNQ_KIT_DIR}/funq-server.bat" @ONLY)
+        configure_file("${CMAKE_SOURCE_DIR}/cmake/template/funq-self-test.bat.in"
+            "${FUNQ_KIT_DIR}/funq-self-test.bat" @ONLY)
+        configure_file("${CMAKE_SOURCE_DIR}/cmake/template/funq-kit-readme.txt.in"
+            "${FUNQ_KIT_DIR}/README.txt" @ONLY)
+    endif()
 
     #=======================================
     # make_symbols target — 归档发布符号
@@ -380,6 +493,10 @@ if(WIN32)
         endif()
         if(TARGET make_symbols)
             add_dependencies(make_package make_symbols)
+        endif()
+        # 随包分发 funq 时，工具目录必须在 ISCC 之前组装好（ISCC 从 bin/ 取件）
+        if(TARGET make_funq_kit)
+            add_dependencies(make_package make_funq_kit)
         endif()
     endif()
 else() # 非 Windows：Linux 侧用 AppImage

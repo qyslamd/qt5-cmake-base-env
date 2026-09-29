@@ -10,6 +10,29 @@
 
 ### 新增
 
+- **funq 工具随安装包分发（`BUILD_FUNQ=ON` 时）**：客户机器上不必再装 Python——
+  安装后多一个 `funq\` 目录：按架构挑的 Python 3.8.8 embeddable、funq 的客户端
+  与服务端包、本构建配置的注入库、两个启动脚本（`funq-server.bat` 起被测程序
+  并注入、`funq-self-test.bat` 驱动它走七步）、许可证与源码。**实测**：在把
+  PATH 剥到只剩系统目录（机器上的 Python 一律找不到）的前提下，用套件里那份
+  解释器把装好的程序驱动完七步，退出码 0；x64 与 x86 两个 relwithdebinfo 各打
+  一个安装包，39 MB（同版本不带它时 33 MB）。三条落地时才暴露的细节值得记：
+  ① python 的 embeddable zip **没有顶层目录**，通用解压分支会把它摊到
+  `3rdparty/` 根上，得单独走一条"解到自己目录"的路；② `pythonNN._pth` 一旦存在，
+  解释器就进**隔离模式、`PYTHONPATH` 被整个忽略**（写 `import site` 也救不回来，
+  它只补 `site-packages`），所以 funq 的两个包目录必须直接列进 `._pth`——
+  本仓自带的两份与随包那份都是这么生成的；③ **注入库有主程序不需要的 Qt 依赖**
+  （实测 `Qt5Test.dll`：funq 的库链了 `Qt5::Test`，而主程序在 `BUILD_QT_TESTING=OFF`
+  时不链），windeployqt 按主程序的依赖决定部署什么，于是注入时报
+  `LoadLibraryW() returned 0`、last error 0，runner 的提示还把人往"像是位数不匹配"
+  上带。现在由 `cmake/collect_funq_qt_deps.cmake` 在构建期按 `bin\` 里实际有什么
+  补齐到 `funq\qt\`，启动脚本把它挂进 PATH。顺带：测试侧在 Windows 上改为**优先
+  用仓库自带的解释器**（位数与版本由仓库定死），x86 构建不再需要手动指
+  `-DFUNQ_PYTHON`，那个"注不进 32 位靶子就卡 180 秒"的问题从根上没有了
+- **安装包只带真正会加载的那份 Qt 翻译**：应用程序的文案是硬编码中文、
+  SARibbon 的中文编在 exe 的 qrc 里，程序只加载 `qt_zh_CN.qm`；而 windeployqt
+  会按自己的规则部署二十几种语言（实测 24 个文件 / 3.7 MB）。`.iss` 里那条
+  `translations\*.qm` 收窄成 `qt_zh_CN.qm`，安装包省下 3.6 MB
 - **接入 FFTW，新增频谱示例 `examples/fft_demo`**：FFTW 3.3.11 走本仓其他源码
   依赖同样的路子（tarball 入库 → configure 解压 → 打补丁 → `add_subdirectory`），
   静态、单精度（`fftw3f`）、线程合并进主库。**六个值得记的点**：① FFTW 自己的

@@ -19,6 +19,12 @@
 ;   0 = 自研崩溃处理，进程内捕获，无外部依赖文件
 #define HasCrashpadHandler @ISCC_APP_HAS_CRASHPAD@
 
+; funq 测试工具是否随包分发。CMake 注入 1 或 0：
+;   1 = BUILD_FUNQ=ON 的构建，bin\funq\ 下有整套工具（含位数匹配的 Python）
+;   0 = 不带，安装包与以前一样
+; 带上是为了让用户装完即用：不必自备 Python，位数也不会配错
+#define HasFunq @ISCC_APP_HAS_FUNQ@
+
 [Setup]
 AppId=@ISCC_APP_ID@
 AppName={#MyAppName}
@@ -74,7 +80,18 @@ Source: "{#WhereAreFiles}\imageformats\*.dll"; DestDir: "{app}\imageformats"; Fl
 Source: "{#WhereAreFiles}\platforms\*.dll"; DestDir: "{app}\platforms"; Flags: ignoreversion
 Source: "{#WhereAreFiles}\styles\*.dll"; DestDir: "{app}\styles"; Flags: ignoreversion
 Source: "{#WhereAreFiles}\sqldrivers\*.dll"; DestDir: "{app}\sqldrivers"; Flags: ignoreversion skipifsourcedoesntexist
-Source: "{#WhereAreFiles}\translations\*.qm"; DestDir: "{app}\translations"; Flags: ignoreversion skipifsourcedoesntexist
+; 只带程序真正会加载的那一份。main.cpp 装的是 qt_zh_CN.qm（应用程序自己的文案
+; 是硬编码中文，SARibbon 的中文是编进 exe 的 qrc），而 windeployqt 按它自己的
+; 规则会部署二十几种语言——实测 24 个文件 / 3.7 MB，装进包里全是死重量。
+; 将来真要多语言，在这里按需加行即可
+Source: "{#WhereAreFiles}\translations\qt_zh_CN.qm"; DestDir: "{app}\translations"; Flags: ignoreversion skipifsourcedoesntexist
+
+; funq 测试工具（仅 BUILD_FUNQ=ON 的构建有）。整目录带上：解释器、客户端与
+; 服务端两个包、注入库、两份 .bat、许可证与源码。里面的路径都是相对的，
+; 装到哪都成立（见 cmake/template/funq-*.in）
+#if HasFunq == 1
+Source: "{#WhereAreFiles}\funq\*"; DestDir: "{app}\funq"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+#endif
 
 ; 配置 + 数据（模板示例，项目未必有这些目录）
 Source: "{#WhereAreFiles}\config\*"; DestDir: "{app}\config"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
