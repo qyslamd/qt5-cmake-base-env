@@ -4,8 +4,10 @@
 # 窗口与事件循环，所以这里直接 add_test 拉起 python 脚本，由 funq 负责注入与
 # 驱动（见 run_funq_tests.py）。
 #
-# 三个前置缺一不可：靶子可执行文件、funq 的库、以及 Python 解释器。
-# 缺任何一个都只跳过并给出提示，不让 ctest 里出现一条注定失败的用例。
+# 四个前置缺一不可：靶子可执行文件、funq 的库、Python 解释器，以及**解释器的
+# 位数与目标架构一致**。缺任何一个都只跳过并给出提示，不让 ctest 里出现一条注定
+# 失败的用例——位数那条尤其要紧：不匹配时用例不报错，而是每个方法都 ERROR、
+# 然后挂到 ctest 的超时（实测 180 秒），看起来像卡死。
 #
 # 靶子曾用 qt-libui 仓的 gallery 示例：那个示例的控件没有 objectName，路径
 # 只能从运行中的进程里探，界面一动就得重探。改用本仓自己的 funq_target 后，
@@ -16,11 +18,48 @@ if(NOT BUILD_FUNQ)
     return()
 endif()
 
-find_program(PYTHON_EXECUTABLE NAMES python python3)
+# 注入是 Python 进程在调 CreateRemoteThread + LoadLibrary，而 Windows 不允许跨
+# 位数注入——64 位 Python 注不进 32 位靶子（反过来也一样）。机器 PATH 上那个
+# python 未必匹配，所以留一个指定入口；留空则自动找
+set(FUNQ_PYTHON "" CACHE FILEPATH
+    "funq UI 测试用的 Python 解释器（留空则从 PATH 找；位数须与目标架构一致）")
+
+if(FUNQ_PYTHON)
+    set(PYTHON_EXECUTABLE "${FUNQ_PYTHON}")
+else()
+    find_program(PYTHON_EXECUTABLE NAMES python python3)
+endif()
 if(NOT PYTHON_EXECUTABLE)
     message(WARNING
         "未找到 Python，funq 的 UI 测试不会注册。"
         "funq 需要 Python 3.8+（仅测试需要，编译不需要）")
+    return()
+endif()
+
+# 位数核对：让候选解释器自己报一次指针宽度，与目标架构比对
+execute_process(COMMAND "${PYTHON_EXECUTABLE}" -c
+                    "import struct; print(struct.calcsize('P') * 8)"
+    OUTPUT_VARIABLE FUNQ_PYTHON_BITS
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+    RESULT_VARIABLE FUNQ_PYTHON_PROBE_RESULT)
+if(NOT FUNQ_PYTHON_PROBE_RESULT EQUAL 0)
+    message(WARNING
+        "${PYTHON_EXECUTABLE} 跑不起来（探针返回 ${FUNQ_PYTHON_PROBE_RESULT}），"
+        "funq 的 UI 测试不会注册。可用 -DFUNQ_PYTHON=<路径> 另指定一个")
+    return()
+endif()
+
+set(FUNQ_TARGET_BITS 32)
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set(FUNQ_TARGET_BITS 64)
+endif()
+if(NOT FUNQ_PYTHON_BITS STREQUAL "${FUNQ_TARGET_BITS}")
+    message(WARNING
+        "Python 是 ${FUNQ_PYTHON_BITS} 位而目标是 ${FUNQ_TARGET_BITS} 位，"
+        "funq 的 UI 测试不会注册——注入要跨位数，Windows 不允许，"
+        "而这里不注册它就会以 180 秒超时的形式表现出来。"
+        "用 -DFUNQ_PYTHON=<${FUNQ_TARGET_BITS} 位 python 的路径> 指定一个匹配的")
     return()
 endif()
 

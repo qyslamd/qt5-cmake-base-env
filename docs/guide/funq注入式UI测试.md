@@ -20,7 +20,9 @@
 
 ## 前置条件
 
-**Python 3.8 或更高版本**，仅测试需要，**编译不需要**。
+**Python 3.8 或更高版本**，仅测试需要，**编译不需要**。Windows 上它的**位数必须
+与目标架构一致**（32 位构建配 32 位 Python），否则这条链路跑不起来——原因与表现
+见下面「排错」里那条。
 
 不需要 `pip install` 任何东西：funq 的客户端与服务端源码就在
 `3rdparty/funq-master/{client,server}` 里，由包装脚本挂到 `sys.path` 上。上游
@@ -236,9 +238,24 @@ pkill -f funq_target
 Linux 侧走不到「库被占用删不掉」那一段——允许删除正在使用的文件——但残留进程
 一样占着显示连接与端口，仍要清掉。
 
-**构建类型与位数必须一致。** Debug 的 `libFunq.dll` 链 `Qt5Cored.dll`，注入 Debug 的
+**构建类型必须一致。** Debug 的 `libFunq.dll` 链 `Qt5Cored.dll`，注入 Debug 的
 靶子才有同一套 Qt 运行时；拿 Release 的库注入 Debug 的程序会在一个进程里加载
-两套 Qt。位数同理（`runner_win.py` 走 `CreateRemoteThread`，32 位注不进 64 位进程）。
+两套 Qt。
+
+**位数这条要对齐三方，而且错的一方不报错、只表现为超时。** 靶子、注入库、以及
+**执注入的那个进程**——Windows 上是跑 `runner_win.py` 的 **Python**，它自己调
+`CreateRemoteThread + LoadLibrary`，而跨位数注入是不允许的（64 位 Python 注不进
+32 位靶子，反之亦然）。所以 Windows 的 x86 构建要用 32 位 Python：机器 PATH 上
+那个通常是 64 位，`tests/funq_demo/CMakeLists.txt` 会在配置期让候选解释器自报一次
+位数并与目标架构比对，不匹配就**跳过注册并提示**，用
+`-DFUNQ_PYTHON=<32 位 python 的路径>` 指定一个匹配的即可。**踩过的样子**：x86 的
+relwithdebinfo 构建里这条用例每个方法都 `ERROR`，然后挂到 ctest 的 180 秒超时——
+看着像卡死，实际是注入从未成功。
+
+用**嵌入式（embeddable）**分发包当这个 Python 时多一步：它自带的
+`python312._pth` 会让解释器**忽略 `PYTHONPATH`**（`funq_attach` 脚本正是靠它挂
+funq 的两个包），要么把 `._pth` 里的 `import site` 放开，要么直接把 client /
+server 两个目录列进 `._pth`。位数对得上但导入失败时，报的会是另一个错，别混。
 
 **需要桌面环境。** 测试要真实窗口与事件循环，纯 CI 容器里跑不了；WSL 下靠 WSLg。
 

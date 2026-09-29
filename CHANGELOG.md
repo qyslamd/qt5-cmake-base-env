@@ -407,6 +407,16 @@
 
 ### 修复
 
+- **x86 构建里 funq 的 UI 测试会卡到 180 秒超时**：注入是 Python 进程在调
+  `CreateRemoteThread + LoadLibrary`，而 Windows 不允许跨位数注入——机器 PATH 上
+  那个 Python 是 64 位，注不进 32 位靶子，于是每个用例都 `ERROR`、随后挂到 ctest
+  的超时，看着像卡死。`tests/funq_demo/CMakeLists.txt` 现在会让候选解释器自报一次
+  指针宽度（`struct.calcsize('P')*8`）并与 `CMAKE_SIZEOF_VOID_P` 比对，不匹配就
+  **跳过注册并说明原因**，另加 `-DFUNQ_PYTHON=<路径>` 供指定一个位数匹配的
+  解释器。实测：x86 relwithdebinfo 自动模式下不再注册（3 条测试全过），指定 32 位
+  Python 后 4 条全过；x64 与 WSL 不受影响。文档的排错段一并订正——原来只写了
+  "32 位注不进 64 位进程"（说的是 DLL 与靶子），没提**执注入的那个 Python 进程
+  也必须同位**，并补上嵌入式分发包的 `._pth` 会忽略 `PYTHONPATH` 这一步
 - **Linux 侧 ctest 多报两条 `example`/`example64` 失败**（`patches/zlib/0002`）：
   crashpad 模式下 `cmake/crashpad/crashpad.cmake` 会把 `3rdparty/zlib-v1.2.11`
   以 `EXCLUDE_FROM_ALL` 加进来给 crashpad 供 `zlibstatic`，而 zlib 自己的
