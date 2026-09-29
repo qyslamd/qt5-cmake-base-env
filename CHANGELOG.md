@@ -12,10 +12,14 @@
 
 - **接入 FFTW，新增频谱示例 `examples/fft_demo`**：FFTW 3.3.11 走本仓其他源码
   依赖同样的路子（tarball 入库 → configure 解压 → 打补丁 → `add_subdirectory`），
-  静态、单精度（`fftw3f`）、线程合并进主库。**六个值得记的点**：① `BUILD_TESTS`
-  默认 ON，会 `enable_testing`、把 32x64/ib256 这些 bench 用例塞进我们的 ctest
-  还多编一个 bench 工具——上游给了开关，用 `set(... CACHE BOOL ... FORCE)` 钉掉
-  （zlib 那份是同一件事但它没给开关，所以只能打补丁）；② `cmake_minimum_required
+  静态、单精度（`fftw3f`）、线程合并进主库。**六个值得记的点**：① FFTW 自己的
+  `BUILD_TESTS` 会 `enable_testing`、把 32x64/ib256 这些 bench 用例塞进我们的
+  ctest 还多编一个 bench 工具。**它的 `BUILD_TESTS` 与本仓顶部的同名**，所以不能
+  写成 `set(... CACHE BOOL ... FORCE)`——那会覆盖本仓那个选项的缓存值、把整个仓库
+  的单元测试一起关掉，而 `ctest` 仍报通过（`CTestTestfile` 与测试二进制都是上一轮
+  留下的，CMake 的生成物只增不删，这一点踩实了）。正确写法与 `BUILD_SHARED_LIBS`
+  一样：普通变量夹在 `add_subdirectory` 前后，靠补丁抬到 3.15 后的 CMP0077 NEW
+  让 `option()` 不覆盖（zlib 那份是同一件事但它没给开关，所以只能打补丁）；② `cmake_minimum_required
   (VERSION 3.0)` 在 CMake 4.x 下直接配置失败，`patches/fftw/0001` 抬到 3.15；
   ③ FFTW 只登记了 `$<INSTALL_INTERFACE:include>`，树内消费者拿不到头文件路径，
   但**不能**给 `fftw3f` 补 INTERFACE 目录——上游有 `install(TARGETS ... EXPORT)`，

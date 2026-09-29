@@ -358,10 +358,6 @@ add_subdirectory(3rdparty/QXlsx-1.5.0/QXlsx)
 # FFTW 频谱计算：静态、单精度、线程合并进主库，取 3rdparty 目录里那份
 # build_msvc2019_ninja.bat 的口径
 if(BUILD_FFTW)
-    # BUILD_TESTS 默认 ON：会 enable_testing 并把 32x64 / ib256 这些 bench 用例
-    # 塞进本仓的 ctest、还多编一个 bench 工具。上游给了开关，钉掉即可——zlib
-    # 那边是同一件事但它没给开关，所以只能打补丁
-    set(BUILD_TESTS OFF CACHE BOOL "不编 FFTW 自带的 bench 与测试" FORCE)
     set(ENABLE_FLOAT ON CACHE BOOL "只编单精度 fftw3f" FORCE)
     set(ENABLE_LONG_DOUBLE OFF CACHE BOOL "不编长双精度" FORCE)
     set(ENABLE_QUAD_PRECISION OFF CACHE BOOL "不编四倍精度" FORCE)
@@ -372,14 +368,23 @@ if(BUILD_FFTW)
     set(ENABLE_AVX2 ON CACHE BOOL "AVX2 内核，CPU 不支持时自动退化" FORCE)
     set(DISABLE_FORTRAN ON CACHE BOOL "不编 Fortran 包装" FORCE)
 
-    # BUILD_SHARED_LIBS 是 CMake 的通用变量，本仓后面还有依赖在读它（QtTesting /
-    # SARibbon / zlib），所以刻意用**普通变量**而非 CACHE：补丁把 FFTW 的
-    # cmake_minimum_required 抬到了 3.15，它的 CMP0077 因此是 NEW，option() 见到
-    # 同名普通变量就不覆盖——既让 FFTW 拿到 OFF，又不写进 cache 波及后面。
-    # add_subdirectory 之后立刻 unset 收尾。这三件事都实测过
+    # 这两个**必须**用普通变量、夹在 add_subdirectory 前后，不能写成 CACHE：
+    #
+    #   BUILD_TESTS      —— FFTW 自己那个选项与本仓顶部的 BUILD_TESTS **同名**。
+    #                       写成 CACHE ... FORCE 会覆盖本仓选项的缓存值，把整个仓库
+    #                       的单元测试一起关掉（踩过：改完之后 ctest 还在报通过，
+    #                       因为 CTestTestfile 与测试二进制都是上一轮留下的，
+    #                       CMake 的生成物只增不删）
+    #   BUILD_SHARED_LIBS —— CMake 的通用变量，后面还有依赖在读它
+    #
+    # 之所以普通变量就能摁住 FFTW 的 option()：补丁把它的 cmake_minimum_required
+    # 抬到了 3.15，CMP0077 因此是 NEW —— option() 见到同名普通变量就不覆盖，也不建
+    # cache 条目。add_subdirectory 之后立刻 unset 收尾，不影响后面的依赖
+    set(BUILD_TESTS OFF)
     set(BUILD_SHARED_LIBS OFF)
     add_subdirectory(3rdparty/fftw-3.3.11)
     unset(BUILD_SHARED_LIBS)
+    unset(BUILD_TESTS)
 
     # FFTW 只登记了 $<INSTALL_INTERFACE:include>，树内消费者拿不到头文件路径。
     # 但**不能**在这里给 fftw3f 补 INTERFACE 目录：上游有
