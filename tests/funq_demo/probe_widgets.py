@@ -1,10 +1,11 @@
 """控件路径探针：启动被测程序，打印它的控件路径（可按关键字过滤）。
 
-背景：gallery 的控件没有 objectName，funq 的路径由「类名 + 同名兄弟的序号
-后缀」拼成（见 3rdparty/funq-master/server/libFunq/objectpath.cpp 的
-rawObjectName），而序号取决于子对象的创建顺序——所以路径不能靠读源码推，
-只能从运行中的进程里查。注意控件还可能被布局/分裂器重新挂载父对象
-（gallery 的 QTabWidget 就被 addWidget(splitter) 挪到了 QSplitter 下）。
+背景：funq 的路径优先取 objectName（见 3rdparty/funq-master/server/libFunq/
+objectpath.cpp 的 rawObjectName），取不到才退化成「类名 + 同名兄弟的序号后缀」
+——后者取决于子对象的创建顺序，还可能被布局/分裂器重新挂载父对象，只能从
+运行中的进程里查。靶子 examples/funq_target 的控件都带 objectName，所以正常
+情况下路径可以直接按「窗口::控件」拼出来；这个探针是给两种场合兜底的：核对
+路径、或将来往靶子里加了没设 objectName 的控件。
 
 用的是 funq 客户端自带的接口：
   * FunqClient.widgets_list() 返回嵌套树，子控件在 "children" 键下
@@ -21,7 +22,7 @@ import configparser
 import os
 import sys
 
-# funq 的两个包目录由 CMake 注入到环境变量（见 tests/gallery_funq/CMakeLists.txt）
+# funq 的两个包目录由 CMake 注入到环境变量（见 tests/funq_demo/CMakeLists.txt）
 for _key in ("FUNQ_CLIENT_DIR", "FUNQ_SERVER_DIR"):
     _dir = os.environ.get(_key)
     if _dir and _dir not in sys.path:
@@ -53,7 +54,7 @@ def main():
     parser = configparser.ConfigParser()
     parser.read(conf, encoding="utf-8")
     registry.register_from_conf(parser, _GlobalOptions(conf))
-    config = registry.config("gallery")
+    config = registry.config("funq_target")
 
     ctx = ApplicationContext(config)
     try:

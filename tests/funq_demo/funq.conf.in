@@ -3,11 +3,11 @@
 #
 # funq_port = 0 表示由 funq 自己挑一个空闲端口。
 
-[gallery]
-executable = @GALLERY_EXE@
-cwd = @GALLERY_DIR@
+[funq_target]
+executable = @TARGET_EXE@
+cwd = @TARGET_DIR@
 funq_port = 0
-aliases = @GALLERY_ALIAS@
+aliases = @TARGET_ALIAS@
 executable_stdout = NULL
 executable_stderr = NULL
 screenshot_on_error = 0

@@ -6,4 +6,4 @@ include(${CMAKE_SOURCE_DIR}/cmake/test_helpers.cmake)
 
 add_subdirectory(core)
 add_subdirectory(app)
-add_subdirectory(gallery_funq)
+add_subdirectory(funq_demo)

@@ -1,0 +1,21 @@
+# funq 的别名表：友好名 = 控件路径。用例里可以写 widget('submit_button')
+# 而不是一长串路径。
+#
+# 靶子的控件都带 objectName，所以路径就是 `窗口::控件`——稳定，改界面不必
+# 重探。仍保留这份表只为让用例更短；需要新路径时直接按同样的规则拼即可。
+#
+# 页签内的控件多一层 qt_tabwidget_stackedwidget（Qt 给 QTabWidget 内部堆叠
+# 窗口起的 objectName，不是本仓的命名）。
+#
+# 真要核对运行时路径，可临时用 probe_widgets.py 打印：
+#     set FUNQ_CONF=<构建目录>/tests/funq_demo/funq.conf
+#     python tests/funq_demo/probe_widgets.py name_edit
+
+tabs = FunqTarget::tabs
+name_edit = FunqTarget::tabs::qt_tabwidget_stackedwidget::input_page::name_edit
+level_combo = FunqTarget::tabs::qt_tabwidget_stackedwidget::input_page::level_combo
+agree_check = FunqTarget::tabs::qt_tabwidget_stackedwidget::input_page::agree_check
+status_label = FunqTarget::tabs::qt_tabwidget_stackedwidget::display_page::status_label
+submit_button = FunqTarget::tabs::qt_tabwidget_stackedwidget::action_page::submit_button
+reset_button = FunqTarget::tabs::qt_tabwidget_stackedwidget::action_page::reset_button
+click_label = FunqTarget::tabs::qt_tabwidget_stackedwidget::action_page::click_label

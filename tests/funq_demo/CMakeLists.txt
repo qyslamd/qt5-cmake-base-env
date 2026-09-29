@@ -1,38 +1,42 @@
-# gallery 的 funq UI 测试。
+# funq 注入式 UI 测试：靶子是 examples/funq_target。
 #
-# 与 add_unit_test 那套 gtest 用例不同：被测对象是另一个完整进程（gallery），
-# 而且要真实窗口与事件循环，所以这里直接 add_test 拉起 python 脚本，由 funq
-# 负责注入与驱动（见 run_funq_tests.py）。
+# 与 add_unit_test 那套 gtest 用例不同：被测对象是另一个完整进程，而且要真实
+# 窗口与事件循环，所以这里直接 add_test 拉起 python 脚本，由 funq 负责注入与
+# 驱动（见 run_funq_tests.py）。
 #
-# 三个前置缺一不可：gallery 可执行文件、funq 的库、以及 Python 解释器。
+# 三个前置缺一不可：靶子可执行文件、funq 的库、以及 Python 解释器。
 # 缺任何一个都只跳过并给出提示，不让 ctest 里出现一条注定失败的用例。
+#
+# 靶子曾用 qt-libui 仓的 gallery 示例：那个示例的控件没有 objectName，路径
+# 只能从运行中的进程里探，界面一动就得重探。改用本仓自己的 funq_target 后，
+# 控件全带 objectName，路径即 objectName（详见靶子的 main.cpp 注释）。
 
-if(NOT BUILD_LIBUI_GALLERY)
-    message(STATUS "BUILD_LIBUI_GALLERY=OFF，跳过 gallery 的 funq 测试")
-    return()
-endif()
 if(NOT BUILD_FUNQ)
-    message(STATUS "BUILD_FUNQ=OFF，跳过 gallery 的 funq 测试")
+    message(STATUS "BUILD_FUNQ=OFF，跳过 funq 的 UI 测试")
     return()
 endif()
 
 find_program(PYTHON_EXECUTABLE NAMES python python3)
 if(NOT PYTHON_EXECUTABLE)
     message(WARNING
-        "未找到 Python，gallery 的 funq 测试不会注册。"
+        "未找到 Python，funq 的 UI 测试不会注册。"
         "funq 需要 Python 3.8+（仅测试需要，编译不需要）")
     return()
 endif()
 
-# gallery 的输出目录由 qt-libui 固定为 <build>/bin，名字即目标名
-set(GALLERY_DIR "${CMAKE_BINARY_DIR}/bin")
-set(GALLERY_EXE "${GALLERY_DIR}/libui_gallery${CMAKE_EXECUTABLE_SUFFIX}")
-# 别名表入库（放源码树），改界面后用 probe_widgets.py 重新打印路径再更新它
-set(GALLERY_ALIAS "${CMAKE_CURRENT_SOURCE_DIR}/gallery.alias")
-if(NOT BUILD_LIBUI_GALLERY OR NOT TARGET libui_gallery)
-    message(STATUS "未构建 libui_gallery 目标，跳过 gallery 的 funq 测试")
+if(NOT TARGET funq_target)
+    message(STATUS "未构建 funq_target 目标，跳过 funq 的 UI 测试")
     return()
 endif()
+
+# 靶子的输出目录由顶层统一到 <build>/bin。
+# 这里必须用普通路径而不是 $<TARGET_FILE:...>：funq.conf 由 configure_file
+# 生成，而它不求值生成器表达式——genex 会被原样写进配置，funq 随后拿这个
+# 字符串当可执行文件路径去拉起，报"连接被拒绝"（实测踩过）
+set(TARGET_EXE "${CMAKE_BINARY_DIR}/bin/funq_target${CMAKE_EXECUTABLE_SUFFIX}")
+set(TARGET_DIR "${CMAKE_BINARY_DIR}/bin")
+# 别名表入库（放源码树）
+set(TARGET_ALIAS "${CMAKE_CURRENT_SOURCE_DIR}/funq_target.alias")
 
 set(FUNQ_CLIENT_DIR "${CMAKE_SOURCE_DIR}/3rdparty/funq-master/client")
 set(FUNQ_SERVER_DIR "${CMAKE_SOURCE_DIR}/3rdparty/funq-master/server")
@@ -56,7 +60,7 @@ else()
                     WORLD_READ WORLD_EXECUTE)
 endif()
 
-add_test(NAME test_gallery_funq
+add_test(NAME test_funq_demo
     COMMAND "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/run_funq_tests.py")
 
 # 每次用例都要拉起应用并等注入完成（funq 在启动后固定 sleep 1 秒再注入），
@@ -68,14 +72,14 @@ add_test(NAME test_gallery_funq
 #
 # Qt 的 bin 只传目录进来，由脚本自己拼进 PATH：PATH 本身就是分号分隔，直接
 # 写进 ENVIRONMENT 会被拆散
-set(GALLERY_TEST_ENV
+set(FUNQ_TEST_ENV
     "FUNQ_CONF=${CMAKE_CURRENT_BINARY_DIR}/funq.conf"
     "FUNQ_ATTACH_EXE=${CMAKE_CURRENT_BINARY_DIR}/${FUNQ_ATTACH_NAME}"
     "FUNQ_CLIENT_DIR=${FUNQ_CLIENT_DIR}"
     "FUNQ_SERVER_DIR=${FUNQ_SERVER_DIR}"
     "FUNQ_QT_BIN=${QT_BIN_DIR}")
 
-set_tests_properties(test_gallery_funq PROPERTIES
+set_tests_properties(test_funq_demo PROPERTIES
     TIMEOUT 180
     LABELS "APP;FUNQ"
-    ENVIRONMENT "${GALLERY_TEST_ENV}")
+    ENVIRONMENT "${FUNQ_TEST_ENV}")
