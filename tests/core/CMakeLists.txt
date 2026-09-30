@@ -1,3 +1,15 @@
+# 日志系统：启动期（init 之前）与之后的行为
+#
+# 与崩溃后端无关，所以放在最外层无条件注册
+add_unit_test(
+    NAME test_core_logger
+    SOURCES logger_test.cpp
+    LIBS ${APP_TARGET_PREFIX}_core
+    QT_MODULES Core
+    LABELS CORE
+    NO_GTEST_MAIN
+)
+
 # 崩溃捕获与异常处理
 #
 # 自研方案（CrashHandler）：子进程拉起 → 触发 SEH/信号 → 断言 crash_*.log

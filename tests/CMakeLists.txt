@@ -5,5 +5,6 @@ include(${CMAKE_SOURCE_DIR}/cmake/test_helpers.cmake)
 # ============== 子目录注册 ==============
 
 add_subdirectory(core)
+add_subdirectory(log_wrapper)
 add_subdirectory(app)
 add_subdirectory(funq_demo)

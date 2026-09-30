@@ -5,14 +5,12 @@ set(ALL_HEADERS_SOURCES
     logger/log_filter.cpp
     logger/logger.cpp
     logger/log_history_buffer.cpp
-    logger/log_pattern_builder.cpp
     logger/qt_console_sink.cpp
     config/config_defs.h
     config/config_manager.h
     logger/log_filter.h
     logger/logger.h
     logger/log_history_buffer.h
-    logger/log_pattern_builder.h
     logger/qt_console_sink.h
     common/single_instance.cpp
     common/single_instance.h
@@ -80,10 +78,12 @@ target_include_directories(${TARGET_NAME} PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+# logger 目录现在只剩 Qt 桥（门面 + sink + 历史缓冲 + 过滤器）；
+# 核心在 ephad_log 里，它才是链 spdlog 的那个
 target_link_libraries(${TARGET_NAME} PUBLIC
     Qt5::Core
     Qt5::Network
-    spdlog::spdlog
+    ${APP_TARGET_PREFIX}_log
 )
 
 # 崩溃捕获的链接依赖，随开关切换

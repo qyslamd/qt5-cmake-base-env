@@ -1,300 +1,143 @@
 #include "logger.h"
 
-#include <spdlog/async.h>
-#include <spdlog/sinks/rotating_file_sink.h>
-
-#include <cstdio>
-#include <exception>
+#include <cstddef>
 #include <memory>
-#include <vector>
 
 #include <QCoreApplication>
-#include <QDateTime>
-#include <QDir>
 #include <QObject>
 #include <QStandardPaths>
-#include <QStringList>
-// stdout_color_sink 在 Windows 上映射为 wincolor，其余平台映射为 ansicolor
-#include <spdlog/sinks/stdout_color_sinks.h>
 
 #include "config/config_defs.h"
 #include "config/config_manager.h"
 #include "log_history_buffer.h"
-#include "log_pattern_builder.h"
 #include "qt_console_sink.h"
 
 namespace {
 
-// 配置日志级别(0..4) 映射到 spdlog 级别
-spdlog::level::level_enum LevelFromConfig(int level) {
+// Qt 桥持有的两个 sink。它们的回收顺序见 shutdown() 的注释
+std::shared_ptr<QtConsoleSink> s_qt_sink;
+LogHistoryBuffer* s_history_buffer = nullptr;
+
+// 配置里的级别是 int（0=debug … 4=fatal），映射表留在 Qt 侧——
+// 核心只认强类型的 LogLevel，不认识配置格式
+LogLevel LevelFromConfig(int level) {
   switch (level) {
     case 0:
-      return spdlog::level::debug;
+      return LogLevel::kDebug;
     case 2:
-      return spdlog::level::warn;
+      return LogLevel::kWarn;
     case 3:
-      return spdlog::level::err;
+      return LogLevel::kError;
     case 4:
-      return spdlog::level::critical;
+      return LogLevel::kFatal;
     default:
-      return spdlog::level::info;
+      return LogLevel::kInfo;
   }
 }
 
 }  // namespace
 
-bool Logger::s_initialized_ = false;
-QMutex Logger::s_mutex_;
-QtConsoleSink* Logger::s_qt_sink_ = nullptr;
-LogHistoryBuffer* Logger::s_history_buffer_ = nullptr;
-std::unordered_map<std::string, spdlog::logger*> Logger::s_module_loggers_;
-spdlog::sink_ptr Logger::s_console_sink_ = nullptr;
-spdlog::sink_ptr Logger::s_file_sink_ = nullptr;
+LogPatternOptions Logger::LoadPatternOptions(bool for_console_sink) {
+  auto& cfg = ConfigManager::instance();
 
-void Logger::ApplyPatternToSinks() {
-  // 控制台与界面窗口用彩色级别，文件用非彩色，其余开关一致
-  const std::string console_pattern =
-      BuildLogPattern(LoadLogPatternOptionsFromConfig(true)).toStdString();
-  const std::string file_pattern =
-      BuildLogPattern(LoadLogPatternOptionsFromConfig(false)).toStdString();
-
-  if (s_console_sink_) {
-    s_console_sink_->set_pattern(console_pattern);
-  }
-  if (s_qt_sink_) {
-    s_qt_sink_->set_pattern(console_pattern);
-  }
-  if (s_file_sink_) {
-    s_file_sink_->set_pattern(file_pattern);
-  }
+  LogPatternOptions options;
+  options.time = cfg.get<bool>(QString::fromLatin1(kConfigLogFmtTime),
+                               kConfigLogFmtDefaultTime);
+  options.level = cfg.get<bool>(QString::fromLatin1(kConfigLogFmtLevel),
+                                kConfigLogFmtDefaultLevel);
+  options.thread = cfg.get<bool>(QString::fromLatin1(kConfigLogFmtThread),
+                                 kConfigLogFmtDefaultThread);
+  options.module = cfg.get<bool>(QString::fromLatin1(kConfigLogFmtModule),
+                                 kConfigLogFmtDefaultModule);
+  options.source = cfg.get<bool>(QString::fromLatin1(kConfigLogFmtSource),
+                                 kConfigLogFmtDefaultSource);
+  options.func = cfg.get<bool>(QString::fromLatin1(kConfigLogFmtFunc),
+                               kConfigLogFmtDefaultFunc);
+  options.message = cfg.get<bool>(QString::fromLatin1(kConfigLogFmtMessage),
+                                  kConfigLogFmtDefaultMessage);
+  options.colored_level = for_console_sink;
+  return options;
 }
 
-void Logger::init() {
-  if (s_initialized_) {
-    return;
-  }
+LogInitOptions Logger::LoadOptions() {
+  LogInitOptions options;
 
-  // 创建日志存储目录：AppData/Local/<AppName>/logs
-  QString local_path =
+  // 日志目录：AppData/Local/<Org>/<App>/logs。
+  // **路径只在这里算**——核心不做平台路径推导，免得它算出来的目录与 Qt 的
+  // AppLocalDataLocation 差一点，日志悄悄搬到别处去
+  const QString local_path =
       QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
-  QString log_dir = local_path + "/logs";
-  QDir().mkpath(log_dir);
+  options.log_dir = (local_path + QStringLiteral("/logs")).toStdString();
 
-  // 日志参数从配置读取
-  int keep_days = ConfigManager::instance().get<int>(
-      QString::fromLatin1(kConfigLogKeepDays), kConfigLogDefaultKeepDays);
-  int max_file_size = ConfigManager::instance().get<int>(
-      QString::fromLatin1(kConfigLogMaxFileSize), kConfigLogDefaultMaxFileSize);
-  int max_file_count = ConfigManager::instance().get<int>(
-      QString::fromLatin1(kConfigLogMaxFileCount),
-      kConfigLogDefaultMaxFileCount);
-  int log_level = ConfigManager::instance().get<int>(
-      QString::fromLatin1(kConfigLogLevel), kConfigLogDefaultLevel);
-
-  // 清理历史日志（保留 keep_days 天）
-  QDir dir(log_dir);
-  dir.setNameFilters({"*.log"});
-  dir.setFilter(QDir::Files | QDir::NoDotAndDotDot);
-  QFileInfoList file_list = dir.entryInfoList();
-  QDateTime now = QDateTime::currentDateTime();
-  for (const auto& file_info : file_list) {
-    if (file_info.lastModified().daysTo(now) > keep_days) {
-      QFile::remove(file_info.absoluteFilePath());
-    }
-  }
-
-  // 异步日志配置
-  spdlog::init_thread_pool(8192, 1);
-
-  // 控制台彩色 sink（仅 Debug 构建启用）
-#ifndef NDEBUG
-  auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-  console_sink->set_level(spdlog::level::debug);
-  // pattern 统一在 sink 建齐后由 ApplyPatternToSinks 按配置设置
-  s_console_sink_ = console_sink;
-#endif
-
-  // 滚动文件 sink；文件名随 applicationName 走，避免模板产物互相覆盖。
-  //
-  // 构造时的 rotate_on_open 会立刻轮转一次，而轮转要重命名日志文件——若另一个
-  // 实例正开着它（Windows 不允许重命名被占用的文件），spdlog 会抛异常。正常
-  // 路径下第二个实例早在 SingleInstance 那层就被挡回去了，但 UI 测试回放是有意
-  // 绕过那层的，于是会撞上：异常没人接 → std::terminate → abort，进程连一行
-  // 日志都来不及写。日志建不起来不该把主程序带走，所以这里降级处理：先退到
-  // 带进程号的独立文件，再不行就不写文件（控制台与界面 sink 照常）
   QString app_name = QCoreApplication::applicationName();
   if (app_name.isEmpty()) {
     app_name = QStringLiteral("app");
   }
-  spdlog::sink_ptr file_sink;
-  const QStringList candidates = {
-      log_dir + "/" + app_name + ".log",
-      log_dir + "/" + app_name + "-" +
-          QString::number(QCoreApplication::applicationPid()) + ".log",
-  };
-  for (const QString& candidate : candidates) {
-    try {
-      file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
-          candidate.toStdString(), max_file_size, max_file_count, true);
-      break;
-    } catch (const std::exception& e) {
-      // 此刻 Logger 还没起来，只能直接写 stderr
-      std::fprintf(stderr, "日志文件不可用（%s）：%s\n", e.what(),
-                   candidate.toUtf8().constData());
-    }
-  }
-  if (file_sink) {
-    file_sink->set_level(spdlog::level::debug);
-    s_file_sink_ = file_sink;
-  }
+  options.file_name = app_name.toStdString();
+  options.pid = static_cast<int>(QCoreApplication::applicationPid());
 
-  // 启动期历史日志缓冲（环形 5000 条）。UI 日志面板出现后回放。
-  // 必须先于 QtConsoleSink 创建，让首条日志即能 push 到 history。
-  s_history_buffer_ = new LogHistoryBuffer(5000);
+  auto& cfg = ConfigManager::instance();
+  options.max_file_size = static_cast<std::size_t>(cfg.get<int>(
+      QString::fromLatin1(kConfigLogMaxFileSize),
+      kConfigLogDefaultMaxFileSize));
+  options.max_file_count = static_cast<std::size_t>(cfg.get<int>(
+      QString::fromLatin1(kConfigLogMaxFileCount),
+      kConfigLogDefaultMaxFileCount));
+  options.keep_days = cfg.get<int>(QString::fromLatin1(kConfigLogKeepDays),
+                                   kConfigLogDefaultKeepDays);
+  options.level = LevelFromConfig(cfg.get<int>(
+      QString::fromLatin1(kConfigLogLevel), kConfigLogDefaultLevel));
+  options.console_pattern = LoadPatternOptions(/*for_console_sink=*/true);
+  options.file_pattern = LoadPatternOptions(/*for_console_sink=*/false);
+  return options;
+}
 
-  // Qt 控制台 sink，输出到界面
-  auto qt_sink = std::make_shared<QtConsoleSink>(s_history_buffer_);
-  qt_sink->set_level(spdlog::level::debug);
-  s_qt_sink_ = qt_sink.get();
-
-  // 三个 sink 已建齐，按配置统一设置 pattern
-  ApplyPatternToSinks();
-
-  // 注册默认 logger，所有模块共用。文件 sink 可能因上面降级而不存在
-  std::vector<spdlog::sink_ptr> sinks;
-#ifndef NDEBUG
-  sinks.push_back(console_sink);
-#endif
-  if (file_sink) {
-    sinks.push_back(file_sink);
-  }
-  sinks.push_back(qt_sink);
-  auto default_logger = std::make_shared<spdlog::async_logger>(
-      "default", sinks.begin(), sinks.end(), spdlog::thread_pool(),
-      spdlog::async_overflow_policy::block);
-  default_logger->flush_on(spdlog::level::err);
-  spdlog::register_logger(default_logger);
-  spdlog::set_default_logger(default_logger);
-
-  // 从配置设置日志级别
-  spdlog::set_level(LevelFromConfig(log_level));
-
-  // 自动每秒 flush 一次
-  spdlog::flush_every(std::chrono::seconds(1));
-
-  s_initialized_ = true;
-
-  // 预注册常用模块 logger。懒创建在首个模块首次实例化时偶发不稳定
-  // （logger 静默丢弃全部输出），提前在单线程初始化阶段一次建好。
-  static const char* kPreRegisterModules[] = {
-      "ACQUISITION", "ALARM",    "AUTH",    "COMM", "CONFIG",   "CURVE",
-      "DASHBOARD",   "LOGIN",    "LOGGER",  "MAIN", "PRESSURE", "PROCESS",
-      "REPLAY",      "SELFTEST", "STORAGE", "UI"};
-  {
-    QMutexLocker locker(&s_mutex_);
-    for (const char* name : kPreRegisterModules) {
-      getOrCreateModuleLogger(name);
-    }
+void Logger::init() {
+  if (s_history_buffer != nullptr) {
+    return;  // 已经初始化过
   }
 
-  // 监听配置变更，日志级别实时生效
+  // history buffer 必须先于 QtConsoleSink 创建：sink 的构造函数就拿着它的
+  // 指针，第一条日志起就要能 push 进去
+  s_history_buffer = new LogHistoryBuffer(5000);
+  s_qt_sink = std::make_shared<QtConsoleSink>(s_history_buffer);
+  s_qt_sink->set_level(spdlog::level::debug);
+
+  LogCore::Init(LoadOptions(), {s_qt_sink});
+
+  // 监听配置变更，日志级别与格式实时生效。
+  // 核心不认识 ConfigManager，所以订阅放在这里，再转成核心的 ApplyOptions
   QObject::connect(
       &ConfigManager::instance(), &ConfigManager::configChanged,
       [](const QString& key) {
-        if (key == QString::fromLatin1(kConfigLogLevel)) {
-          int level = ConfigManager::instance().get<int>(
-              QString::fromLatin1(kConfigLogLevel), kConfigLogDefaultLevel);
-          spdlog::set_level(LevelFromConfig(level));
-          LOG_INFO("LOGGER", "日志级别已更新为: {}", level);
+        const bool level_changed =
+            (key == QString::fromLatin1(kConfigLogLevel));
+        const bool format_changed =
+            key.startsWith(QString::fromLatin1(kConfigLogFmtPrefix));
+        if (!level_changed && !format_changed) {
+          return;
         }
-        // 格式开关变更即重建全部 sink 的 pattern
-        if (key.startsWith(QString::fromLatin1(kConfigLogFmtPrefix))) {
-          ApplyPatternToSinks();
+        const LogInitOptions options = Logger::LoadOptions();
+        LogCore::ApplyOptions(options);
+        if (level_changed) {
+          LOG_INFO("LOGGER", "日志级别已更新为: {}",
+                   static_cast<int>(options.level));
+        } else {
           LOG_INFO("LOGGER", "日志格式已更新 [key={}]", key.toStdString());
         }
       });
-
-  LOG_INFO("LOGGER", "日志系统初始化完成，日志目录: {}", log_dir.toStdString());
 }
 
 void Logger::shutdown() {
-  if (!s_initialized_) {
-    return;
-  }
-  LOG_INFO("LOGGER", "日志系统关闭");
-  s_module_loggers_.clear();
-  s_qt_sink_ = nullptr;
-  spdlog::shutdown();
-  // spdlog::shutdown() 析构所有 sink（QtConsoleSink 在其中），
-  // 之后 history_buffer_ 已无引用者，可以安全 delete。
-  delete s_history_buffer_;
-  s_history_buffer_ = nullptr;
-  s_initialized_ = false;
+  LogCore::Shutdown();
+  // 顺序要紧：核心先放掉它那份 sink 引用，这里再放掉桥的这份，QtConsoleSink
+  // 才会真的析构。反过来的话，delete history buffer 之后 sink 还活着，
+  // 它里面的 history_ 就成了悬垂指针
+  s_qt_sink.reset();
+  delete s_history_buffer;
+  s_history_buffer = nullptr;
 }
 
-void Logger::setLevel(const QString& module, LogLevel level) {
-  if (!s_initialized_) {
-    return;
-  }
-  QMutexLocker locker(&s_mutex_);
-  std::string key = module.toStdString();
-  auto it = s_module_loggers_.find(key);
-  if (it != s_module_loggers_.end()) {
-    it->second->set_level(static_cast<spdlog::level::level_enum>(level));
-  }
-}
+QtConsoleSink* Logger::qtConsoleSink() { return s_qt_sink.get(); }
 
-void Logger::setAllLevel(LogLevel level) {
-  if (!s_initialized_) {
-    return;
-  }
-  spdlog::set_level(static_cast<spdlog::level::level_enum>(level));
-  // 同步更新所有模块 logger 的级别
-  QMutexLocker locker(&s_mutex_);
-  for (auto& pair : s_module_loggers_) {
-    pair.second->set_level(static_cast<spdlog::level::level_enum>(level));
-  }
-}
-
-spdlog::logger* Logger::getOrCreateModuleLogger(
-    const std::string& module_name) {
-  auto it = s_module_loggers_.find(module_name);
-  if (it != s_module_loggers_.end()) {
-    return it->second;
-  }
-
-  // 按需创建模块 logger，复用 default logger 的 sink
-  auto default_logger = spdlog::default_logger();
-  if (!default_logger) {
-    return nullptr;
-  }
-
-  auto module_logger = std::make_shared<spdlog::async_logger>(
-      module_name, default_logger->sinks().begin(),
-      default_logger->sinks().end(), spdlog::thread_pool(),
-      spdlog::async_overflow_policy::block);
-  module_logger->set_level(default_logger->level());
-  module_logger->flush_on(spdlog::level::err);
-
-  // 如果 spdlog 全局 registry 中已存在同名 logger，先移除再注册
-  if (spdlog::get(module_name)) {
-    spdlog::drop(module_name);
-  }
-  spdlog::register_logger(module_logger);
-
-  auto* raw_ptr = module_logger.get();
-  s_module_loggers_[module_name] = raw_ptr;
-  return raw_ptr;
-}
-
-spdlog::logger* Logger::getLogger(const QString& module) {
-  if (!s_initialized_) {
-    return nullptr;
-  }
-  QMutexLocker locker(&s_mutex_);
-  return getOrCreateModuleLogger(module.toStdString());
-}
-
-QtConsoleSink* Logger::qtConsoleSink() { return s_qt_sink_; }
-
-LogHistoryBuffer* Logger::qtHistoryBuffer() { return s_history_buffer_; }
+LogHistoryBuffer* Logger::qtHistoryBuffer() { return s_history_buffer; }
