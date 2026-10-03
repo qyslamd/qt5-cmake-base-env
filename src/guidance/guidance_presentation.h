@@ -147,6 +147,16 @@ class GuidancePresentation : public QWidget {
   // 高亮（showHighlight）共用同一套算法，避免两处算出不同的框
   void ApplyWidgetHighlight(QWidget* target);
 
+  // 遮罩要不要吞鼠标，由**两个标志共同决定**（被动模式 / 实操模式），只在
+  // 这一个出口写 WA_TransparentForMouseEvents。
+  //
+  // 原先 setInteractive 与 setPassiveMode 各写一句同一个属性，而控制器里是
+  // 连着调的（ApplyFlowOptions：先 setInteractive(flow->interactive())，紧跟
+  // setPassiveMode(false)），后者无条件把前者刚设的 true 盖回 false——实操
+  // 主题的"遮罩穿透、边看边动手"因此从来没生效过，点被高亮的控件点不动、
+  // 点遮罩空白反而退出。同一份状态两个写者，是模式状态那类缺陷的同一形态
+  void UpdateMouseTransparency();
+
   // 气泡 move() 的坐标原点：气泡挂在遮罩上时是遮罩局部坐标，改挂顶层窗口
   // 之后是屏幕坐标，两处定位都要带上这个偏移
   QPoint BubbleOrigin() const;

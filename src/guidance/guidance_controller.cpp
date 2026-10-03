@@ -301,15 +301,23 @@ void GuidanceController::refreshStepPresentation() {
   }
   GuidanceStep* curStep = curFlow->steps().at(curStepIndex_);
 
+  // 两个按钮能不能按，口径必须与 onNextClicked / onPrevClicked 的落点一致：
+  // 它们跳的是**下一个/上一个可播放的主题**（首页会给 stepCount()==0 的占位
+  // 主题建卡，所以 flows 里允许有它）。原先这里拿 flows().count()-1 判"最后
+  // 一条"，是数组末尾而不是最后一个可播放的——末尾是占位主题时，最后一步的
+  // 按钮永远显示"下一步"而不是"完成！"；首端是占位主题时，"上一步"亮着却点
+  // 不动。同一件"还有没有下一站"，只留这两个谓词一个出处
   bool canPrev = true;
   bool canNext = true;
   if (run_all_) {
-    if (curFlowIndex_ == 0 && curStepIndex_ == 0) {
+    const bool has_prev_flow =
+        previousPlayableFlowIndex(curFlowIndex_ - 1) >= 0;
+    if (curStepIndex_ == 0 && !has_prev_flow) {
       canPrev = false;
     }
 
-    if (curFlowIndex_ == config_.flows().count() - 1 &&
-        curStepIndex_ == curFlow->stepCount() - 1) {
+    const bool has_next_flow = nextPlayableFlowIndex(curFlowIndex_ + 1) >= 0;
+    if (curStepIndex_ == curFlow->stepCount() - 1 && !has_next_flow) {
       canNext = false;
     }
   } else {

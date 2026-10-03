@@ -489,9 +489,12 @@ int main(int argc, char* argv[]) {
   // 引导的 viewport 与主题要靠 findChild 找到主窗口里的控件，所以只能等窗口
   // 建好之后再接
   guidance_controller->setViewport(&w);
-  guidance_controller->addFlow(BuildTemplateTourFlow(&w));
+  GuidanceFlow* tour_flow =
+      guidance_controller->addFlow(BuildTemplateTourFlow(&w));
   auto* guidance_menu = new GuidanceMenu(guidance_controller, &w);
-  guidance_menu->attachMenu(&w);
+  // 主题显式传给菜单：菜单文字写的是「模板导览」，那就得真播模板导览那一条，
+  // 不能再靠"第一个注册的"这个位置关系
+  guidance_menu->attachMenu(&w, tour_flow);
 
   AttachHostFeatures(single_instance, w);
   SetupUiTesting(w, opts);

@@ -35,6 +35,38 @@
 B1 / B2 只在多主题、且其中一条是实操式时显形；`guidance_demo` 三条主题跑一遍
 「全部演示」即覆盖。未做完的两条见文末挂起清单第 5、6 条。
 
+### 又五处（2026-10-03，逐文件复审后修）
+
+- **B5 实操模式的鼠标穿透从来没生效过**。`ApplyFlowOptions` 里连着调
+  `setInteractive(flow->interactive())` 再 `setPassiveMode(false)`，两个 setter
+  各写一次 `WA_TransparentForMouseEvents`，后者无条件把前者刚设的 true 盖回
+  false。后果：hands-on 主题里被高亮的控件点不动，文案承诺的"点遮罩空白不退出"
+  也反向——点空白反而 `emit skipClicked()` 退出。**B1/B2 的同一形态下沉了一层**：
+  状态从"两份"变成了"一处状态两个写者"。修法：属性由
+  `passive_mode_ || interactive_` 现算，只留 `UpdateMouseTransparency()` 一个出口
+- **B6 卡片样式有两个出处**。`GuidanceCard::paintEvent` 无条件自绘底色与边框，
+  且画在 QSS 之后——`guidance_default.qss` 里的 `#guidanceCard` 实际被盖住，
+  改 QSS 没反应；而头文件注释写着"QSS 覆盖、无 QSS 时自绘兜底"，不成立。
+  修法：自绘整段删除，hover 走 `:hover`，选中/占位走动态属性
+  `selected` / `placeholder`（改属性后 `unpolish` + `polish`）
+- **B7 首页标题写死了产品名**。`guidance_homepage.cpp` 里写死"欢迎使用
+  EP-X6502 PNP演示程序"——这个字串全仓只此一处，对不上任何东西（是本模块从
+  老 Demo 抽出来时带过来的）。引导是通用库，改成默认取宿主的
+  `applicationName()`，并加 `setHeading()` 供宿主覆盖
+- **B8 "最后一条"有两处口径**。`refreshStepPresentation` 拿
+  `flows().count() - 1` 判末尾，而 `nextPlayableFlowIndex` 跳的是**最后一个可
+  播放**的主题（首页会给 `stepCount()==0` 的占位主题建卡）。末尾是占位主题时
+  最后一步永远显示"下一步"而非"完成！"；首端是占位主题时"上一步"亮着却点不动
+  （`previousPlayableFlowIndex` 返回 -1 直接 return）。修法：两处都改用这两个
+  谓词，"还有没有下一站"只留一个出处
+- **B9 菜单文字与实际播的内容脱钩**。`GuidanceMenu` 的「模板导览」播的是
+  `flows().first()`，`main.cpp` 的 `guideRequested` 槽同样——靠注册顺序维系。
+  多注册一条主题就播错。修法：主题由宿主显式传入 `attachMenu(window, flow)`
+
+B5–B9 都**没有用例覆盖**（`tests/` 下没有 guidance 目标）。编译与
+`ctest -E test_funq_app` 21/21 通过只能证明没编坏，证明不了这五处的运行时行为；
+B5 与 B6 需要人眼/手验一次。
+
 ## libui 抽离为独立 CMake 库（2026-09-14，原同名文档）
 
 抽出 `src/libui`（40 文件 / 3196 行）连同 gallery 成独立仓 `qt-libui`。

@@ -1,6 +1,7 @@
 #include "guidance_homepage.h"
 
 #include <QCheckBox>
+#include <QCoreApplication>
 #include <QEvent>
 #include <QEventLoop>
 #include <QFont>
@@ -33,6 +34,9 @@ GuidanceCard::GuidanceCard(GuidanceFlow* flow, QWidget* parent)
     : QWidget(parent),
       flow_(flow),
       placeholder_(flow == nullptr || flow->stepCount() == 0) {
+  // 占位态也交给 QSS（[placeholder="true"]），与底色/边框同一处。
+  // 构造期设一次即可，之后不变，所以不需要 unpolish/polish
+  setProperty("placeholder", placeholder_);
   initUi();
 }
 
@@ -73,50 +77,16 @@ void GuidanceCard::initUi() {
 }
 
 void GuidanceCard::setSelected(bool selected) {
-  if (selected_ != selected) {
-    selected_ = selected;
-    update();
+  if (selected_ == selected) {
+    return;
   }
-}
-
-void GuidanceCard::enterEvent(QEvent* event) {
-  hovered_ = true;
+  selected_ = selected;
+  // 选中态由 QSS 的 [selected="true"] 表达。运行中改属性之后必须重新 polish，
+  // 否则样式不重算（见 CLAUDE.md 的控件定位优先级：类型/伪状态 → 动态属性）
+  setProperty("selected", selected_);
+  style()->unpolish(this);
+  style()->polish(this);
   update();
-  QWidget::enterEvent(event);
-}
-
-void GuidanceCard::leaveEvent(QEvent* event) {
-  hovered_ = false;
-  update();
-  QWidget::leaveEvent(event);
-}
-
-void GuidanceCard::paintEvent(QPaintEvent* event) {
-  QWidget::paintEvent(event);
-
-  QPainter p(this);
-  p.setRenderHint(QPainter::Antialiasing);
-
-  QRectF cardRect = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
-  QPainterPath path;
-  path.addRoundedRect(cardRect, 8, 8);
-
-  if (selected_) {
-    p.fillPath(path, QColor("#CCE4F7"));
-  } else if (hovered_) {
-    p.fillPath(path, QColor("#E0E0E0"));
-  }
-
-  QColor border = QColor("#CCCCCC");
-  int width = 1;
-  if (selected_) {
-    border = QColor("#007ACC");
-    width = 2;
-  } else if (placeholder_) {
-    border = QColor("#AAAAAA");
-  }
-  p.setPen(QPen(border, width));
-  p.drawPath(path);
 }
 
 void GuidanceCard::mousePressEvent(QMouseEvent* event) {
@@ -175,6 +145,16 @@ int GuidanceHomePage::exec() {
   return 0;
 }
 
+void GuidanceHomePage::setHeading(const QString& title,
+                                  const QString& subtitle) {
+  if (title_label_ != nullptr) {
+    title_label_->setText(title);
+  }
+  if (sub_label_ != nullptr) {
+    sub_label_->setText(subtitle);
+  }
+}
+
 void GuidanceHomePage::initUi() {
   // 居中面板：固定尺寸，QSS #guidanceHomePanel 可覆盖背景（半透明 + 圆角）；
   // 无 QSS 时用 palette Window 色兜底。阴影由 QGraphicsDropShadowEffect 加。
@@ -206,8 +186,13 @@ void GuidanceHomePage::initUi() {
   title_box->setSpacing(4);
   title_box->setAlignment(Qt::AlignCenter);
 
-  title_label_ =
-      new QLabel(QStringLiteral("欢迎使用 EP-X6502 PNP演示程序"), panel_);
+  // 标题默认取宿主的 applicationName()：引导是通用库，不该写死某个产品的
+  // 名字。宿主想显示别的（产品名与程序名不一致）用 setHeading() 改
+  const QString app_name = QCoreApplication::applicationName();
+  title_label_ = new QLabel(
+      app_name.isEmpty() ? QStringLiteral("欢迎使用")
+                         : QStringLiteral("欢迎使用 %1").arg(app_name),
+      panel_);
   title_label_->setObjectName(QStringLiteral("guidanceHomeTitle"));
   title_label_->setAlignment(Qt::AlignCenter);
   QFont title_font = title_label_->font();

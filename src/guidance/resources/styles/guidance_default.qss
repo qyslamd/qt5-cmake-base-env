@@ -16,10 +16,24 @@ QLabel#guidanceHomeSub {
     color: #6E6E6E;
     font-size: 13px;
 }
+/* 卡片：底色/边框/圆角是本体，hover 走伪状态，选中与占位走动态属性。
+   这几条是卡片外观的**唯一出处**——自绘那套已删（它原先无条件画在 QSS
+   之后，把这里的规则盖住了）。顺序有意义：同等特异性下靠后的赢，
+   所以 :hover → [placeholder] → [selected] 由弱到强 */
 QWidget#guidanceCard {
     background-color: #FFFFFF;
     border: 1px solid #E0E0E0;
     border-radius: 8px;
+}
+QWidget#guidanceCard:hover {
+    background-color: #E0E0E0;
+}
+QWidget#guidanceCard[placeholder="true"] {
+    border: 1px solid #AAAAAA;
+}
+QWidget#guidanceCard[selected="true"] {
+    background-color: #CCE4F7;
+    border: 2px solid #007ACC;
 }
 QLabel#guidanceCardTitle {
     color: #333333;

@@ -12,7 +12,7 @@
 GuidanceMenu::GuidanceMenu(GuidanceController* controller, QObject* parent)
     : QObject(parent), controller_(controller) {}
 
-void GuidanceMenu::attachMenu(QMainWindow* window) {
+void GuidanceMenu::attachMenu(QMainWindow* window, GuidanceFlow* tour_flow) {
   if (window == nullptr) {
     return;
   }
@@ -35,13 +35,14 @@ void GuidanceMenu::attachMenu(QMainWindow* window) {
     home_page_->exec();
   });
 
-  // 直接播第一条主题的快捷入口，省掉主页那一步
+  // 直接播指定主题的快捷入口，省掉主页那一步
   QAction* tour_action = menu->addAction(QStringLiteral("模板导览"));
   tour_action->setObjectName(QStringLiteral("actionTemplateTour"));
-  connect(tour_action, &QAction::triggered, this, [this]() {
-    if (controller_ == nullptr || controller_->flows().isEmpty()) {
+  tour_action->setEnabled(tour_flow != nullptr);
+  connect(tour_action, &QAction::triggered, this, [this, tour_flow]() {
+    if (controller_ == nullptr || tour_flow == nullptr) {
       return;
     }
-    controller_->startOne(controller_->flows().first(), /*autoMode=*/true);
+    controller_->startOne(tour_flow, /*autoMode=*/true);
   });
 }

@@ -253,15 +253,21 @@ void GuidancePresentation::setIsAutoMode(bool autoMode) {
   }
 }
 
+void GuidancePresentation::UpdateMouseTransparency() {
+  // 遮罩子树整体对鼠标穿透：Qt 对该属性的语义是"连同全部子控件"，点击落到
+  // 下层真实控件——被高亮的控件、页签、滚动条都可直接操作；点遮罩空白不再
+  // 退出（mousePressEvent 不会触发），退出走气泡「跳过」。
+  // 两种模式都要求穿透，所以是**或**——谁后设都不能把另一个的条件抹掉
+  setAttribute(Qt::WA_TransparentForMouseEvents,
+               passive_mode_ || interactive_);
+}
+
 void GuidancePresentation::setInteractive(bool interactive) {
   if (interactive_ == interactive) {
     return;
   }
   interactive_ = interactive;
-  // 遮罩子树整体对鼠标穿透：Qt 对该属性的语义是"连同全部子控件"，
-  // 点击落到下层真实控件——被高亮的控件、页签、滚动条都可直接操作；
-  // 点遮罩空白不再退出（mousePressEvent 不会触发），退出走气泡「跳过」
-  setAttribute(Qt::WA_TransparentForMouseEvents, interactive);
+  UpdateMouseTransparency();
   if (bubble_widget_ == nullptr) {
     return;
   }
@@ -318,7 +324,7 @@ void GuidancePresentation::setPassiveMode(bool passive) {
   // 遮罩是覆盖在宿主上的独立顶层窗口，不收鼠标的话整块区域都会被它吞掉——
   // 被动模式是"只显示"，人得能照常点下面的应用（脚本走 TCP 不受影响，
   // 但脚本卡住时人还得能操作）
-  setAttribute(Qt::WA_TransparentForMouseEvents, passive);
+  UpdateMouseTransparency();
   if (passive) {
     count_down_timer_->stop();
   }
