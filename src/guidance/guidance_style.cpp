@@ -32,19 +32,20 @@ void GuidanceStyle::EnsureApplied() {
   if (applied) {
     return;
   }
-  applied = true;
 
   InitGuidanceResources();
 
   QApplication* app = qobject_cast<QApplication*>(QCoreApplication::instance());
   if (app == nullptr) {
+    // 应用对象还没建起来。**这一趟什么也别记**——applied 一旦置真，后面每次
+    // 调用都会在这里直接返回，样式就永远不生效，而且不报错
     return;
   }
 
   const QString own = ReadStyleSheetText();
   if (own.isEmpty()) {
     qWarning() << "引导样式表读取失败，引导界面将无样式：" << kStyleSheetPath;
-    return;
+    return;  // 同理：读失败不记账，下次调用还能再试一次
   }
 
   // 追加而非覆盖：宿主可能已经设过自己的样式表。
@@ -54,4 +55,6 @@ void GuidanceStyle::EnsureApplied() {
   // 代价是这份表与"谁后设应用样式表"有顺序依赖——本仓的顺序是 main.cpp 先设
   // （底座层 + 项目层）、这里后追加，不要再往中间插别处设应用样式表
   app->setStyleSheet(app->styleSheet() + QLatin1Char('\n') + own);
+  // 只有真设进去了才算数（见上面两个 early return 的注释）
+  applied = true;
 }

@@ -32,21 +32,24 @@ class GuidanceStep {
         onEnter(nullptr),
         onExit(nullptr) {}
 
-  inline QString title() const { return title_; }
+  // getter 一律返回 const 引用。Target 是 variant（可能装着 QPixmap）、Func 是
+  // std::function（按值拷可能堆分配），而调用点普遍长成
+  // `if (x->enterFunc()) { x->enterFunc()(); }`——按值返回时，一次调用就拷两遍
+  inline const QString& title() const { return title_; }
   inline void setTitle(const QString& title) { title_ = title; }
 
-  inline QString description() const { return description_; }
+  inline const QString& description() const { return description_; }
   inline void setDescription(const QString& desc) { description_ = desc; }
 
-  inline Target target() { return target_; }
+  inline const Target& target() const { return target_; }
 
   // 允许在 enter 回调中延迟定位目标
   inline void setTarget(const Target& target) { target_ = target; }
 
-  inline Func enterFunc() const { return onEnter; }
+  inline const Func& enterFunc() const { return onEnter; }
   inline void setEnterFunc(const Func& func) { onEnter = func; }
 
-  inline Func exitFunc() const { return onExit; }
+  inline const Func& exitFunc() const { return onExit; }
   inline void setExitFunc(const Func& func) { onExit = func; }
 
   GuidanceStep* withTitle(const QString& title) {
@@ -96,13 +99,14 @@ class GuidanceFlow {
   void addStep(GuidanceStep* step);
   void clear();
 
-  inline QString name() const { return name_; }
+  inline const QString& name() const { return name_; }
   inline void setName(const QString& name) { name_ = name; }
 
-  inline QString description() const { return description_; }
+  inline const QString& description() const { return description_; }
   inline void setDescription(const QString& desc) { description_ = desc; }
 
-  inline QPixmap icon() const { return icon_; }
+  // QPixmap 隐式共享，按值返回不至于深拷，但仍是一次原子引用计数；返回引用是零成本
+  inline const QPixmap& icon() const { return icon_; }
   inline void setIcon(const QPixmap& icon) { icon_ = icon; }
 
   inline const QList<GuidanceStep*>& steps() const { return steps_; }
@@ -115,12 +119,12 @@ class GuidanceFlow {
     return this;
   }
 
-  inline std::function<void()> enterFunc() const { return onEnter; }
+  inline const std::function<void()>& enterFunc() const { return onEnter; }
   inline void setEnterFunc(const std::function<void()>& func) {
     onEnter = func;
   }
 
-  inline std::function<void()> exitFunc() const { return onExit; }
+  inline const std::function<void()>& exitFunc() const { return onExit; }
   inline void setExitFunc(const std::function<void()>& func) { onExit = func; }
 
   GuidanceFlow* withStep(GuidanceStep* step) {

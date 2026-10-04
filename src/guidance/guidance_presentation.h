@@ -29,6 +29,10 @@ class GuidancePresentation : public QWidget {
   Q_OBJECT
  public:
   explicit GuidancePresentation(QWidget* parent = nullptr);
+  // 实操模式下气泡被提成了独立顶层窗口（见 setInteractive 里的
+  // setParent(nullptr)），**脱离了 Qt 的父子所有权**——不在这里显式回收，
+  // 析构时它就漏了，而且那个窗口会一直留在屏幕上。仍挂在遮罩下时删它同样安全
+  ~GuidancePresentation() override;
 
   void updateUi(GuidanceFlow* const flow,
                 GuidanceStep* const step,

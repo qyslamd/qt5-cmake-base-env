@@ -42,6 +42,13 @@ GuidancePresentation::GuidancePresentation(QWidget* parent)
   initSignals();
 }
 
+GuidancePresentation::~GuidancePresentation() {
+  // 气泡可能已经被 setParent(nullptr) 摘出了父子链（实操模式），不再有人替
+  // 我们删它；无条件删一次，两种情况都对
+  delete bubble_widget_;
+  bubble_widget_ = nullptr;
+}
+
 void GuidancePresentation::setTitle(const QString& title) {
   if (title_ != title) {
     title_ = title;
@@ -184,7 +191,7 @@ void GuidancePresentation::updateUi(GuidanceFlow* const flow,
 
   // 空目标步（接线/收尾等纯讲解）：显式清掉上一步的高亮残留——
   // 动画分支不会重置 highlightRect_，否则高亮框滞留在上一个控件上
-  const GuidanceStep::Target target = step->target();
+  const GuidanceStep::Target& target = step->target();
   if (const auto* widget = std::get_if<QWidget*>(&target);
       widget != nullptr && *widget == nullptr) {
     highlightRect_ = QRect();
@@ -219,7 +226,7 @@ void GuidancePresentation::updateUi(GuidanceFlow* const flow,
           pixmap_ = target;
         }
       },
-      step->target());
+      target);
 
   if (use_anime_) {
     anime_highlight_->setEndValue(highlightRect_);

@@ -67,6 +67,25 @@ B5–B9 都**没有用例覆盖**（`tests/` 下没有 guidance 目标）。编�
 `ctest -E test_funq_app` 21/21 通过只能证明没编坏，证明不了这五处的运行时行为；
 B5 与 B6 需要人眼/手验一次。
 
+### 再三处（2026-10-04，同一模块的静态缺陷）
+
+- **B10 `GuidancePresentation` 析构漏气泡**。`bubble_widget_(new QWidget(this))`
+  本来挂在遮罩下，但实操模式的 `setInteractive(true)` 里有
+  `bubble_widget_->setParent(nullptr)`——把它提成了独立顶层窗口，**同时摘掉了
+  Qt 的父子所有权**。类里没有析构函数，于是"进过实操模式再销毁"就漏一个
+  QWidget，而且那个窗口会一直留在屏幕上。修法：加析构显式 `delete`，
+  仍挂在遮罩下时删它同样安全
+- **B11 `EnsureApplied` 提前置位导致样式永不生效**。`applied = true` 写在两个
+  early return **之前**：`app == nullptr`（QApplication 还没建）或 QSS 读取失败
+  时，标记已经置真，之后每次调用都在第一行返回——样式永远不生效，且不报错。
+  修法：只有真的 `setStyleSheet` 成功之后才置真；前两条路各自留一次重试的机会
+- **B12 getter 按值返回**。`GuidanceStep` / `GuidanceFlow` 的 10 个 getter
+  全按值返回，其中 `Target` 是 variant（可能装 `QPixmap`）、`Func` 是
+  `std::function`（按值拷可能堆分配）。而控制器里的写法普遍是
+  `if (x->enterFunc()) { x->enterFunc()(); }`——**一次调用就拷两遍**；
+  `updateUi` 里 `step->target()` 同样取了两遍。修法：全部改 `const&`，
+  并把 `updateUi` 的局部量改成引用，去掉那次多余的拷贝
+
 ## libui 抽离为独立 CMake 库（2026-09-14，原同名文档）
 
 抽出 `src/libui`（40 文件 / 3196 行）连同 gallery 成独立仓 `qt-libui`。
