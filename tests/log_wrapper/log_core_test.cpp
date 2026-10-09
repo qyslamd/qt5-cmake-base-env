@@ -68,3 +68,35 @@ TEST(LogCoreTest, WorksWithoutQt) {
   EXPECT_EQ(std::string::npos, content.find("filtered-warn-sentinel")) << content;
   EXPECT_NE(std::string::npos, content.find("kept-error-sentinel")) << content;
 }
+
+// 与 spdlog 内建 logger **撞名**的模块：必须复用它，不能先 drop 再注册。
+//
+// Init 注册的默认 logger 名字就叫 "default"，而 Qt 的默认日志类别也叫
+// "default"（qtMessageHandler 把 context.category 原样当模块名传进来），
+// 所以这条分支真机上一定会走到：drop 掉之后 spdlog::default_logger() 成了
+// nullptr，此后每个新建的模块 logger 都拿到 nullptr——日志静默丢失、一条都
+// 不落盘，而每处调用点看起来都正常
+TEST(LogCoreTest, KeepsLoggingAfterDefaultNameCollision) {
+  const std::filesystem::path log_dir = PrepareLogDir();
+
+  LogInitOptions options;
+  options.log_dir = log_dir.string();
+  options.file_name = "collision";
+  LogCore::Init(options);
+
+  LOG_INFO("MAIN", "registered-sentinel");
+  // 撞名的这一条：真机上由第一条 Qt 警告触发
+  LOG_WARN("default", "default-category-sentinel");
+  // 撞名之后才第一次出现的模块——正是"一条不落盘"的那一类
+  LOG_INFO("LATE_MODULE", "late-module-sentinel");
+
+  LogCore::Shutdown();
+
+  const std::string content = ReadFile(log_dir / "collision.log");
+  EXPECT_NE(std::string::npos, content.find("registered-sentinel")) << content;
+  EXPECT_NE(std::string::npos, content.find("default-category-sentinel"))
+      << content;
+  EXPECT_NE(std::string::npos, content.find("late-module-sentinel"))
+      << "撞名之后新建的模块 logger 没把日志送出去，日志静默丢了\n"
+      << content;
+}

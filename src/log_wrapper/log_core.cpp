@@ -149,6 +149,15 @@ spdlog::logger* GetBootstrapLogger(std::string_view module) {
   return raw;
 }
 
+// 预注册的模块名。Init 在**单线程阶段**按这张表把 logger 一次建好：运行期的
+// 懒创建虽然能用，但要走注册表的查重（见 GetOrCreateModuleLogger），提前建好
+// 就绕开了那段时序。新模块先登记在这里
+constexpr const char* kPreRegisterModules[] = {
+    "ACQUISITION", "ALARM",    "AUTH",   "COMM", "CONFIG",
+    "CURVE",       "DASHBOARD", "LOGIN", "LOGGER", "MAIN",
+    "PRESSURE",    "PROCESS",  "REPLAY", "SELFTEST", "STORAGE",
+    "UI"};
+
 }  // namespace
 
 void LogCore::ApplyPatternToSinks(const LogInitOptions& options) {
@@ -255,12 +264,8 @@ void LogCore::Init(const LogInitOptions& options,
 
   g_initialized = true;
 
-  // 预注册常用模块 logger。懒创建在首个模块首次实例化时偶发不稳定
-  // （logger 静默丢弃全部输出），提前在单线程初始化阶段一次建好。
-  static const char* kPreRegisterModules[] = {
-      "ACQUISITION", "ALARM",    "AUTH",    "COMM", "CONFIG",   "CURVE",
-      "DASHBOARD",   "LOGIN",    "LOGGER",  "MAIN", "PRESSURE", "PROCESS",
-      "REPLAY",      "SELFTEST", "STORAGE", "UI"};
+  // 预注册常用模块 logger：懒创建在首个模块首次实例化时偶发不稳定（logger
+  // 静默丢弃全部输出），提前在单线程初始化阶段一次建好（表见 kPreRegisterModules）
   {
     std::lock_guard<std::mutex> lock(g_mutex);
     for (const char* name : kPreRegisterModules) {
@@ -369,10 +374,26 @@ spdlog::logger* LogCore::GetOrCreateModuleLogger(
   module_logger->set_level(default_logger->level());
   module_logger->flush_on(spdlog::level::err);
 
-  // 如果 spdlog 全局 registry 中已存在同名 logger，先移除再注册
-  if (spdlog::get(module_name)) {
-    spdlog::drop(module_name);
+  // spdlog 注册表里已有同名 logger 时**复用它，绝不先 drop 再注册**：
+  // Init 注册的默认 logger 名字就叫 "default"，而 Qt 的默认日志类别也叫
+  // "default"（qtMessageHandler 把 context.category 原样当模块名传进来），
+  // 所以这条分支真机上一定会走到。一旦 drop 掉它，spdlog::default_logger()
+  // 就成了 nullptr——此后每个新建的模块 logger 都在上面那行拿到 nullptr，
+  // 日志静默丢失、一条都不落盘（用例 KeepsLoggingAfterDefaultNameCollision）
+  //
+  // 空名字不走复用：注册表里那个同名的是 spdlog 自己建的内建 logger，只有
+  // 控制台 sink、没有文件 sink，复用它等于日志写丢一半（正常调用不会传空
+  // 名字，这只是别让一个退化输入悄悄变成"日志少了一半"）；按普通模块建又会
+  // 撞上 register_logger 的重名抛异常，所以一律退回默认 logger
+  if (module_name.empty()) {
+    return spdlog::default_logger().get();
   }
+  if (auto existing = spdlog::get(module_name)) {
+    auto* existing_ptr = existing.get();
+    g_module_loggers[module_name] = existing_ptr;
+    return existing_ptr;
+  }
+
   spdlog::register_logger(module_logger);
 
   auto* raw_ptr = module_logger.get();
