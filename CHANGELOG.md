@@ -465,6 +465,12 @@
   某些 TU 记成空、记录本身还带有效 mtime——于是头文件改了不重编，两个 TU 布局
   不一致，链接不报错、运行时炸。症状看着像代码 bug，其实是构建的问题；四段齐：
   根因、`ninja -t deps` 怎么确认、怎么修、判据
+- **日志模块改名 `src/log_wrapper/` → `src/logging/`**：它头上第一句就写着"日志核心"，
+  设计文档也这么叫（`core/logger` 才是门面），类是 `LogCore`、目标名是
+  `${APP_TARGET_PREFIX}_log`、连头文件保护宏都是 `FILE_LOG_LOG_CORE_H_`——只有目录
+  名还叫 wrapper，而且是全仓唯一带下划线的模块目录。目标名、类名、宏都不动，
+  只改目录、include 路径与 `tests/log_wrapper`（21 处引用）
+
 
 ### 修复
 

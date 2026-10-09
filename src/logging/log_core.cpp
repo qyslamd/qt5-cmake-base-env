@@ -1,4 +1,4 @@
-#include "log_wrapper/log_core.h"
+#include "logging/log_core.h"
 
 #include <spdlog/async.h>
 #include <spdlog/sinks/base_sink.h>
@@ -18,7 +18,7 @@
 #include <utility>
 #include <vector>
 
-#include "log_wrapper/log_pattern.h"
+#include "logging/log_pattern.h"
 
 namespace {
 

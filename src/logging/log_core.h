@@ -6,7 +6,7 @@
 
 #include <spdlog/spdlog.h>
 
-#include "log_wrapper/log_types.h"
+#include "logging/log_types.h"
 
 // 日志核心：**不依赖 Qt**，只链 spdlog与标准库。
 //

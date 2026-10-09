@@ -3,7 +3,7 @@
 
 #include <string>
 
-#include "log_wrapper/log_types.h"
+#include "logging/log_types.h"
 
 // 按开关拼出 spdlog 的 pattern 字符串。
 //

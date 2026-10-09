@@ -21,7 +21,7 @@ set(ALL_HEADERS_SOURCES
 
 add_library(${TARGET_NAME} STATIC ${ALL_HEADERS_SOURCES})
 
-# 暴露 src，消费方用 #include "log_wrapper/log_core.h"
+# 暴露 src，消费方用 #include "logging/log_core.h"
 target_include_directories(${TARGET_NAME} PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/..
 )

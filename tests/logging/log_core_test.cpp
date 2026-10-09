@@ -6,7 +6,7 @@
 #include <string>
 #include <system_error>
 
-#include "log_wrapper/log_core.h"
+#include "logging/log_core.h"
 
 namespace {
 

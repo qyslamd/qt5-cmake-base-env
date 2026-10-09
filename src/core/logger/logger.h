@@ -1,10 +1,10 @@
 #ifndef FILE_CORE_LOGGER_LOGGER_H_
 #define FILE_CORE_LOGGER_LOGGER_H_
 
-// 转发包含：日志核心已搬到 src/log_wrapper（不依赖 Qt），但 LOG_* 宏、LogLevel
+// 转发包含：日志核心已搬到 src/logging（不依赖 Qt），但 LOG_* 宏、LogLevel
 // 等对所有既有调用方仍然从这个头文件可见——全仓 8 处 include 与 66 个 LOG_*
 // 调用点因此一行都不用改（见 docs/plan/日志模块拆分设计.md）
-#include "log_wrapper/log_core.h"
+#include "logging/log_core.h"
 
 class LogHistoryBuffer;
 class QtConsoleSink;
