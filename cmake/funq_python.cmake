@@ -3,7 +3,7 @@
 # 为什么这条要单独成文件：funq 的注入是「Python 进程调 CreateRemoteThread +
 # LoadLibrary」，而 Windows 不允许跨位数注入。错配的表现极具误导性——不报错，
 # 只表现为注入失败、然后一路等到超时（tests/funq_demo 那边曾经是 180 秒）。
-# tests/funq_demo 与 examples/funq-client-demo 两处都要按同一条规则挑解释器，
+# tests/funq_demo 与 examples/funq-scripts 两处都要按同一条规则挑解释器，
 # 规则只留在这里一份（示例这边当初漏了，挑到 64 位 Python 对 x86 目标）。
 #
 # 选择顺序：仓库自带的那份（按目标架构挑，3.8.8）→ -DFUNQ_PYTHON 指定的 →

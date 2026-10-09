@@ -317,7 +317,7 @@ exe + PDB 解析 minidump。
 2026-09-29）；而本仓登录是开着的——**有登录框那条路一次都没跑过**。
 
 **入手点**：在本仓构建一次（`APP_ENABLE_AUTH` 默认 ON），按
-`examples/funq-client-demo/README.md` 起两个终端，确认第 2-4 步（输错密码 →
+`examples/funq-scripts/README.md` 起两个终端，确认第 2-4 步（输错密码 →
 看提示文字 → 换对密码进主窗口）照旧。跑过就把这条删掉。
 
 ### 已决定不做

@@ -1,5 +1,5 @@
 add_subdirectory(fft_demo)
-add_subdirectory(funq-client-demo)
+add_subdirectory(funq-scripts)
 add_subdirectory(funq_target)
 add_subdirectory(tour_demo)
 add_subdirectory(style_demo)

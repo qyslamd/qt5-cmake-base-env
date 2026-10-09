@@ -14,7 +14,7 @@
 
 本文讲的是**自动化**那条链路：一条 ctest 命令跑完，被测程序由用例自己拉起。
 想先看清 funq 的 server 侧与 client 侧是怎么分工的，看
-[examples/funq-client-demo](../../examples/funq-client-demo/)——两个终端各起一边，
+[examples/funq-scripts](../../examples/funq-scripts/)——两个终端各起一边，
 被测程序是**本仓自己的 demo_app**，七步从登录一路驱动到设置对话框，每步都打印
 它看到了什么。
 

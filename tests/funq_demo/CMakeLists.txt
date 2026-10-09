@@ -19,7 +19,7 @@ if(NOT BUILD_FUNQ)
 endif()
 
 # 解释器必须与目标架构同位数——规则、理由与选择顺序见 cmake/funq_python.cmake，
-# 与 examples/funq-client-demo 共用同一份（那处当初漏了，挑到 64 位 Python 去注
+# 与 examples/funq-scripts 共用同一份（那处当初漏了，挑到 64 位 Python 去注
 # x86 目标）。可用 -DFUNQ_PYTHON=<路径> 覆盖。
 include(${CMAKE_SOURCE_DIR}/cmake/funq_python.cmake)
 funq_find_python(PYTHON_EXECUTABLE "funq 的 UI 测试")

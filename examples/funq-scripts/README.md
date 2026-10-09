@@ -28,7 +28,7 @@ Linux / WSL 同样是这两条，把 `.bat` 换成 `.sh` 即可（由 CMake 生�
 `Ctrl+C` 结束终端 1，被测程序跟着结束。终端 2 跑完自己退出。
 
 想在别的机器上连，`funq-client-demo` 支持 `--host` / `--port`；端口在
-`examples/funq-client-demo/CMakeLists.txt` 的 `FUNQ_DEMO_PORT` 里改，两侧一起换。
+`examples/funq-scripts/CMakeLists.txt` 的 `FUNQ_DEMO_PORT` 里改，两侧一起换。
 
 ## 两个终端分别在做什么
 

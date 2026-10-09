@@ -29,8 +29,8 @@ if(Python3_Interpreter_FOUND)
     if(FUNQ_PYFLAKES_RC EQUAL 0)
         add_test(NAME test_funq_scripts
             COMMAND "${Python3_EXECUTABLE}" -m pyflakes
-                "${CMAKE_SOURCE_DIR}/examples/funq-client-demo/funq_client_demo.py"
-                "${CMAKE_SOURCE_DIR}/examples/funq-client-demo/check_no_instance.py")
+                "${CMAKE_SOURCE_DIR}/examples/funq-scripts/funq_client_demo.py"
+                "${CMAKE_SOURCE_DIR}/examples/funq-scripts/check_no_instance.py")
         set_tests_properties(test_funq_scripts PROPERTIES LABELS "SCRIPT")
     else()
         message(STATUS

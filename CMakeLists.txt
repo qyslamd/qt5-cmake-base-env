@@ -467,7 +467,7 @@ if(BUILD_FUNQ)
             # 知道，故退回无后缀名字——与改动前一致
             set(FUNQ_INJECTOR_CONFIGURED_NAME "${FUNQ_INJECTOR_STAGE_NAME}")
         endif()
-        # 供消费方（tests/funq_demo 的注入器包装、examples/funq-client-demo 的
+        # 供消费方（tests/funq_demo 的注入器包装、examples/funq-scripts 的
         # serve 脚本）
         # 经 configure_file 注入到生成的脚本里
         set(FUNQ_INJECTOR_LIBRARY
@@ -581,6 +581,36 @@ if(WIN32)
         configure_file(
             "${CMAKE_SOURCE_DIR}/cmake/template/clang_tidy.bat.in"
             "${CMAKE_SOURCE_DIR}/scripts/clang_tidy.bat"
+            @ONLY
+        )
+    endif()
+endif()
+
+#-------------------------------------------------------------------------------
+# 代码统计脚本（cloc）
+#
+# 模板一直在库里，只是没人接线——生成的脚本带本机的 cloc 路径与源码根，所以
+# 和 clang_tidy 一样由 configure_file 产出，不入「用户要改的脚本」那一类
+#-------------------------------------------------------------------------------
+
+if(WIN32)
+    find_program(CLOC_EXECUTABLE
+        NAMES cloc cloc-2.06
+        HINTS ${CMAKE_SOURCE_DIR}/3rdparty/cloc-2.06
+    )
+    if(NOT CLOC_EXECUTABLE)
+        message(WARNING
+            "cloc executable not found! 代码统计脚本不会生成。"
+            "把 cloc-2.06.exe 放进 3rdparty/cloc-2.06/，或用 -DCLOC_EXECUTABLE=<路径> 指定。")
+    else()
+        configure_file(
+            "${CMAKE_SOURCE_DIR}/cmake/template/code_stats.bat.in"
+            "${CMAKE_SOURCE_DIR}/scripts/code_stats.bat"
+            @ONLY
+        )
+        configure_file(
+            "${CMAKE_SOURCE_DIR}/cmake/template/code_stats.ps1.in"
+            "${CMAKE_SOURCE_DIR}/scripts/code_stats.ps1"
             @ONLY
         )
     endif()
