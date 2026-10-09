@@ -282,3 +282,9 @@ dist/
 version.txt
 make_installer.bat
 scripts/make_install_package.iss
+
+# 公司内部资料（需求文档、仪器 SDK、旧程序截图等）：**只在本机**，已从 git 历史里
+# 抹掉（见 docs/guide 与 plan 里的说明），不入库、也不再推给任何人。列在这里是
+# 为了别让它以"待提交"的样子堆在编辑器里——一次 git add -A 就会把公司资料带进
+# 仓库，而那是这条规则最不能出的错
+docs/inputs/
