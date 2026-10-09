@@ -422,6 +422,19 @@ if(WIN32)
             "${FUNQ_KIT_DIR}/funq-self-test.bat" @ONLY)
         configure_file("${CMAKE_SOURCE_DIR}/cmake/template/funq-kit-readme.txt.in"
             "${FUNQ_KIT_DIR}/README.txt" @ONLY)
+
+        # 两个 .py 也在这里拷一份（不是只有 make_funq_kit 拷）。**别删这两处
+        # 里任何一处**：make_funq_kit 只在打包路径（make_package）里被依赖，
+        # 平时构建不跑——只靠它的话 .bat 是新的、.py 还停在几个月前，而症状
+        # 是脚本按老 objectName 找控件、报"找不到控件"（产品线实测踩过：改名
+        # 那轮之后 tour 脚本一直跑不起来）。configure_file 会把这个源文件记进
+        # 配置依赖，改了它就重新配置，所以平时构建就能跟上
+        configure_file(
+            "${CMAKE_SOURCE_DIR}/examples/funq-client-demo/funq_client_demo.py"
+            "${FUNQ_KIT_DIR}/funq_client_demo.py" COPYONLY)
+        configure_file(
+            "${CMAKE_SOURCE_DIR}/examples/funq-client-demo/check_no_instance.py"
+            "${FUNQ_KIT_DIR}/check_no_instance.py" COPYONLY)
     endif()
 
     #=======================================
