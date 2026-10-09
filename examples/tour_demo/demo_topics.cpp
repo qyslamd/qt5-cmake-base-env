@@ -25,7 +25,7 @@ QWidget* Find(QWidget* root, const QString& name) {
 
 TourStep* MakeStep(QWidget* target, const QString& title,
                        const QString& description) {
-  auto* step = new TourStep(target);
+  auto* step = new TourStep(WidgetTarget{target});
   step->setTitle(title);
   step->setDescription(description);
   return step;
@@ -119,7 +119,8 @@ void AddDemoTopics(TourController* controller, QWidget* root) {
     rect_step->setEnterFunc([rect_step, status]() {
       // 比控件本身往外扩一点，看得出是"区域"而不是"控件边界"
       const QPoint top_left = status->mapToGlobal(QPoint(-8, -6));
-      rect_step->setTarget(QRect(top_left, status->size() + QSize(16, 12)));
+      rect_step->setContent(
+          GlobalRect{QRect(top_left, status->size() + QSize(16, 12))});
     });
   }
   shapes->addStep(rect_step);
@@ -128,7 +129,7 @@ void AddDemoTopics(TourController* controller, QWidget* root) {
       nullptr, QStringLiteral("插一张示意图"),
       QStringLiteral("QPixmap 目标居中显示，高亮框正好包住它。"
                      "图是运行时用 QPainter 画的，示例不依赖图片资源。"));
-  pixmap_step->setTarget(MakeSamplePixmap());
+  pixmap_step->setContent(SplashImage{MakeSamplePixmap()});
   shapes->addStep(pixmap_step);
 
   shapes->addStep(MakeStep(nullptr, QStringLiteral("演示结束"),

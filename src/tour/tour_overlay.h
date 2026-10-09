@@ -6,6 +6,8 @@
 #include <QPointer>
 #include <QWidget>
 
+#include "tour_bubble_placer.h"
+
 class QEvent;
 class QLabel;
 class QMouseEvent;
@@ -95,7 +97,7 @@ class TourOverlay : public QWidget {
 
   // 最近一次高亮的矩形（遮罩坐标系）。桥接层回报给脚本侧核对：高亮和遮罩
   // 到底算在了哪儿，是"看不见"这类问题唯一能拿到的数字
-  QRect highlightRect() const { return highlightRect_; }
+  QRect highlightRect() const { return highlight_.anchor; }
 
   // 本次高亮**一共框了几处**（含锚点）。给 funq 观测用：单靶恒为 1，
   // 多靶是几就是几——"框了三个"这件事只有眼睛看得见，这个数字是它唯一的出口。
@@ -132,14 +134,11 @@ class TourOverlay : public QWidget {
   QPainterPath ArrowPath() const;
   void drawHighlight(QPainter* painter);
 
+  // 摆气泡：算法在 tour_bubble_placer（纯几何、可单测），这里只负责把结果
+  // 交给动画去走
   void changeBubblePosition();
-  struct DirectionInfo {
-    bool canPlace = false;
-    int spaceWidth = 0;
-    int spaceHeight = 0;
-  };
-  enum Position { Auto, Left, Right, Top, Bottom } position_ = Left;
-  DirectionInfo evaluateDirectionSpace(Position pos);
+  // 气泡在目标的哪一侧（箭头画在相反一侧，见 ArrowPath）
+  BubbleSide position_ = BubbleSide::kLeft;
 
   // 自绘层颜色：集中在这三个函数里，便于统一替换成主题色
   QColor maskColor() const;
@@ -162,29 +161,50 @@ class TourOverlay : public QWidget {
   int cornerRadius_ = 12;
 
   // overlay members
-  QRect highlightRect_;
-  // 锚点之外还要一起挖孔的矩形（遮罩坐标系，与 highlightRect_ 同域）。
-  // **每一步开头/每次外部高亮都无条件重算**，见 updateUi 与两个 showHighlight*
-  QList<QRect> extra_rects_;
+  // 当前这一步要高亮的框：**一处真相**。原先分成"锚点矩形 + 额外靶表"两份，
+  // 再叠一份动画副本，靠约定同步——于是有幽灵框（多靶那条路忘了同步副本）、
+  // 有"清完之后 extra 必然为空"这种恒真条件，还要在注释里反复提醒"别拿派生
+  // 状态当判据"（那几条注释现在可以删了）
+  struct Highlight {
+    // 锚点：气泡与三角箭头挂在它旁边。**可以为空**（空目标步是纯讲解），
+    // 但位置是定的——它是第一项
+    QRect anchor;
+    // 其余要一起框住的靶（空矩形不进来，见 updateUi 的收集循环）
+    QList<QRect> extras;
+
+    // 只留真有人用的两个：`Count()` 给 highlightCount()，`Clear()` 给
+    // clearHighlight()。**不预先加 IsEmpty()** ——"顺手多写一个以后可能有用"
+    // 的成员正是这一步要清掉的那类东西
+    int Count() const { return (anchor.isNull() ? 0 : 1) + extras.size(); }
+    void Clear() {
+      anchor = QRect();
+      extras.clear();
+    }
+  };
+  Highlight highlight_;
+  // 动画**此刻正在显示**的锚点框（anime_highlight_ 逐帧写它）。它不是第二份
+  // 真相：动画停着时它等于 highlight_.anchor，多靶那条不走动画的路由
+  // updateUi 自己对齐一次
+  QRect anim_anchor_rect_;
   QPixmap pixmap_;
   int margin_ = 10;
   int borderWidth_ = 3;
   // 遮罩比宿主窗口外扩的像素数，见 SetHost
   const int kHostMargin = 24;
 
-  // 搞动画的
-  bool use_anime_ = true;
+  // 两个动画。**没有"关掉动画"的开关**：原先有个 `use_anime_ = true` 的成员，
+  // 没有 setter、恒真，读它的四个分支全是死代码（还会让人以为有开关去找）——
+  // 已拉平
   const int kAnimeDur = 300;
   QVariantAnimation* anime_highlight_;
   QPropertyAnimation* anime_bubble_;
-  QRect anime_highlight_rect_;
 
   // 控件 → 遮罩坐标系的高亮矩形。updateUi 的 QWidget* 分支与外部驱动的
   // 高亮（showHighlight）共用同一套算法，避免两处算出不同的框
   void ApplyWidgetHighlight(QWidget* target);
 
   // 两个 showHighlight* 的收尾：摆气泡、刷出来、显示并置顶。
-  // 矩形已经算好放在 highlightRect_ 里了
+  // 矩形已经算好放在 highlight_.anchor 里了
   void FinishShowHighlight(const QString& title, const QString& text);
 
   // 遮罩要不要吞鼠标，由**两个标志共同决定**（被动模式 / 实操模式），只在

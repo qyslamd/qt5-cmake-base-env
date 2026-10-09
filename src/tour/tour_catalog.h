@@ -10,17 +10,40 @@
 #include <QString>
 #include <QWidget>
 
-// 单个引导步骤：目标元素（控件/矩形/图片）+ 标题/描述 + 进入/退出回调。
+// —— 一步"指向什么"：三个类型，各自把语义与坐标口径写进类型 ——
+//
+// 原先是一个裸的 `std::variant<QWidget*, QRect, QPixmap>`：三种东西的坐标口径
+// 完全不同，而"传进来的矩形必须是**全局**坐标"只能写在注释里、靠调用方记得
+// ——注释里那个"必须假定"本身就是警告。现在类型自己回答：
+struct WidgetTarget {
+  QWidget* widget = nullptr;  // 遮罩负责把它映射到自身坐标系
+};
+// 这个矩形**已经是全局屏幕坐标**（原点在屏幕左上）。类型名即约定
+struct GlobalRect {
+  QRect rect;
+};
+// 一步不挖洞、只在遮罩中央贴一张合成图（图示步）。**它不是靶**：与"框住某处"
+// 互斥，所以 `withExtraTarget` 收不了它——靶那个 variant 里没有这一支
+struct SplashImage {
+  QPixmap pixmap;
+};
+
+// 一步的锚点内容：三种互斥
+using StepContent = std::variant<WidgetTarget, GlobalRect, SplashImage>;
+// 靶：能"框住"的两种。**额外靶只收这个** —— SplashImage 进不来是类型保证，
+// 不再是注释里的约定（原先那个分支要 qWarning 一句"额外靶不支持图片"）
+using Target = std::variant<WidgetTarget, GlobalRect>;
+
+// 单个引导步骤：锚点内容 + 标题/描述 + 进入/退出回调。
 // 纯类，无 Q_OBJECT（不依赖元对象系统）。
 class TourStep {
  public:
-  using Target = std::variant<QWidget*, QRect, QPixmap>;
   using Func = std::function<void()>;
 
  private:
   QString title_;
   QString description_;
-  Target target_;
+  StepContent content_;
   // 除锚点外**还要一起框住**的靶（《一步多靶设计》）。空 = 单靶，与从前一致。
   // 锚点是气泡与三角箭头的依托，所以只能有一个；其余的进这里，没有主次之分
   QList<Target> extra_targets_;
@@ -28,14 +51,14 @@ class TourStep {
   std::function<void()> onExit;
 
  public:
-  TourStep(const Target& target)
-      : target_(target),
+  TourStep(const StepContent& content)
+      : content_(content),
         title_("未知"),
         description_("未知"),
         onEnter(nullptr),
         onExit(nullptr) {}
 
-  // getter 一律返回 const 引用。Target 是 variant（可能装着 QPixmap）、Func 是
+  // getter 一律返回 const 引用。StepContent 是 variant（可能装着 QPixmap）、Func 是
   // std::function（按值拷可能堆分配），而调用点普遍长成
   // `if (x->enterFunc()) { x->enterFunc()(); }`——按值返回时，一次调用就拷两遍
   inline const QString& title() const { return title_; }
@@ -44,16 +67,15 @@ class TourStep {
   inline const QString& description() const { return description_; }
   inline void setDescription(const QString& desc) { description_ = desc; }
 
-  // 锚点：框里它，气泡与三角箭头也挂在它旁边。"一个步骤讲一件事"曾经靠它就够了，
-  // 现在它多一层含义——多靶时它是**主靶**，其余的见 extraTargets()
-  inline const Target& target() const { return target_; }
+  // 锚点：框住它，气泡与三角箭头也挂在它旁边。"一个步骤讲一件事"曾经靠它就够
+  // 了，现在它多一层含义——多靶时它是**主靶**，其余的见 extraTargets()
+  inline const StepContent& content() const { return content_; }
 
-  // 允许在 enter 回调中延迟定位目标
-  inline void setTarget(const Target& target) { target_ = target; }
+  // 允许在 enter 回调中延迟定位锚点
+  inline void setContent(const StepContent& content) { content_ = content; }
 
   inline const QList<Target>& extraTargets() const { return extra_targets_; }
-  // 链式，可调多次。只认控件与矩形（QPixmap 是"洞里贴一张合成图"，多张要变成
-  // (rect, pixmap) 成对的结构，不值当——见设计 D4）
+  // 链式，可调多次。**只收靶**（见 Target 的注释）——图片要走锚点那条路
   TourStep* withExtraTarget(const Target& target) {
     extra_targets_.append(target);
     return this;

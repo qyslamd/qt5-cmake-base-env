@@ -22,29 +22,28 @@
 
 namespace {
 
-// 额外靶 → 遮罩局部矩形（《一步多靶设计》§3.2）。**只认控件与矩形**：QPixmap
-// 那一种是"洞里贴一张合成图"，多靶要变成 (rect, pixmap) 成对的结构才说得通，
-// 不值当（设计 D4）。锚点那一支不走这里——它是唯一处理图片的地方，原样不动
+// 额外靶 → 遮罩局部矩形（《一步多靶设计》§3.2）。
+//
+// 只有两种靶，所以这里**没有"图片怎么办"这一支**——原先那个 qWarning（"额外靶
+// 不支持图片"）是靠注释约定的，现在 SplashImage 压根进不了 Target，类型挡住了
 QRect RectForExtraTarget(const QWidget* overlay,
-                         const TourStep::Target& target) {
+                         const Target& target) {
   return std::visit(
       [overlay](auto&& t) -> QRect {
         using T = std::decay_t<decltype(t)>;
-        if constexpr (std::is_same_v<T, QWidget*>) {
-          if (t == nullptr) {
+        if constexpr (std::is_same_v<T, WidgetTarget>) {
+          if (t.widget == nullptr) {
             return QRect();
           }
-          return QRect(overlay->mapFromGlobal(t->mapToGlobal(QPoint(0, 0))),
-                       t->size());
-        } else if constexpr (std::is_same_v<T, QRect>) {
-          if (t.isNull()) {
-            return QRect();
-          }
-          // 假定传进来的是全局坐标系（与 updateUi 里那一支同一条口径）
-          return QRect(overlay->mapFromGlobal(t.topLeft()), t.size());
+          return QRect(
+              overlay->mapFromGlobal(t.widget->mapToGlobal(QPoint(0, 0))),
+              t.widget->size());
         } else {
-          qWarning() << "引导演示：额外靶不支持图片，已忽略";
-          return QRect();
+          // GlobalRect：全局坐标 → 遮罩局部
+          if (t.rect.isNull()) {
+            return QRect();
+          }
+          return QRect(overlay->mapFromGlobal(t.rect.topLeft()), t.rect.size());
         }
       },
       target);
@@ -158,7 +157,7 @@ void TourOverlay::initOthers() {
   anime_highlight_->setEasingCurve(QEasingCurve::InOutCubic);
   connect(anime_highlight_, &QVariantAnimation::valueChanged, this,
           [this](const QVariant& var) {
-            anime_highlight_rect_ = var.value<QRect>();
+            anim_anchor_rect_ = var.value<QRect>();
             update();
           });
   connect(anime_highlight_, &QVariantAnimation::finished, this,
@@ -232,78 +231,75 @@ void TourOverlay::updateUi(TourTopic* const topic,
   pixmap_ = QPixmap();
   // 额外靶**每一步开头都要清**（与上面那行清 pixmap_ 同构）：不清的话上一步的框
   // 会留在屏幕上——第 4 步（三张卡）是三靶、紧随其后的第 5 步是单靶
-  extra_rects_.clear();
+  highlight_.extras.clear();
 
-  // 多靶判定用步骤自己的声明，**不要写 extra_rects_.isEmpty()**：上面刚清过、
+  // 多靶判定用步骤自己的声明，**不要写 highlight_.extras.isEmpty()**：上面刚清过、
   // 锚点那支 visit 完还没收集，那一刻它必然是空表，那个条件恒真
   const bool multi = !step->extraTargets().isEmpty();
 
   // 空目标步（接线/收尾等纯讲解）：显式清掉上一步的高亮残留——
-  // 动画分支不会重置 highlightRect_，否则高亮框滞留在上一个控件上
-  const TourStep::Target& target = step->target();
-  if (const auto* widget = std::get_if<QWidget*>(&target);
-      widget != nullptr && *widget == nullptr) {
-    highlightRect_ = QRect();
+  // 动画分支不会重置 highlight_.anchor，否则高亮框滞留在上一个控件上
+  const StepContent& content = step->content();
+  if (const auto* widget = std::get_if<WidgetTarget>(&content);
+      widget != nullptr && widget->widget == nullptr) {
+    highlight_.anchor = QRect();
   }
 
   if (multi) {
     // 多靶不走动画（设计 D2）：并集难看、N 路并行不值。**stop() 不能省**：
     // 上一步的动画还在跑时（kAnimeDur = 300 ms，连点两下「下一步」就会撞上）
-    // 它会经 valueChanged 继续写 anime_highlight_rect_，把下面那行赋值盖掉
+    // 它会经 valueChanged 继续写 anim_anchor_rect_，把下面那行赋值盖掉
     anime_highlight_->stop();
-  }
-
-  if (use_anime_ && !multi) {
-    // 计算之前设置开始值
-    anime_highlight_->setStartValue(highlightRect_);
-  } else if (!use_anime_) {
-    highlightRect_ = QRect();
+  } else {
+    // 计算之前设置开始值（从上一帧显示的位置挪过来）
+    anime_highlight_->setStartValue(highlight_.anchor);
   }
 
   std::visit(
       [this](auto&& target) {
         using T = std::decay_t<decltype(target)>;
-        if constexpr (std::is_same_v<T, QWidget*>) {
-          if (target) {
-            QPoint gPos = target->mapToGlobal(QPoint(0, 0));
-            highlightRect_ = QRect(mapFromGlobal(gPos), target->size());
+        if constexpr (std::is_same_v<T, WidgetTarget>) {
+          if (target.widget) {
+            QPoint gPos = target.widget->mapToGlobal(QPoint(0, 0));
+            highlight_.anchor =
+                QRect(mapFromGlobal(gPos), target.widget->size());
           }
-        } else if constexpr (std::is_same_v<T, QRect>) {
-          // 得从全局映射坐标系来
-          // 且必须假定传入得是全局坐标系
-          highlightRect_ = QRect(mapFromGlobal(target.topLeft()),
-                                 QSize(target.width(), target.height()));
+        } else if constexpr (std::is_same_v<T, GlobalRect>) {
+          // GlobalRect 的坐标口径由类型担保（见 tour_catalog.h），这里不必再
+          // 假定什么——映射到遮罩坐标系即可
+          highlight_.anchor = QRect(mapFromGlobal(target.rect.topLeft()),
+                                    target.rect.size());
 
-        } else if constexpr (std::is_same_v<T, QPixmap>) {
-          auto center = rect().center();
-          highlightRect_ = QRect(center.x() - target.width() / 2,
-                                 center.y() - target.height() / 2,
-                                 target.width(), target.height());
-          pixmap_ = target;
+        } else if constexpr (std::is_same_v<T, SplashImage>) {
+          // 图示步：不挖洞，把图贴在遮罩中央，锚点就是图占的那块
+          const auto center = rect().center();
+          highlight_.anchor =
+              QRect(center.x() - target.pixmap.width() / 2,
+                    center.y() - target.pixmap.height() / 2,
+                    target.pixmap.width(), target.pixmap.height());
+          pixmap_ = target.pixmap;
         }
       },
-      target);
+      content);
 
   // 额外靶：锚点算完之后逐个补上（非空矩形才收，空靶不占位——设计 D6）
-  for (const TourStep::Target& extra : step->extraTargets()) {
+  for (const Target& extra : step->extraTargets()) {
     const QRect r = RectForExtraTarget(this, extra);
     if (!r.isNull()) {
-      extra_rects_.append(r);
+      highlight_.extras.append(r);
     }
   }
 
   if (multi) {
     // 多靶这一支不走动画，而 drawHighlight / mousePressEvent 读的是
-    // anime_highlight_rect_（use_anime_ 恒真、没有 setter），所以这个成员
-    // **得自己同步**——不补的话锚点框会停在上一个靶的位置上（幽灵框），
-    // 气泡与命中区也跟着错，而且 highlightCount 照样报数，用例抓不住
-    anime_highlight_rect_ = highlightRect_;
+    // anim_anchor_rect_（"此刻显示中的框"），所以这里**得自己对齐一次**——
+    // 不补的话锚点框会停在上一个靶的位置上（幽灵框），气泡与命中区也跟着错，
+    // 而且 highlightCount 照样报数，用例抓不住
+    anim_anchor_rect_ = highlight_.anchor;
     update();
-  } else if (use_anime_) {
-    anime_highlight_->setEndValue(highlightRect_);
-    anime_highlight_->start();
   } else {
-    update();
+    anime_highlight_->setEndValue(highlight_.anchor);
+    anime_highlight_->start();
   }
 
   //-------------------------------
@@ -430,11 +426,11 @@ QPoint TourOverlay::BubbleOrigin() const {
 
 void TourOverlay::ApplyWidgetHighlight(QWidget* target) {
   if (target == nullptr) {
-    highlightRect_ = QRect();
+    highlight_.anchor = QRect();
     return;
   }
   const QPoint global_pos = target->mapToGlobal(QPoint(0, 0));
-  highlightRect_ = QRect(mapFromGlobal(global_pos), target->size());
+  highlight_.anchor = QRect(mapFromGlobal(global_pos), target->size());
 }
 
 void TourOverlay::showHighlight(QWidget* target, const QString& title,
@@ -455,11 +451,11 @@ void TourOverlay::showHighlight(QWidget* target, const QString& title,
   ApplyWidgetHighlight(target);
   // **无条件按参数赋值**：给了 extras 就是它们，没给就是空表（不清的话上一步
   // 的多靶框会留在屏幕上——两步之间不一定有 hideHighlight）
-  extra_rects_.clear();
+  highlight_.extras.clear();
   for (QWidget* extra : extras) {
-    const QRect r = RectForExtraTarget(this, TourStep::Target(extra));
+    const QRect r = RectForExtraTarget(this, Target(WidgetTarget{extra}));
     if (!r.isNull()) {
-      extra_rects_.append(r);
+      highlight_.extras.append(r);
     }
   }
   FinishShowHighlight(title, text);
@@ -473,14 +469,14 @@ void TourOverlay::showHighlightRect(
   }
   // 矩形已经是全局坐标，遮罩铺到它所在的窗口上就够（不外扩：矩形是别人算好的）
   SetHost(host, /*inflate=*/false);
-  highlightRect_ = QRect(mapFromGlobal(global_rect.topLeft()),
+  highlight_.anchor = QRect(mapFromGlobal(global_rect.topLeft()),
                          global_rect.size());
   // 同 showHighlight：无条件赋值，空参数 = 空表
-  extra_rects_.clear();
+  highlight_.extras.clear();
   for (const QRect& extra : extras) {
-    const QRect r = RectForExtraTarget(this, TourStep::Target(extra));
+    const QRect r = RectForExtraTarget(this, Target(GlobalRect{extra}));
     if (!r.isNull()) {
-      extra_rects_.append(r);
+      highlight_.extras.append(r);
     }
   }
   FinishShowHighlight(title, text);
@@ -488,7 +484,7 @@ void TourOverlay::showHighlightRect(
 
 void TourOverlay::FinishShowHighlight(const QString& title,
                                                const QString& text) {
-  anime_highlight_rect_ = highlightRect_;
+  anim_anchor_rect_ = highlight_.anchor;
   pixmap_ = QPixmap();
 
   setTitle(title);
@@ -518,18 +514,16 @@ void TourOverlay::ShowCountdown(int seconds) {
 }
 
 void TourOverlay::clearHighlight() {
-  highlightRect_ = QRect();
-  // 额外靶也要清：clearHighlight 是"把屏幕上的框全撤掉"，只清锚点会留下几个
-  // 没有依托的孤框
-  extra_rects_.clear();
-  anime_highlight_rect_ = QRect();
+  // 一处清（原先是三个成员各写一句，漏一个就是"屏幕上留着没有依托的孤框"）
+  highlight_.Clear();
+  anim_anchor_rect_ = QRect();
   pixmap_ = QPixmap();
   hide();
 }
 
 int TourOverlay::highlightCount() const {
   // 锚点 + 额外靶。空锚点（纯讲解步）不算——那一步屏幕上本来就没有框
-  return (highlightRect_.isEmpty() ? 0 : 1) + extra_rects_.size();
+  return highlight_.Count();
 }
 
 void TourOverlay::showEvent(QShowEvent* event) {
@@ -591,7 +585,7 @@ void TourOverlay::drawBubble(QPainter* painter) {
   path.addRoundedRect(bubble_rect, cornerRadius_, cornerRadius_);
   // 三角箭头只在有高亮矩形依托时绘制；纯讲解步（气泡居中）没有指向
   // 对象，就是一个干净的圆角矩形
-  if (!highlightRect_.isEmpty()) {
+  if (!highlight_.anchor.isEmpty()) {
     path.addPath(ArrowPath());
   }
   p.fillPath(path, QBrush(bubbleColor()));
@@ -609,22 +603,22 @@ QPainterPath TourOverlay::ArrowPath() const {
   QPointF base_b;
   QPointF tip;
   switch (position_) {
-    case Position::Left:  // 气泡在目标的左，箭头朝右
+    case BubbleSide::kLeft:  // 气泡在目标的左，箭头朝右
       tip = QPointF(area.right(), cy);
       base_a = QPointF(area.right() - m, cy - m);
       base_b = QPointF(area.right() - m, cy + m);
       break;
-    case Position::Top:  // 气泡在目标的上，箭头朝下
+    case BubbleSide::kTop:  // 气泡在目标的上，箭头朝下
       tip = QPointF(cx, area.bottom());
       base_a = QPointF(cx - m, area.bottom() - m);
       base_b = QPointF(cx + m, area.bottom() - m);
       break;
-    case Position::Right:  // 气泡在目标的右，箭头朝左
+    case BubbleSide::kRight:  // 气泡在目标的右，箭头朝左
       tip = QPointF(area.left(), cy);
       base_a = QPointF(area.left() + m, cy - m);
       base_b = QPointF(area.left() + m, cy + m);
       break;
-    case Position::Bottom:  // 气泡在目标的下，箭头朝上
+    case BubbleSide::kBottom:  // 气泡在目标的下，箭头朝上
       tip = QPointF(cx, area.top());
       base_a = QPointF(cx - m, area.top() + m);
       base_b = QPointF(cx + m, area.top() + m);
@@ -642,10 +636,12 @@ QPainterPath TourOverlay::ArrowPath() const {
 }
 
 void TourOverlay::drawHighlight(QPainter* painter) {
-  QRect target_rect = use_anime_ ? anime_highlight_rect_ : highlightRect_;
+  // 用**显示中的**锚点框，不是 highlight_.anchor：动画跑着时两者不同，
+  // 画的是前者（后者是它要去的地方）
+  const QRect target_rect = anim_anchor_rect_;
 
   auto& p = *painter;
-  if (target_rect.isNull() && extra_rects_.isEmpty()) {
+  if (target_rect.isNull() && highlight_.extras.isEmpty()) {
     p.fillRect(rect(), maskColor());
     return;
   }
@@ -656,7 +652,7 @@ void TourOverlay::drawHighlight(QPainter* painter) {
   if (!target_rect.isNull()) {
     rects.append(target_rect);
   }
-  for (const QRect& extra : extra_rects_) {
+  for (const QRect& extra : highlight_.extras) {
     rects.append(extra);
   }
 
@@ -703,12 +699,12 @@ void TourOverlay::mousePressEvent(QMouseEvent* event) {
   //
   // **逐个矩形判，不合并并集**（设计 D3）：多靶时两块之间那块空白也算"点在
   // 目标上"的话，遮罩就永远关不掉了（讲解式主题点空白 = 退出）
-  QRect target_rect = use_anime_ ? anime_highlight_rect_ : highlightRect_;
+  const QRect target_rect = anim_anchor_rect_;
   QList<QRect> hit_rects;
   if (!target_rect.isNull()) {
     hit_rects.append(target_rect);
   }
-  for (const QRect& extra : extra_rects_) {
+  for (const QRect& extra : highlight_.extras) {
     hit_rects.append(extra);
   }
   for (const QRect& r : hit_rects) {
@@ -725,160 +721,20 @@ void TourOverlay::mousePressEvent(QMouseEvent* event) {
 }
 
 void TourOverlay::changeBubblePosition() {
-  int spacing = kLayoutMargin - 15;
+  // 算法在 tour_bubble_placer（纯几何、有单测）。这里只剩三件事：换算坐标、
+  // 交给动画、记下箭头该朝哪边
+  const BubblePlacement placement =
+      PlaceBubble(highlight_.anchor, bubble_widget_->size(), size(),
+                  kLayoutMargin - 15);
 
-  // 空目标步：没有高亮矩形可依托，方向评估无意义，气泡直接在画面居中
-  // （原先会落进钳位逻辑被按到左上角）
-  if (highlightRect_.isEmpty()) {
-    const QSize bubble_size = bubble_widget_->size();
-    const int centered_x = (width() - bubble_size.width()) / 2;
-    const int centered_y = (height() - bubble_size.height()) / 2;
-    const QPoint centered = BubbleOrigin() + QPoint(centered_x, centered_y);
-    if (!use_anime_) {
-      bubble_widget_->move(centered);
-    } else {
-      anime_bubble_->setStartValue(bubble_widget_->pos());
-      anime_bubble_->setEndValue(centered);
-      anime_bubble_->start();
-    }
-    return;
+  const QPoint target_pos = BubbleOrigin() + placement.top_left;
+  anime_bubble_->setStartValue(bubble_widget_->pos());
+  anime_bubble_->setEndValue(target_pos);
+  anime_bubble_->start();
+  // 居中那种不带方向（没有目标可依托），**不改箭头**——与从前一致
+  if (placement.side != BubbleSide::kCentred) {
+    position_ = placement.side;
   }
-
-  DirectionInfo infoLeft = evaluateDirectionSpace(Position::Left);
-  DirectionInfo infoRight = evaluateDirectionSpace(Position::Right);
-  DirectionInfo infoTop = evaluateDirectionSpace(Position::Top);
-  DirectionInfo infoBottom = evaluateDirectionSpace(Position::Bottom);
-
-  Position bestPos = Position::Right;
-
-  if (infoLeft.canPlace && infoRight.canPlace) {
-    if (infoLeft.spaceWidth > infoRight.spaceWidth) {
-      bestPos = Position::Left;
-    } else {
-      bestPos = Position::Right;
-    }
-  } else if (infoLeft.canPlace) {
-    bestPos = Position::Left;
-  } else if (infoRight.canPlace) {
-    bestPos = Position::Right;
-  } else if (infoTop.canPlace && infoBottom.canPlace) {
-    if (infoTop.spaceHeight > infoBottom.spaceHeight) {
-      bestPos = Position::Top;
-    } else {
-      bestPos = Position::Bottom;
-    }
-  } else if (infoTop.canPlace) {
-    bestPos = Position::Top;
-  } else if (infoBottom.canPlace) {
-    bestPos = Position::Bottom;
-  } else {
-    int maxSpace = qMax(qMax(infoLeft.spaceWidth, infoRight.spaceWidth),
-                        qMax(infoTop.spaceHeight, infoBottom.spaceHeight));
-    if (maxSpace == infoLeft.spaceWidth) {
-      bestPos = Position::Left;
-    } else if (maxSpace == infoRight.spaceWidth) {
-      bestPos = Position::Right;
-    } else if (maxSpace == infoTop.spaceHeight) {
-      bestPos = Position::Top;
-    } else {
-      bestPos = Position::Bottom;
-    }
-  }
-
-  int x = 0, y = 0;
-
-  QRect targetRect = highlightRect_;
-  QSize viewportSize = this->size();
-  QSize bubbleSize = bubble_widget_->size();
-  switch (bestPos) {
-    case Position::Left:
-      x = targetRect.left() - bubbleSize.width() - spacing;
-      y = targetRect.center().y() - bubbleSize.height() / 2;
-      break;
-    case Position::Right:
-      x = targetRect.right() + spacing;
-      y = targetRect.center().y() - bubbleSize.height() / 2;
-      break;
-    case Position::Top:
-      x = targetRect.center().x() - bubbleSize.width() / 2;
-      y = targetRect.top() - bubbleSize.height() - spacing;
-      break;
-    case Position::Bottom:
-      x = targetRect.center().x() - bubbleSize.width() / 2;
-      y = targetRect.bottom() + spacing;
-      break;
-    default:
-      break;
-  }
-
-  const int margin = 20;
-  x = qMax(margin, qMin(x, viewportSize.width() - bubbleSize.width() - margin));
-  y = qMax(margin,
-           qMin(y, viewportSize.height() - bubbleSize.height() - margin));
-
-  const QPoint target_pos = BubbleOrigin() + QPoint(x, y);
-  if (!use_anime_) {
-    bubble_widget_->move(target_pos);
-  } else {
-    anime_bubble_->setStartValue(bubble_widget_->pos());
-    anime_bubble_->setEndValue(target_pos);
-    anime_bubble_->start();
-  }
-  position_ = bestPos;
-}
-
-TourOverlay::DirectionInfo
-TourOverlay::evaluateDirectionSpace(Position pos) {
-  const int spacing = 15;
-  DirectionInfo info;
-
-  QRect targetRect = highlightRect_;
-  QSize viewportSize = this->size();
-  QSize bubbleSize = bubble_widget_->size();
-
-  switch (pos) {
-    case Left: {
-      info.spaceWidth = targetRect.left();
-      info.spaceHeight = viewportSize.height();
-
-      if (bubbleSize.height() <= viewportSize.height() - spacing * 2 &&
-          bubbleSize.width() + spacing <= targetRect.left()) {
-        info.canPlace = true;
-      }
-    } break;
-    case Top: {
-      info.spaceWidth = viewportSize.width();
-      info.spaceHeight = targetRect.top();
-
-      if (bubbleSize.width() <= viewportSize.width() - spacing * 2 &&
-          bubbleSize.height() + spacing <= targetRect.top()) {
-        info.canPlace = true;
-      }
-    } break;
-    case Right: {
-      info.spaceWidth = viewportSize.width() - targetRect.right();
-      info.spaceHeight = viewportSize.height();
-
-      if (bubbleSize.height() <= viewportSize.height() - spacing * 2 &&
-          bubbleSize.width() + spacing <=
-              viewportSize.width() - targetRect.right()) {
-        info.canPlace = true;
-      }
-    } break;
-    case Bottom: {
-      info.spaceWidth = viewportSize.width();
-      info.spaceHeight = viewportSize.height() - targetRect.bottom();
-
-      if (bubbleSize.width() <= viewportSize.width() - spacing * 2 &&
-          bubbleSize.height() + spacing <=
-              viewportSize.height() - targetRect.bottom()) {
-        info.canPlace = true;
-      }
-    } break;
-    default:
-      break;
-  }
-  return info;
 }
 
 void TourOverlay::paintEvent(QPaintEvent* event) {

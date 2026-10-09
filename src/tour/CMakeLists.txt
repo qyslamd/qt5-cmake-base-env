@@ -3,6 +3,8 @@ set(TARGET_NAME ${APP_TARGET_PREFIX}_tour)
 set(TARGET_SRCS
     tour_bridge.cpp
     tour_bridge.h
+    tour_bubble_placer.cpp
+    tour_bubble_placer.h
     tour_catalog.cpp
     tour_catalog.h
     tour_controller.cpp

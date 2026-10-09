@@ -18,7 +18,7 @@ QWidget* FindWidget(QMainWindow* window, const QString& name) {
 // 一个函数，写主题时只关心"指哪、说什么"
 TourStep* MakeStep(QWidget* target, const QString& title,
                        const QString& description) {
-  auto* step = new TourStep(target);
+  auto* step = new TourStep(WidgetTarget{target});
   step->setTitle(title);
   step->setDescription(description);
   return step;
