@@ -1,0 +1,36 @@
+# funq 的别名表：友好名 = 控件路径。用例里写 widget(alias="page_title") 而不是
+# 一长串路径，路径要改也只改这一处。
+#
+# 路径从哪来：objectpath 把祖先链上每一级都拼进来，每一级用的是 objectName。
+# 真程序的控件基本都带 objectName，所以路径读起来就是 `窗口::控件`——稳定，
+# 改界面不必重探。两处不是本仓命名的段，都在下面标了出处。
+#
+# 拿不准的路径用同目录的 probe_widgets.py 打印：
+#     set FUNQ_CONF=<构建目录>/tests/funq_app/funq.conf
+#     python tests/funq_app/probe_widgets.py 关键字
+
+window = MainWindow
+
+# 中央控件的中间那截 `QWidget` 是 funq 按类名合成的——占位页的容器没起
+# objectName（它是留给模板使用者替换的）。给它一个名字，这两条路径就会跟着
+# 变短，改的时候记得同步这里
+page_title = MainWindow::QWidget::pagePlaceholderTitle
+page_hint = MainWindow::QWidget::pagePlaceholderHint
+
+# 动作是 QAction，不是 QWidget，但路径规则一样（父对象 + objectName）。
+# 名字是引导与 funq 共用的锚点，见 src/app/mainwindow.cpp 的 createActions
+action_quit = MainWindow::actionQuit
+action_log_window = MainWindow::actionLogWindow
+action_settings = MainWindow::actionSettings
+action_about = MainWindow::actionAbout
+
+# 日志窗口按需创建（点「日志窗口」才建），所以这条路径在触发之前不存在
+log_window = MainWindow::logWindow
+log_close = MainWindow::logWindow::logCloseButton
+
+# 功能区面板。中间那截 objSARibbonStackedContainerWidget 是 SARibbon 自己的
+# 内部容器名，不是本仓起的；BUILD_RIBBON=OFF 的构建里整条都不存在
+ribbon_home = MainWindow::SARibbonBar::objSARibbonStackedContainerWidget::ribbonHomeCategory
+ribbon_panel_file = MainWindow::SARibbonBar::objSARibbonStackedContainerWidget::ribbonHomeCategory::ribbonPanelFile
+ribbon_panel_tool = MainWindow::SARibbonBar::objSARibbonStackedContainerWidget::ribbonHomeCategory::ribbonPanelTool
+ribbon_panel_help = MainWindow::SARibbonBar::objSARibbonStackedContainerWidget::ribbonHomeCategory::ribbonPanelHelp

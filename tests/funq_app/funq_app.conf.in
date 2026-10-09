@@ -1,0 +1,28 @@
+# funq 的应用配置：告诉 funq 要拉起哪个程序、在哪个目录、用哪个端口。
+# 由 CMake 按本机构建目录生成到 build 下（见同目录 CMakeLists.txt），不入库。
+#
+# 与 tests/funq_demo 那份的分工：那边靶子是 examples/funq_target（为测试造的
+# 示例），这里靶子就是**本仓真程序** demo_app——启动顺序、登录、单实例这些
+# 真程序才有的东西，只有拿真程序当靶子才验得到。
+#
+# funq_port = 0 表示由 funq 自己挑一个空闲端口。
+
+[demo_app]
+executable = @TARGET_EXE@
+cwd = @TARGET_DIR@
+funq_port = 0
+aliases = @TARGET_ALIAS@
+# **args 留空是核对过的结论，不是省事**：本仓 demo_app 只认
+# --play/--slow/--export-report/--export-dir/--crash（见 src/app/launch_options.h），
+# 没有一个能帮上夹具的忙——产品线上那套 --fake-devices / --config /
+# --no-crash-prompt 是产品自己的开关，这里没有对应物，照抄只会让应用报
+# "未知参数"然后退出（QCommandLineParser 遇到未知参数直接结束进程）。
+#
+# 一条已知的脆弱点记在这儿：**启动时的崩溃报告提示**
+# （src/app/main.cpp 的 MaybePromptCrashReport）在主窗口与登录框之前弹一个
+# 模态框，只要 %LOCALAPPDATA% 下攒着一份待导出的崩溃报告，这条用例就会卡在
+# 它上面，报出来的却是"找不到 MainWindow"。产品线为此加了 --no-crash-prompt
+# 开关，本仓没有——攒着报告时先手工清掉那个目录，或给应用补一个同类开关。
+executable_stdout = NULL
+executable_stderr = NULL
+screenshot_on_error = 0

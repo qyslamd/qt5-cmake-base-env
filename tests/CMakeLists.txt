@@ -9,13 +9,16 @@ add_subdirectory(log_wrapper)
 add_subdirectory(app)
 add_subdirectory(tour)
 add_subdirectory(funq_demo)
+add_subdirectory(funq_app)
 
 # ============== Python 脚本的静态检查 ==============
 #
-# examples 下那几份 funq 脚本没有任何别的自动检查——上面那几条 funq 用例验的
-# 是库与靶子，不跑示例脚本。产品线上因此烂过一次：演示脚本里出现两个同名的
-# 顶层类，后一个悄悄盖掉前一个，一跑就抛 AttributeError，而 ctest 全绿。
-# "重定义 / 未定义名"正是 pyflakes 一眼能看出来的那类。
+# 覆盖 examples 下那几份 funq 脚本和 tests/funq_* 里驱动 funq 的夹具。它们都
+# 没有别的自动检查——上面那几条 funq 用例验的是库与靶子，不跑示例脚本；夹具
+# 本身更是只有真去跑一遍才会暴露问题。产品线上因此烂过一次：演示脚本里出现
+# 两个同名的顶层类，后一个悄悄盖掉前一个，一跑就抛 AttributeError，而 ctest
+# 全绿。这类"重定义 / 未定义名"外加"改名之后调用方没跟上"，都是 pyflakes 一眼
+# 能看出来的——而它们在 funq 这里的表现往往是"找不到控件"，离真正的原因很远。
 #
 # 解释器用 CMake 找到的系统 python，**不是** funq_find_python 那个按目标位数
 # 挑的（那可能是随包的 3.8 embed，装不了 pyflakes）。没装 pyflakes 就跳过并
@@ -27,10 +30,14 @@ if(Python3_Interpreter_FOUND)
         RESULT_VARIABLE FUNQ_PYFLAKES_RC
         OUTPUT_QUIET ERROR_QUIET)
     if(FUNQ_PYFLAKES_RC EQUAL 0)
+        # CONFIGURE_DEPENDS：glob 是配置期求值的，不带它就得"新加一个 .py
+        # 之后重新 configure 才会被检查"——那正是最容易被忘掉的一步
+        file(GLOB FUNQ_SCRIPT_FILES CONFIGURE_DEPENDS
+            "${CMAKE_SOURCE_DIR}/examples/funq-scripts/*.py"
+            "${CMAKE_SOURCE_DIR}/tests/funq_demo/*.py"
+            "${CMAKE_SOURCE_DIR}/tests/funq_app/*.py")
         add_test(NAME test_funq_scripts
-            COMMAND "${Python3_EXECUTABLE}" -m pyflakes
-                "${CMAKE_SOURCE_DIR}/examples/funq-scripts/funq_client_demo.py"
-                "${CMAKE_SOURCE_DIR}/examples/funq-scripts/check_no_instance.py")
+            COMMAND "${Python3_EXECUTABLE}" -m pyflakes ${FUNQ_SCRIPT_FILES})
         set_tests_properties(test_funq_scripts PROPERTIES LABELS "SCRIPT")
     else()
         message(STATUS
