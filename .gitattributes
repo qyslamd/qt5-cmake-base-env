@@ -50,3 +50,7 @@
 
 # SVG 是文本格式，保留行尾归一化与可读的 diff
 *.svg text
+
+# 随仓库提供的 cmake：share\ 下是上游 install 树的整套拷贝（Modules、
+# Templates 等），一律不做行尾转换，免得 vendored 内容与上游出现无谓差异
+3rdparty/cmake/share/cmake-*/** -text

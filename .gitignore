@@ -26,6 +26,7 @@ $RECYCLE.BIN/
 # .vscode/ 已纳入仓库：其中的配置作为模板的一部分，供克隆后直接使用。
 # 若需放本机私有配置，改用 .vscode/settings.local.json 之类的个人文件。
 .idea/
+.qtcreator/
 *.iml
 .cache/
 
@@ -93,6 +94,8 @@ scripts/code_stats.bat
 scripts/code_stats.ps1
 scripts/clang_tidy.bat
 scripts/clang_tidy.ps1
+scripts/clang_format.bat
+scripts/clang_format.ps1
 scripts/clean_deps.bat
 scripts/clean_deps.sh
 
@@ -273,11 +276,32 @@ dist/
 # 会被上面的 *.exe 规则连同下面的通用规则一起忽略，故显式放行。
 !3rdparty/7z.exe
 !3rdparty/*.zip
-!3rdparty/cloc-2.06/
 !3rdparty/QCustomPlot/
 # AppImage 打包工具（linuxdeploy / appimagetool）。入库而非按需下载，因为
 # GitHub 的 release 资源 CDN 在国内网络下常常不可达，按需下载会直接失败。
 !3rdparty/appimage-tools/
+
+# 构建工具链也随仓库提供，版本固定，Windows 侧使用者只需装 Qt 与 VS2019：
+#   ninja  —— 不用 VS2019 自带的那份，它的版本随 VS 安装而异（有的还停在
+#             1.8.2），预设与构建脚本固定指向这一份
+#   clang  —— clang-format / clang-tidy / clangd
+#   cmake  —— bin\ 与同版本的 share\cmake-<版本>\ 必须成套，只有 exe 时
+#             它会报 "Could not find CMAKE_ROOT" 拒绝运行
+#   cloc   —— 代码统计
+#
+# 每个目录要两条规则：先放行目录本身（否则 git 根本不会进去找），再放行
+# 里面的 .exe（上面的 *.exe 规则仍会命中它）。只写其中一条都不生效。
+!3rdparty/ninja.exe
+!3rdparty/cmake/
+!3rdparty/cmake/bin/
+!3rdparty/cmake/bin/*.exe
+# 整套 share 树原样入库：通用规则会命中其中个别文件（Templates 下的 .pfx、
+# Help 里的 .make），vendored 内容缺件比多两个文件难查得多
+!3rdparty/cmake/share/cmake-*/**
+!3rdparty/clang/
+!3rdparty/clang/*.exe
+!3rdparty/cloc-2.06/
+!3rdparty/cloc-2.06/cloc-2.06.exe
 
 version.txt
 make_installer.bat
