@@ -23,6 +23,7 @@ scripts/build_ninja.bat -t relwithdebinfo -m demo_app -p
 ```
 - 自动配置VS2019 x64编译环境
 - 使用Ninja生成器构建
+- 工具链用仓库自带的那几份：`3rdparty/cmake/bin/cmake.exe` 与 `3rdparty/ninja.exe`（要求 ≥ 1.10.0，不用 VS2019 自带的那份），预设已固定指向它们
 - 构建输出目录：`build/ninja-debug/`（debug）、`build/ninja-relwithdebinfo/`（relwithdebinfo）、`build/ninja-release/`（release）
 - 支持两种参数模式：旧模式（位置参数 `build_ninja.bat debug deploy`）和新模式（显式参数 `-t <type> -m <target> -d/-p`），详见 `scripts/build_ninja.bat -h`
 - 可执行文件输出到：`build/ninja-debug/bin/`
@@ -132,7 +133,7 @@ scripts/build_ninja.bat -t relwithdebinfo -m demo_app -p
 18. 需要从头构建时，**优先只删构建目录下的 `CMakeCache.txt`，不要删整个构建目录**——引入 `fftw` 与 crashpad 之后构建目录是 700 MB 级，全量重编很慢。但删之前要确认没有手工 `-D` 覆盖（例如 `build/ninja-debug-x64` 里的 `APP_CRASH_BACKEND=builtin`）：这类覆盖**只存在缓存里**，删了就静默回到默认值；想长期保留的覆盖写进 `local.cmake`（每次 configure 重新生效，且不入库）。另注意删缓存虽比重编便宜，仍会重跑编译器探测、`find_package`、FFTW 的 SIMD 探测与 crashpad 的 configure
 19. **改了 `CMakeLists.txt` 里某个 `option()` 的默认值后，已有构建目录不会跟随**（缓存值优先，且没有任何提示）。判据：改了没生效先 `grep <变量名> <构建目录>/CMakeCache.txt`；要让新默认值生效，用 `cmake -B <构建目录> -U <变量名>`（需 vcvars 环境）或删掉那条缓存项——手工删时注释行必须一起删（注释后面跟空行会让 CMake 报 `Parse error ... Offending entry`）
 20. 代码注释必须言简意赅。只写意图，不要写emoji，也无需引用docs目录下的文档
-21. **提交前，改动的 C++ 文件必须先过 clang-format**（`clang-format -i <文件>`；本机在 `D:/Qt22/Tools/QtCreator/bin/clang/bin/clang-format.exe`，不在 PATH 上）。仓库风格（`.clang-format`）与手写折行不一致时，人工编辑保存会产生纯格式的噪声 diff。**与规则 12 不冲突**：clang-tidy 默认不跑，clang-format 是提交前的必做项
+21. **提交前，改动的 C++ 文件必须先过 clang-format**（用仓库自带的 `3rdparty/clang/clang-format.exe`，或直接跑 `scripts\clang_format.bat`——它默认就处理改动过的文件；不在 PATH 上）。仓库风格（`.clang-format`）与手写折行不一致时，人工编辑保存会产生纯格式的噪声 diff。**与规则 12 不冲突**：clang-tidy 默认不跑，clang-format 是提交前的必做项
 
 ## 功能开发流程
 

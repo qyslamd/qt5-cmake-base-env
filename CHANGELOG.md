@@ -10,6 +10,29 @@
 
 ### 新增
 
+- **构建工具链随仓库提供，版本固定**：`3rdparty/` 下新增 `cmake/`（4.2.0，
+  `bin\` 与同版本的 `share\` 成套——实测只有 exe 时它报 `Could not find
+  CMAKE_ROOT` 直接拒绝运行）、`ninja.exe`（1.10.2）与 `clang/`（21.1.2：
+  clang-format、clang-tidy、clangd）。**Windows 侧至此只需装 Qt 与 VS2019**，
+  其余工具一律用仓库里这几份。三处接线：① `CMakePresets.json` 六个预设都加了
+  `"CMAKE_MAKE_PROGRAM": "${sourceDir}/3rdparty/ninja.exe"`——VS2019 各版本
+  安装自带的 ninja 版本不同，有的仍是 1.8.2；② 顶层 `CMakeLists.txt` 加了一道
+  版本闸门，生成器是 Ninja 时实测 `<ninja> --version`，低于 1.10.0 或跑不起来
+  就 `FATAL_ERROR`，报错里给出清理既有缓存项的命令（`CMAKE_MAKE_PROGRAM` 是
+  缓存变量，预设新写的值不覆盖旧的，同 CLAUDE.md 规则 19）；③
+  `scripts/build_ninja.bat` 改用 `3rdparty/cmake/bin/cmake.exe`（找不到才退回
+  PATH 上的），并在开跑前挡住 ninja 缺件。clang 侧：改成自带的那份一路优先
+  （直接写死 `3rdparty/clang/...`，不走 `find_program` 的缓存——不然既有构建
+  目录会一直用着第一次找到的别的版本，同规则 19；实测本机缓存里就留着 Qt
+  Creator 自带的 clang-tidy），并新增 `scripts/clang_format.bat`（默认格式化
+  git 里改动过的 C/C++ 文件，`-Check` 只检查不改写）——clang-format 的排版
+  结果随版本变，各人用各自装的那份会让 diff 混进纯格式噪声。
+  `.vscode/settings.json` 里的 clang-format / clangd / cmake 路径一并对齐到
+  `3rdparty/`。**顺带修好 `.gitignore`**：原先 `!3rdparty/cloc-2.06/` 这类
+  只放行目录（或只放行目录里的文件）的写法都不生效——父目录被 `3rdparty/*/`
+  挡着，git 根本不会进去找，cloc 因此一直没入库；现在目录与目录里的 exe
+  各一条，cloc 也随之上库
+
 - **funq 工具随安装包分发（`BUILD_FUNQ=ON` 时）**：客户机器上不必再装 Python——
   安装后多一个 `funq\` 目录：按架构挑的 Python 3.8.8 embeddable、funq 的客户端
   与服务端包、本构建配置的注入库、两个启动脚本（`funq-server.bat` 起被测程序

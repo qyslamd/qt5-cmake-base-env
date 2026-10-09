@@ -45,6 +45,32 @@ project(${PROJECT_NAME_STR}
     DESCRIPTION "a complete qt cmake basic demo."
     LANGUAGES CXX C)
 
+#-------------------------------------------------------------------------------
+# Ninja 版本闸门
+#
+# ninja 是构建链里版本不对还会安静出错的那个：VS2019 各版本安装带的 ninja
+# 版本不同（有的仍停在 1.8.2），与 CMake 生成的依赖规则配合会出问题。
+# 预设与构建脚本已固定指向 3rdparty/ninja.exe，这里挡的是绕过预设的配置，
+# 主要是缓存里存着旧路径的既有构建目录。
+#-------------------------------------------------------------------------------
+
+if(CMAKE_GENERATOR STREQUAL "Ninja")
+    execute_process(
+        COMMAND "${CMAKE_MAKE_PROGRAM}" --version
+        OUTPUT_VARIABLE NINJA_VERSION
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        RESULT_VARIABLE NINJA_PROBE_RESULT
+    )
+    if(NINJA_PROBE_RESULT OR NINJA_VERSION VERSION_LESS 1.10.0)
+        message(FATAL_ERROR
+            "ninja 不可用或版本过低：CMAKE_MAKE_PROGRAM=\"${CMAKE_MAKE_PROGRAM}\"，"
+            "实测版本 \"${NINJA_VERSION}\"，要求 >= 1.10.0。\n"
+            "改用仓库自带的那份 3rdparty/ninja.exe：\n"
+            "  既有构建目录：cmake -B <构建目录> -U CMAKE_MAKE_PROGRAM\n"
+            "  新构建目录  ：scripts/build_ninja.bat（预设已固定指向它）")
+    endif()
+endif()
+
 #===============================================================================
 #   构建开关区 —— 本仓全部 option()/CACHE 开关集中声明于此
 #
@@ -562,15 +588,29 @@ if(WIN32)
 endif()
 
 #-------------------------------------------------------------------------------
-# clang-tidy 静态分析脚本
+# clang 静态分析与格式化脚本
+#
+# 自带的那份（3rdparty/clang）一路优先，而不是交给 find_program 的 HINTS：
+# find_program 只在缓存里没有结果时才重新搜索，改了 HINTS 也不会重搜，既有
+# 构建目录会一直用着第一次找到的那份（同 CLAUDE.md 规则 19）。版本固定正是
+# 这里的目的——clang-format 的排版结果随版本变，各人用各自装的那份，diff 里
+# 就会混进纯格式噪声。自带那份不在时才去搜 PATH，那时显式 -D 指定才起作用。
 #-------------------------------------------------------------------------------
 
 if(WIN32)
-    find_program(CLANG_TIDY_EXECUTABLE NAMES clang-tidy)
+    # 缓存里的旧搜索结果（例如第一次配置时找到的别的安装）一并清掉：下面直接
+    # 把自带那份写进变量，缓存留着只会让 grep 缓存的人以为它在被使用
+    unset(CLANG_TIDY_EXECUTABLE CACHE)
+    set(CLANG_TIDY_EXECUTABLE "${CMAKE_SOURCE_DIR}/3rdparty/clang/clang-tidy.exe")
+    if(NOT EXISTS "${CLANG_TIDY_EXECUTABLE}")
+        unset(CLANG_TIDY_EXECUTABLE)
+        find_program(CLANG_TIDY_EXECUTABLE NAMES clang-tidy)
+    endif()
     if(NOT CLANG_TIDY_EXECUTABLE)
         message(WARNING
             "clang-tidy not found! 静态分析脚本不会生成。"
-            "请将其加入 PATH，或用 -DCLANG_TIDY_EXECUTABLE=<路径> 指定。")
+            "把 clang-tidy.exe 放进 3rdparty/clang/、加入 PATH，"
+            "或用 -DCLANG_TIDY_EXECUTABLE=<路径> 指定。")
     else()
         # 脚本内烘焙了本次配置的构建目录；脚本支持 -BuildDir 覆盖
         configure_file(
@@ -581,6 +621,31 @@ if(WIN32)
         configure_file(
             "${CMAKE_SOURCE_DIR}/cmake/template/clang_tidy.bat.in"
             "${CMAKE_SOURCE_DIR}/scripts/clang_tidy.bat"
+            @ONLY
+        )
+    endif()
+
+    # 格式化脚本不需要构建目录：默认只处理 git 里改动过的文件
+    unset(CLANG_FORMAT_EXECUTABLE CACHE)
+    set(CLANG_FORMAT_EXECUTABLE "${CMAKE_SOURCE_DIR}/3rdparty/clang/clang-format.exe")
+    if(NOT EXISTS "${CLANG_FORMAT_EXECUTABLE}")
+        unset(CLANG_FORMAT_EXECUTABLE)
+        find_program(CLANG_FORMAT_EXECUTABLE NAMES clang-format)
+    endif()
+    if(NOT CLANG_FORMAT_EXECUTABLE)
+        message(WARNING
+            "clang-format not found! 格式化脚本不会生成。"
+            "把 clang-format.exe 放进 3rdparty/clang/、加入 PATH，"
+            "或用 -DCLANG_FORMAT_EXECUTABLE=<路径> 指定。")
+    else()
+        configure_file(
+            "${CMAKE_SOURCE_DIR}/cmake/template/clang_format.ps1.in"
+            "${CMAKE_SOURCE_DIR}/scripts/clang_format.ps1"
+            @ONLY
+        )
+        configure_file(
+            "${CMAKE_SOURCE_DIR}/cmake/template/clang_format.bat.in"
+            "${CMAKE_SOURCE_DIR}/scripts/clang_format.bat"
             @ONLY
         )
     endif()

@@ -143,6 +143,11 @@ echo   VS2019 is auto-detected via vswhere when VS2019_CMD_DIR is not set.
 echo   Set VS2019_CMD_DIR to override, pointing to the directory containing
 echo   vcvars64.bat and vcvars32.bat.
 echo.
+echo Toolchain notes:
+echo   ninja and cmake come from 3rdparty\ (version pinned, ninja ^>= 1.10.0),
+echo   not from the copies VS2019 happens to ship. VS2019 provides the
+echo   compiler and the Windows SDK only.
+echo.
 echo Examples:
 echo   build_ninja.bat
 echo   build_ninja.bat debug deploy
@@ -192,6 +197,23 @@ if errorlevel 1 (
     exit /b 1
 )
 
+:: Toolchain: the copies shipped in 3rdparty are the ones builds use, so every
+:: machine configures with the same versions. The presets already point ninja
+:: at the bundled copy; the check here turns a missing file into a clear
+:: message instead of CMake failing to run a program that is not there.
+set "BUNDLED_NINJA=%PROJECT_ROOT%..\3rdparty\ninja.exe"
+if not exist "%BUNDLED_NINJA%" (
+    echo Bundled ninja not found: "%BUNDLED_NINJA%"
+    echo It is version pinned ^(1.10.0 or newer^) and tracked in git; restore it.
+    exit /b 1
+)
+
+set "CMAKE_CMD=%PROJECT_ROOT%..\3rdparty\cmake\bin\cmake.exe"
+if not exist "%CMAKE_CMD%" (
+    echo Warning: bundled cmake not found, falling back to the one on PATH.
+    set "CMAKE_CMD=cmake"
+)
+
 if "%BUILD_TYPE%"=="" set "BUILD_TYPE=debug"
 
 if /i "%BUILD_TYPE%"=="debug" (
@@ -215,9 +237,10 @@ if not defined PRESET (
 
 echo Build type: %BUILD_TYPE% (%PRESET%)
 echo Target arch: %ARCH%
+echo Toolchain : %CMAKE_CMD% + %BUNDLED_NINJA%
 if defined TARGET echo Build target: %TARGET%
 
-cmake -S . --preset %PRESET%
+"%CMAKE_CMD%" -S . --preset %PRESET%
 
 if errorlevel 1 (
     echo CMake configure failed
@@ -232,9 +255,9 @@ if defined CONFIGURE_ONLY (
 )
 
 if defined TARGET (
-    cmake --build %BUILD_DIR% --target %TARGET%
+    "%CMAKE_CMD%" --build %BUILD_DIR% --target %TARGET%
 ) else (
-    cmake --build %BUILD_DIR%
+    "%CMAKE_CMD%" --build %BUILD_DIR%
 )
 if errorlevel 1 (
     echo Build failed

@@ -31,10 +31,16 @@
 | 操作系统 | Windows（主线）；Linux 亦可构建，见模板使用指南 |
 | 编译器 | MSVC 2019，x64 与 x86 |
 | Qt | Qt 5.15 |
-| CMake | ≥ 3.19；使用 `CMakePresets.json` 需 ≥ 3.26 |
-| Ninja | 随构建脚本使用 |
+| CMake | 仓库自带 4.2.0（`3rdparty/cmake/`），无需另装 |
+| Ninja | 仓库自带 1.10.2（`3rdparty/ninja.exe`），不用 VS2019 自带的那份 |
+| clang-format / clang-tidy / clangd | 仓库自带 21.1.2（`3rdparty/clang/`），供格式化、静态分析与编辑器使用 |
 | Inno Setup 6 | 生成安装程序，`3rdparty/` 内已附 |
 | linuxdeploy / appimagetool | 生成 AppImage（Linux），`3rdparty/` 内已附 |
+
+也就是说 **Windows 侧装好 Qt 与 VS2019 就能开工**，其余工具一律用 `3rdparty/`
+里的那几份（版本固定，详见[构建配置与崩溃排查](docs/guide/构建配置与崩溃排查.md)
+的「工具链随仓库提供」）。Linux / WSL 侧不适用那些 Windows 可执行文件，仍需
+系统装 cmake 与 ninja。
 
 第三方库随仓库提供（spdlog、googletest、QCustomPlot、QXlsx），首次
 configure 时自动解压，无需另行下载。仓库不含 git submodule，克隆后即可
