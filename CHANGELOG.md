@@ -259,6 +259,22 @@
 - **新增根目录 `AGENTS.md`**：非 Claude 的 agent 工具普遍默认读它，内容是指向
   `CLAUDE.md` 与 `docs/` 的入口表。顺带订正两处失效链接
   （`examples/funq/` → `examples/funq-client-demo/`）
+- **funq 夹具多了一套"靶子是真程序"的**：原有的 `tests/funq_demo` 验的是
+  "funq 能用"（靶子是为测试造的示例 `funq_target`），验不了"我自己的程序能被
+  funq 驱动"。新增 `tests/funq_app`：靶子是 `demo_app`，并补上它特有的一段准备
+  ——**登录**（`APP_ENABLE_AUTH` 默认 ON，而主窗口在登录成功之前根本不存在；
+  不过登录的话每条用例都报"找不到 MainWindow"，现场离原因很远），首登强制改密
+  按原值过掉。别名表 13 条逐条实跑核对，5 条外壳用例覆盖主窗口、占位页文案、
+  四个动作可按名寻址、日志窗口的显隐、入口形态与构建开关对得上
+- **kit 加一个"一键跑通"入口 `funq-quickstart.bat`**：两步那套（server +
+  self-test）分工看得清，但"只想看它跑一遍"的人得开两个窗口、记两步顺序；这个
+  入口把服务起在另一个最小化窗口里、客户端在本文窗口跑、跑完把结论与退出码留
+  在这儿。骨架里三处是踩出来的：起服务前先探单实例、每个 python 调用带 `-u`、
+  失败时提示"还有残留窗口就先关掉再跑"
+- **代码统计脚本接上生成**：`cmake/template/code_stats.{bat,ps1}.in` 一直在库里
+  但没人接线，生成的脚本带本机 cloc 路径与源码根，现在和 `clang_tidy` 一样由
+  `configure_file` 产出（产物在 `.gitignore` 里，不入库）。实测跑通：122 个
+  文件、代码 9109 行
 
 ### 变更
 
@@ -439,6 +455,16 @@
   `runner_win.py` 的 `_inject_dll()` 上打「暂停键」，Visual Studio 附加被测程序
   并在库加载前挂好待绑定断点（空心转实心），另外记了 `--library` 必填与
   `command` 是 `REMAINDER`（选项要写在被测程序路径前）两处易错点
+- **funq 示例目录改名**：`examples/funq-client-demo` → `examples/funq-scripts`。
+  那目录早就不止"手动分离运行示例"了——单实例探针、启动器模板都在这儿，名字跟
+  不上内容。内部的脚本名（`funq-client-demo.bat` / `funq-server-demo.bat`）
+  **不动**：那是用户敲的命令名，改了没有收益。引用点（`add_subdirectory`、kit 的
+  两个拷贝点、README 链接、pyflakes 那条用例的路径、三处注释）一并更新
+- **新增《Ninja 依赖日志空了：改了头文件却不重编》一节**（见《构建配置与崩溃
+  排查》）：MSVC + Ninja 下"谁 include 了谁"只记在 `.ninja_deps` 里，而它偶发把
+  某些 TU 记成空、记录本身还带有效 mtime——于是头文件改了不重编，两个 TU 布局
+  不一致，链接不报错、运行时炸。症状看着像代码 bug，其实是构建的问题；四段齐：
+  根因、`ninja -t deps` 怎么确认、怎么修、判据
 
 ### 修复
 
@@ -549,6 +575,25 @@
   可执行文件所在目录，与脚本里烧死的构建目录比对，不符即报错退出（退出码 2）。
   Windows 侧早有同款守卫（`make_installer.bat` 的 `EXPECTED_BIN` 比对），
   此次是把 Linux 侧补齐
+- **主程序旁边一直挂着一个控制台黑框**：crashpad 的 handler 被编成控制台程序
+  （上游如此：它的 LOG 写 stderr，手工跑看得见），而主程序是 GUI——Windows 会给
+  GUI 进程起的控制台子进程**新开一个控制台窗口**（crashpad 的 `CreateProcess`
+  没带 `CREATE_NO_WINDOW`）。改成 GUI 子系统（实测 PE 子系统 3 → 2），它照样
+  收 dump，只是 stderr 没人接
+- **撞名的模块日志会静默丢失**：`GetOrCreateModuleLogger` 原先对已存在的同名
+  logger **先 drop 再注册**。Init 注册的默认 logger 名字就叫 `default`，而 Qt 的
+  默认日志类别也叫 `default`（`qtMessageHandler` 把 `context.category` 原样当
+  模块名传进来），所以真机上一定会走到：drop 之后 `spdlog::default_logger()` 成
+  了 nullptr，此后每个新建的模块 logger 都拿到 nullptr，日志一条都不落盘。现在
+  改成复用注册表里那个同名的（空名字退回默认 logger：注册表里那个是 spdlog 自建
+  的内建 logger，只有控制台 sink）
+- **随包 funq kit 组装失败**：服务端的包原先做整目录同步，而那个目录同时是
+  `stage_funq_injector` 的暂存处——同一轮 ninja 刚写进去的 `libFunQ*.dll` 会让
+  同步失败（`Error copying directory`）。改成先清空目标目录、再逐个拷那几个
+  `.py`，注入库仍按本构建配置单独拷
+- **kit 里每个 python 调用补 `-u`**：输出到控制台是行缓冲，一旦重定向到文件
+  Python 会切成块缓冲——整轮日志要等进程结束才一次性冒出来，从这份日志上读到的
+  时序全是错的（产品线上为此查过一个根本不存在的"卡顿"）
 
 ## [1.0.0] - 2026-09-11
 
