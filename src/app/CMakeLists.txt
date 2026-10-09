@@ -21,8 +21,8 @@ set(TARGET_SRCS
     res.qrc
     mainwindow.cpp
     mainwindow.h
-    guidance_app_flows.cpp
-    guidance_app_flows.h
+    tour_app_topics.cpp
+    tour_app_topics.h
     launch_options.cpp
     launch_options.h
     log_window.cpp
@@ -114,7 +114,7 @@ target_include_directories(${TARGET_NAME}
 
 target_link_libraries(${TARGET_NAME} PRIVATE
     ${APP_TARGET_PREFIX}_style
-    ${APP_TARGET_PREFIX}_guidance
+    ${APP_TARGET_PREFIX}_tour
     ${APP_TARGET_PREFIX}_core
     qcustomplot
     Qt5::Widgets

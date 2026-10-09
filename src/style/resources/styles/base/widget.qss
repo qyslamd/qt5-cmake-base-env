@@ -21,7 +21,7 @@
 /* 自定义 QWidget 子类设 background-color 不生效，三档可选（按 Qt 文档的推荐
    顺序）：重写 paintEvent 调 style()->drawPrimitive(QStyle::PE_Widget, ...)、
    setAttribute(Qt::WA_StyledBackground, true)、或改用 QFrame。
-   本仓例子见 src/guidance/guidance_homepage.cpp。此处不给 QWidget / QFrame
+   本仓例子见 src/tour/tour_homepage.cpp。此处不给 QWidget / QFrame
    加规则，正是为了不让宽规则波及功能区，需要背景的块请在自己那里声明。 */
 
 /* 主窗口的分隔条（可停靠窗口之间） */

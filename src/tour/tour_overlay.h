@@ -1,5 +1,5 @@
-#ifndef FILE_GUIDANCE_PRESENTATION_H_
-#define FILE_GUIDANCE_PRESENTATION_H_
+#ifndef FILE_TOUR_PRESENTATION_H_
+#define FILE_TOUR_PRESENTATION_H_
 
 #include <QColor>
 #include <QPixmap>
@@ -18,24 +18,24 @@ class QVariantAnimation;
 
  
 
-class GuidanceFlow;
-class GuidanceStep;
+class GuideTopic;
+class TourStep;
 
 // 演示层：覆盖整个 viewport 的半透明遮罩 + 目标高亮 + 气泡导航。
 // 自绘层（遮罩/气泡底/箭头/高亮框）的颜色由 maskColor/bubbleColor/accentColor
 // 三个函数收口——目前是写死的常量，要做主题适配改这三处即可；
 // 气泡内部子控件（title/text/countdown/skip/prev/next）只设 objectName，由 QSS 覆盖。
-class GuidancePresentation : public QWidget {
+class TourOverlay : public QWidget {
   Q_OBJECT
  public:
-  explicit GuidancePresentation(QWidget* parent = nullptr);
+  explicit TourOverlay(QWidget* parent = nullptr);
   // 实操模式下气泡被提成了独立顶层窗口（见 setInteractive 里的
   // setParent(nullptr)），**脱离了 Qt 的父子所有权**——不在这里显式回收，
   // 析构时它就漏了，而且那个窗口会一直留在屏幕上。仍挂在遮罩下时删它同样安全
-  ~GuidancePresentation() override;
+  ~TourOverlay() override;
 
-  void updateUi(GuidanceFlow* const flow,
-                GuidanceStep* const step,
+  void updateUi(GuideTopic* const topic,
+                TourStep* const step,
                 bool canPrev,
                 bool canNext);
   void setIsAutoMode(bool autoMode);
@@ -44,7 +44,7 @@ class GuidancePresentation : public QWidget {
   // 默认关闭 = 讲解式（目标不响应、点空白退出）
   void setInteractive(bool interactive);
 
-  // 被动模式：只显示、不交互，由外部驱动（见 GuidanceBridge）。
+  // 被动模式：只显示、不交互，由外部驱动（见 TourBridge）。
   // 三个按钮全隐、倒计时一律停、点遮罩空白不退出
   void setPassiveMode(bool passive);
 
@@ -155,7 +155,7 @@ class GuidancePresentation : public QWidget {
   // 这一个出口写 WA_TransparentForMouseEvents。
   //
   // 原先 setInteractive 与 setPassiveMode 各写一句同一个属性，而控制器里是
-  // 连着调的（ApplyFlowOptions：先 setInteractive(flow->interactive())，紧跟
+  // 连着调的（ApplyTopicOptions：先 setInteractive(topic->interactive())，紧跟
   // setPassiveMode(false)），后者无条件把前者刚设的 true 盖回 false——实操
   // 主题的"遮罩穿透、边看边动手"因此从来没生效过，点被高亮的控件点不动、
   // 点遮罩空白反而退出。同一份状态两个写者，是模式状态那类缺陷的同一形态
@@ -189,4 +189,4 @@ class GuidancePresentation : public QWidget {
 };
 
  
-#endif  // FILE_GUIDANCE_PRESENTATION_H_
+#endif  // FILE_TOUR_PRESENTATION_H_

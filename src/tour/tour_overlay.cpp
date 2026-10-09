@@ -1,4 +1,4 @@
-#include "guidance_presentation.h"
+#include "tour_overlay.h"
 
 #include <QApplication>
 #include <QEasingCurve>
@@ -17,9 +17,9 @@
 #include <QVBoxLayout>
 #include <QVariantAnimation>
 
-#include "guidance_config.h"
+#include "tour_catalog.h"
 
-GuidancePresentation::GuidancePresentation(QWidget* parent)
+TourOverlay::TourOverlay(QWidget* parent)
     : QWidget(parent),
       bubble_widget_(new QWidget(this)),
       title_label_(new QLabel(bubble_widget_)),
@@ -34,7 +34,7 @@ GuidancePresentation::GuidancePresentation(QWidget* parent)
   setWindowFlags(Qt::Tool | Qt::FramelessWindowHint);
   // 顶层窗口也要有名字：外部工具对没名字的顶层只能编"类名-序号"，
   // 连"遮罩显没显示"都没法查
-  setObjectName(QStringLiteral("guidanceOverlay"));
+  setObjectName(QStringLiteral("tourOverlay"));
   setAttribute(Qt::WA_TranslucentBackground);
   setAutoFillBackground(false);
   initUi();
@@ -42,28 +42,28 @@ GuidancePresentation::GuidancePresentation(QWidget* parent)
   initSignals();
 }
 
-GuidancePresentation::~GuidancePresentation() {
+TourOverlay::~TourOverlay() {
   // 气泡可能已经被 setParent(nullptr) 摘出了父子链（实操模式），不再有人替
   // 我们删它；无条件删一次，两种情况都对
   delete bubble_widget_;
   bubble_widget_ = nullptr;
 }
 
-void GuidancePresentation::setTitle(const QString& title) {
+void TourOverlay::setTitle(const QString& title) {
   if (title_ != title) {
     title_ = title;
     title_label_->setText(title);
   }
 }
 
-void GuidancePresentation::setText(const QString& text) {
+void TourOverlay::setText(const QString& text) {
   if (text_ != text) {
     text_ = text;
     text_label_->setText(text);
   }
 }
 
-bool GuidancePresentation::eventFilter(QObject* obj, QEvent* event) {
+bool TourOverlay::eventFilter(QObject* obj, QEvent* event) {
   if (obj == bubble_widget_ && event->type() == QEvent::Paint) {
     QPainter p(bubble_widget_);
     p.setRenderHint(QPainter::Antialiasing);
@@ -74,7 +74,7 @@ bool GuidancePresentation::eventFilter(QObject* obj, QEvent* event) {
   return QWidget::eventFilter(obj, event);
 }
 
-void GuidancePresentation::initUi() {
+void TourOverlay::initUi() {
   bubble_widget_->setObjectName(QStringLiteral("bubble_self"));
   // 气泡底由自绘（drawBubble）完成，背景保持透明，让遮罩/主窗口内容透出。
   bubble_widget_->setAutoFillBackground(false);
@@ -117,7 +117,7 @@ void GuidancePresentation::initUi() {
   mainLayout->addLayout(horizontalLayout);
 }
 
-void GuidancePresentation::initOthers() {
+void TourOverlay::initOthers() {
   bubble_widget_->installEventFilter(this);
 
   anime_highlight_ = new QVariantAnimation(this);
@@ -137,7 +137,7 @@ void GuidancePresentation::initOthers() {
   anime_bubble_->setDuration(kAnimeDur);
 }
 
-void GuidancePresentation::initSignals() {
+void TourOverlay::initSignals() {
   connect(skip_btn_, &QPushButton::clicked, this, [this] {
     count_down_timer_->stop();
     emit skipClicked();
@@ -171,16 +171,16 @@ void GuidancePresentation::initSignals() {
   });
 }
 
-void GuidancePresentation::updateUi(GuidanceFlow* const flow,
-                                    GuidanceStep* const step, bool canPrev,
+void TourOverlay::updateUi(GuideTopic* const topic,
+                                    TourStep* const step, bool canPrev,
                                     bool canNext) {
   //-------------------------------
   // 气泡
-  auto index = flow->steps().indexOf(step) + 1;
+  auto index = topic->steps().indexOf(step) + 1;
   setTitle(QString("%1 (%2/%3)")
-               .arg(flow->name())
+               .arg(topic->name())
                .arg(index)
-               .arg(flow->stepCount()));
+               .arg(topic->stepCount()));
   setText(QString("%1.%2").arg(index).arg(step->description()));
   prev_btn_->setEnabled(canPrev);
   next_btn_->setText(canNext ? "下一步" : "完成！");
@@ -191,7 +191,7 @@ void GuidancePresentation::updateUi(GuidanceFlow* const flow,
 
   // 空目标步（接线/收尾等纯讲解）：显式清掉上一步的高亮残留——
   // 动画分支不会重置 highlightRect_，否则高亮框滞留在上一个控件上
-  const GuidanceStep::Target& target = step->target();
+  const TourStep::Target& target = step->target();
   if (const auto* widget = std::get_if<QWidget*>(&target);
       widget != nullptr && *widget == nullptr) {
     highlightRect_ = QRect();
@@ -250,7 +250,7 @@ void GuidancePresentation::updateUi(GuidanceFlow* const flow,
   }
 }
 
-void GuidancePresentation::setIsAutoMode(bool autoMode) {
+void TourOverlay::setIsAutoMode(bool autoMode) {
   auto_mode_ = autoMode;
   countdown_label_->setVisible(auto_mode_);
   // 每次切换都复位计数并停表，避免下次重启从残留值继续。
@@ -260,7 +260,7 @@ void GuidancePresentation::setIsAutoMode(bool autoMode) {
   }
 }
 
-void GuidancePresentation::UpdateMouseTransparency() {
+void TourOverlay::UpdateMouseTransparency() {
   // 遮罩子树整体对鼠标穿透：Qt 对该属性的语义是"连同全部子控件"，点击落到
   // 下层真实控件——被高亮的控件、页签、滚动条都可直接操作；点遮罩空白不再
   // 退出（mousePressEvent 不会触发），退出走气泡「跳过」。
@@ -269,7 +269,7 @@ void GuidancePresentation::UpdateMouseTransparency() {
                passive_mode_ || interactive_);
 }
 
-void GuidancePresentation::setInteractive(bool interactive) {
+void TourOverlay::setInteractive(bool interactive) {
   if (interactive_ == interactive) {
     return;
   }
@@ -297,7 +297,7 @@ void GuidancePresentation::setInteractive(bool interactive) {
   bubble_widget_->setVisible(isVisible() && bubble_visible_);
 }
 
-void GuidancePresentation::SetHost(QWidget* host, bool inflate) {
+void TourOverlay::SetHost(QWidget* host, bool inflate) {
   host_ = host;
   if (host == nullptr) {
     return;
@@ -321,7 +321,7 @@ void GuidancePresentation::SetHost(QWidget* host, bool inflate) {
   raise();
 }
 
-void GuidancePresentation::setPassiveMode(bool passive) {
+void TourOverlay::setPassiveMode(bool passive) {
   passive_mode_ = passive;
   // 被动模式是"只显示、不交互"：按钮全隐（没有下一步可点），倒计时一律停
   // ——推进由外部给，不由这里超时决定
@@ -337,14 +337,14 @@ void GuidancePresentation::setPassiveMode(bool passive) {
   }
 }
 
-void GuidancePresentation::setBubbleVisible(bool visible) {
+void TourOverlay::setBubbleVisible(bool visible) {
   bubble_visible_ = visible;
   if (bubble_widget_ != nullptr) {
     bubble_widget_->setVisible(visible && isVisible());
   }
 }
 
-QPoint GuidancePresentation::BubbleOrigin() const {
+QPoint TourOverlay::BubbleOrigin() const {
   // 气泡挂在遮罩上时用遮罩局部坐标；实操模式下它被提到独立顶层窗口，坐标
   // 就是屏幕坐标，得补上遮罩自己的屏幕原点
   if (bubble_widget_ == nullptr || bubble_widget_->parentWidget() == this) {
@@ -353,7 +353,7 @@ QPoint GuidancePresentation::BubbleOrigin() const {
   return mapToGlobal(QPoint(0, 0));
 }
 
-void GuidancePresentation::ApplyWidgetHighlight(QWidget* target) {
+void TourOverlay::ApplyWidgetHighlight(QWidget* target) {
   if (target == nullptr) {
     highlightRect_ = QRect();
     return;
@@ -362,7 +362,7 @@ void GuidancePresentation::ApplyWidgetHighlight(QWidget* target) {
   highlightRect_ = QRect(mapFromGlobal(global_pos), target->size());
 }
 
-void GuidancePresentation::showHighlight(QWidget* target, const QString& title,
+void TourOverlay::showHighlight(QWidget* target, const QString& title,
                                          const QString& text) {
   if (target == nullptr) {
     return;
@@ -390,14 +390,14 @@ void GuidancePresentation::showHighlight(QWidget* target, const QString& title,
   raise();
 }
 
-void GuidancePresentation::clearHighlight() {
+void TourOverlay::clearHighlight() {
   highlightRect_ = QRect();
   anime_highlight_rect_ = QRect();
   pixmap_ = QPixmap();
   hide();
 }
 
-void GuidancePresentation::showEvent(QShowEvent* event) {
+void TourOverlay::showEvent(QShowEvent* event) {
   // 气泡的显隐必须单独同步，两种父级都躲不掉：
   //   实操模式——气泡挂在 viewport 上，不随遮罩的父子关系显隐
   //   讲解模式——气泡挂在遮罩上，但 hideEvent 显式藏过它，而 Qt 里被显式
@@ -415,7 +415,7 @@ void GuidancePresentation::showEvent(QShowEvent* event) {
   QWidget::showEvent(event);
 }
 
-void GuidancePresentation::hideEvent(QHideEvent* event) {
+void TourOverlay::hideEvent(QHideEvent* event) {
   // stop() 只藏遮罩；气泡若挂在 viewport 上会残留成"幽灵气泡"
   if (bubble_widget_ != nullptr) {
     bubble_widget_->hide();
@@ -423,7 +423,7 @@ void GuidancePresentation::hideEvent(QHideEvent* event) {
   QWidget::hideEvent(event);
 }
 
-void GuidancePresentation::drawCountDownOnBubble(QPainter* painter) {
+void TourOverlay::drawCountDownOnBubble(QPainter* painter) {
   if (!auto_mode_) {
     return;
   }
@@ -444,7 +444,7 @@ void GuidancePresentation::drawCountDownOnBubble(QPainter* painter) {
   p.fillPath(path, QBrush(bar));
 }
 
-void GuidancePresentation::drawBubble(QPainter* painter) {
+void TourOverlay::drawBubble(QPainter* painter) {
   auto& p = *painter;
 
   const int margin = kLayoutMargin - 9;
@@ -461,7 +461,7 @@ void GuidancePresentation::drawBubble(QPainter* painter) {
   p.fillPath(path, QBrush(bubbleColor()));
 }
 
-QPainterPath GuidancePresentation::ArrowPath() const {
+QPainterPath TourOverlay::ArrowPath() const {
   // 三角箭头：底边贴气泡面向目标一侧的中点（半宽 = margin），尖端顶到
   // 控件边缘。position_ 记录的是气泡在目标的哪一侧，箭头画在相反一侧
   const QRectF area(bubble_widget_->rect());
@@ -505,7 +505,7 @@ QPainterPath GuidancePresentation::ArrowPath() const {
   return arrow;
 }
 
-void GuidancePresentation::drawHighlight(QPainter* painter) {
+void TourOverlay::drawHighlight(QPainter* painter) {
   QRect target_rect = use_anime_ ? anime_highlight_rect_ : highlightRect_;
 
   auto& p = *painter;
@@ -540,7 +540,7 @@ void GuidancePresentation::drawHighlight(QPainter* painter) {
   }
 }
 
-void GuidancePresentation::mousePressEvent(QMouseEvent* event) {
+void TourOverlay::mousePressEvent(QMouseEvent* event) {
   // 被动模式：由外部驱动，点哪儿都不该把它关掉
   if (passive_mode_) {
     return;
@@ -559,7 +559,7 @@ void GuidancePresentation::mousePressEvent(QMouseEvent* event) {
   QWidget::mousePressEvent(event);
 }
 
-void GuidancePresentation::changeBubblePosition() {
+void TourOverlay::changeBubblePosition() {
   int spacing = kLayoutMargin - 15;
 
   // 空目标步：没有高亮矩形可依托，方向评估无意义，气泡直接在画面居中
@@ -662,8 +662,8 @@ void GuidancePresentation::changeBubblePosition() {
   position_ = bestPos;
 }
 
-GuidancePresentation::DirectionInfo
-GuidancePresentation::evaluateDirectionSpace(Position pos) {
+TourOverlay::DirectionInfo
+TourOverlay::evaluateDirectionSpace(Position pos) {
   const int spacing = 15;
   DirectionInfo info;
 
@@ -716,7 +716,7 @@ GuidancePresentation::evaluateDirectionSpace(Position pos) {
   return info;
 }
 
-void GuidancePresentation::paintEvent(QPaintEvent* event) {
+void TourOverlay::paintEvent(QPaintEvent* event) {
   QWidget::paintEvent(event);
 
   QPainter p(this);
@@ -725,16 +725,16 @@ void GuidancePresentation::paintEvent(QPaintEvent* event) {
   drawHighlight(&p);
 }
 
-QColor GuidancePresentation::maskColor() const {
+QColor TourOverlay::maskColor() const {
   // 遮罩：半透明黑。alpha 定在这里，深浅要调只改这一个数
   const int alpha = 128;
   return QColor(0, 0, 0, alpha);
 }
 
-QColor GuidancePresentation::bubbleColor() const {
+QColor TourOverlay::bubbleColor() const {
   QColor color = QColor(0xF0, 0xF0, 0xF0);
   color.setAlpha(245);
   return color;
 }
 
-QColor GuidancePresentation::accentColor() const { return QColor("#007ACC"); }
+QColor TourOverlay::accentColor() const { return QColor("#007ACC"); }

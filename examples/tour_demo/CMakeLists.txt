@@ -1,17 +1,17 @@
-set(TARGET_NAME "guidance_demo")
+set(TARGET_NAME "tour_demo")
 
 set(ALL_SRCS
     main.cpp
     demo_widget.cpp
     demo_widget.h
-    demo_flows.cpp
-    demo_flows.h
+    demo_topics.cpp
+    demo_topics.h
 )
 
 add_executable(${TARGET_NAME} WIN32 ${ALL_SRCS})
 
 target_link_libraries(${TARGET_NAME} PRIVATE
-    ${APP_TARGET_PREFIX}_guidance
+    ${APP_TARGET_PREFIX}_tour
 )
 
 set_target_properties(${TARGET_NAME} PROPERTIES

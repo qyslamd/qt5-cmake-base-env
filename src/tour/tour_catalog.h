@@ -1,5 +1,5 @@
-#ifndef FILE_GUIDANCE_CONFIG_H_
-#define FILE_GUIDANCE_CONFIG_H_
+#ifndef FILE_TOUR_CONFIG_H_
+#define FILE_TOUR_CONFIG_H_
 
 #include <functional>
 #include <variant>
@@ -12,7 +12,7 @@
 
 // 单个引导步骤：目标元素（控件/矩形/图片）+ 标题/描述 + 进入/退出回调。
 // 纯类，无 Q_OBJECT（不依赖元对象系统）。
-class GuidanceStep {
+class TourStep {
  public:
   using Target = std::variant<QWidget*, QRect, QPixmap>;
   using Func = std::function<void()>;
@@ -25,7 +25,7 @@ class GuidanceStep {
   std::function<void()> onExit;
 
  public:
-  GuidanceStep(const Target& target)
+  TourStep(const Target& target)
       : target_(target),
         title_("未知"),
         description_("未知"),
@@ -52,19 +52,19 @@ class GuidanceStep {
   inline const Func& exitFunc() const { return onExit; }
   inline void setExitFunc(const Func& func) { onExit = func; }
 
-  GuidanceStep* withTitle(const QString& title) {
+  TourStep* withTitle(const QString& title) {
     title_ = title;
     return this;
   }
-  GuidanceStep* withDescription(const QString& desc) {
+  TourStep* withDescription(const QString& desc) {
     description_ = desc;
     return this;
   }
-  GuidanceStep* withEnterFunc(const Func& func) {
+  TourStep* withEnterFunc(const Func& func) {
     onEnter = func;
     return this;
   }
-  GuidanceStep* withExitFunc(const Func& func) {
+  TourStep* withExitFunc(const Func& func) {
     onExit = func;
     return this;
   }
@@ -72,31 +72,31 @@ class GuidanceStep {
 
 // 一条引导主题（Flow）：图标 + 名称/描述 + 一组 Step + 主题级进入/退出回调。
 // 纯类，无 Q_OBJECT。
-class GuidanceFlow {
+class GuideTopic {
  private:
   QPixmap icon_;
   QString name_;
   QString description_;
   std::function<void()> onEnter = nullptr;
   std::function<void()> onExit = nullptr;
-  QList<GuidanceStep*> steps_;
+  QList<TourStep*> steps_;
   // 实操式主题：遮罩对鼠标穿透，用户边看边动手（自发自收演示用）。
   // 默认关闭 = 传统讲解式（目标不响应点击，点遮罩空白退出）
   bool interactive_ = false;
 
  public:
-  GuidanceFlow(const QString& name, const QString& desc)
+  GuideTopic(const QString& name, const QString& desc)
       : name_(name), description_(desc) {}
 
-  GuidanceFlow(const QPixmap& icon, const QString& name, const QString& desc)
+  GuideTopic(const QPixmap& icon, const QString& name, const QString& desc)
       : icon_(icon), name_(name), description_(desc) {}
 
-  GuidanceFlow(const QPixmap& icon) : icon_(icon) {}
+  GuideTopic(const QPixmap& icon) : icon_(icon) {}
 
-  GuidanceFlow() = default;
-  ~GuidanceFlow();
+  GuideTopic() = default;
+  ~GuideTopic();
 
-  void addStep(GuidanceStep* step);
+  void addStep(TourStep* step);
   void clear();
 
   inline const QString& name() const { return name_; }
@@ -109,12 +109,12 @@ class GuidanceFlow {
   inline const QPixmap& icon() const { return icon_; }
   inline void setIcon(const QPixmap& icon) { icon_ = icon; }
 
-  inline const QList<GuidanceStep*>& steps() const { return steps_; }
+  inline const QList<TourStep*>& steps() const { return steps_; }
   inline int stepCount() const { return steps_.count(); }
 
   inline bool interactive() const { return interactive_; }
   inline void setInteractive(bool on) { interactive_ = on; }
-  GuidanceFlow* withInteractive(bool on) {
+  GuideTopic* withInteractive(bool on) {
     interactive_ = on;
     return this;
   }
@@ -127,27 +127,27 @@ class GuidanceFlow {
   inline const std::function<void()>& exitFunc() const { return onExit; }
   inline void setExitFunc(const std::function<void()>& func) { onExit = func; }
 
-  GuidanceFlow* withStep(GuidanceStep* step) {
+  GuideTopic* withStep(TourStep* step) {
     addStep(step);
     return this;
   }
 };
 
 // 引导配置：持有全部 Flow。纯类，无 Q_OBJECT。
-class GuidanceConfig {
+class TourCatalog {
  public:
-  GuidanceConfig();
-  ~GuidanceConfig();
+  TourCatalog();
+  ~TourCatalog();
 
-  inline const QList<GuidanceFlow*>& flows() const { return flows_; }
+  inline const QList<GuideTopic*>& topics() const { return topics_; }
 
-  GuidanceFlow* addFlow(GuidanceFlow* flow);
+  GuideTopic* addTopic(GuideTopic* topic);
   void clear();
   int totalSteps() const;
 
  private:
-  QList<GuidanceFlow*> flows_;
+  QList<GuideTopic*> topics_;
 };
 
-Q_DECLARE_METATYPE(GuidanceFlow*)
-#endif  // FILE_GUIDANCE_CONFIG_H_
+Q_DECLARE_METATYPE(GuideTopic*)
+#endif  // FILE_TOUR_CONFIG_H_

@@ -1,4 +1,4 @@
-#include "guidance_style.h"
+#include "tour_style.h"
 
 #include <QApplication>
 #include <QCoreApplication>
@@ -8,7 +8,7 @@
 
 namespace {
 
-const char kStyleSheetPath[] = ":/resources/styles/guidance_default.qss";
+const char kStyleSheetPath[] = ":/resources/styles/tour_default.qss";
 
 QString ReadStyleSheetText() {
   QFile file(QString::fromLatin1(kStyleSheetPath));
@@ -23,17 +23,17 @@ QString ReadStyleSheetText() {
 // 静态库里的 qrc 符号没人引用就不会被链进来，这里是那个引用。
 //
 // 单独放一个全局函数、不放进匿名命名空间也不是类成员：Q_INIT_RESOURCE 展开
-// 后会声明并调用 qInitResources_guidance_res()，那个函数由 rcc 生成在全局作用
-// 域——放进命名空间会去找一个不存在的 ns::qInitResources_guidance_res
-static void InitGuidanceResources() { Q_INIT_RESOURCE(guidance_res); }
+// 后会声明并调用 qInitResources_tour_res()，那个函数由 rcc 生成在全局作用
+// 域——放进命名空间会去找一个不存在的 ns::qInitResources_tour_res
+static void InitTourResources() { Q_INIT_RESOURCE(tour_res); }
 
-void GuidanceStyle::EnsureApplied() {
+void TourStyle::EnsureApplied() {
   static bool applied = false;
   if (applied) {
     return;
   }
 
-  InitGuidanceResources();
+  InitTourResources();
 
   QApplication* app = qobject_cast<QApplication*>(QCoreApplication::instance());
   if (app == nullptr) {

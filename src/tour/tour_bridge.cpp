@@ -1,4 +1,4 @@
-#include "guidance_bridge.h"
+#include "tour_bridge.h"
 
 #include <QApplication>
 #include <QList>
@@ -7,7 +7,7 @@
 #include <QWidget>
 #include <QtDebug>
 
-#include <guidance_presentation.h>
+#include <tour_overlay.h>
 
 namespace {
 
@@ -18,7 +18,7 @@ namespace {
 //   路径   = 各段用 "::" 拼，解析时逐段下钻
 //
 // 自己写而不是把 funq 的源码拷进来：funq 是 CeCILL v2.1（copyleft），拷进
-// src/guidance 会把我们自己的库一起卷进那个许可证。算法本身不受版权保护，
+// src/tour 会把我们自己的库一起卷进那个许可证。算法本身不受版权保护，
 // 照着重写既干净又短，而且仍然**零 funq 依赖**
 QString RawObjectName(QObject* object) {
   QString name = object->objectName();
@@ -94,22 +94,22 @@ QWidget* ResolveWidget(const QString& path) {
 
 }  // namespace
 
-GuidanceBridge::GuidanceBridge(GuidancePresentation* presentation,
+TourBridge::TourBridge(TourOverlay* overlay,
                                QWidget* parent)
-    : QWidget(parent), presentation_(presentation) {
+    : QWidget(parent), overlay_(overlay) {
   // funq 靠 objectName 定位到本对象再 call_slot。Tool 标志让它不进任务栏，
   // 0 尺寸 + 不挡鼠标，用户看不见它——它只是 funq 的落脚点。
   // show() 不能省：客户端默认等控件 visible 才返回，不 show 会一直超时
   setWindowFlags(Qt::Tool | Qt::FramelessWindowHint);
-  setObjectName(QStringLiteral("guidanceBridge"));
+  setObjectName(QStringLiteral("tourBridge"));
   resize(0, 0);
   setAttribute(Qt::WA_TransparentForMouseEvents);
   show();
 }
 
-QVariant GuidanceBridge::showHighlight(const QVariant& params) {
+QVariant TourBridge::showHighlight(const QVariant& params) {
   QVariantMap result;
-  if (presentation_ == nullptr) {
+  if (overlay_ == nullptr) {
     result["ok"] = false;
     result["message"] = QStringLiteral("演示层尚未就绪");
     return result;
@@ -140,15 +140,15 @@ QVariant GuidanceBridge::showHighlight(const QVariant& params) {
   }
 
   // 被动模式：只显示、不交互，推进全由外部脚本给
-  presentation_->setPassiveMode(true);
-  presentation_->showHighlight(target, args.value(QStringLiteral("title")).toString(),
+  overlay_->setPassiveMode(true);
+  overlay_->showHighlight(target, args.value(QStringLiteral("title")).toString(),
                                args.value(QStringLiteral("text")).toString());
 
   result["ok"] = true;
   result["message"] = QStringLiteral("高亮 %1").arg(path);
   // 把算出来的数字一并回报：高亮/遮罩算在哪儿，出问题时只能靠这个定位
-  const QRect rect = presentation_->highlightRect();
-  const QRect overlay = presentation_->geometry();
+  const QRect rect = overlay_->highlightRect();
+  const QRect overlay = overlay_->geometry();
   result["rect"] = QStringLiteral("%1,%2 %3x%4")
                        .arg(rect.x())
                        .arg(rect.y())
@@ -172,16 +172,16 @@ QVariant GuidanceBridge::showHighlight(const QVariant& params) {
   return result;
 }
 
-QVariant GuidanceBridge::hideHighlight(const QVariant& params) {
+QVariant TourBridge::hideHighlight(const QVariant& params) {
   Q_UNUSED(params);
 
   QVariantMap result;
-  if (presentation_ == nullptr) {
+  if (overlay_ == nullptr) {
     result["ok"] = false;
     result["message"] = QStringLiteral("演示层尚未就绪");
     return result;
   }
-  presentation_->clearHighlight();
+  overlay_->clearHighlight();
   result["ok"] = true;
   result["message"] = QStringLiteral("已清除高亮");
   return result;

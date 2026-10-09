@@ -1,4 +1,4 @@
-#include "guidance_homepage.h"
+#include "tour_homepage.h"
 
 #include <QCheckBox>
 #include <QCoreApplication>
@@ -22,26 +22,26 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
-#include "guidance_config.h"
-#include "guidance_style.h"
-#include "guidance_controller.h"
+#include "tour_catalog.h"
+#include "tour_style.h"
+#include "tour_controller.h"
 
 // ---------------------------------------------------------------------------
-// GuidanceCard
+// TourCard
 // ---------------------------------------------------------------------------
 
-GuidanceCard::GuidanceCard(GuidanceFlow* flow, QWidget* parent)
+TourCard::TourCard(GuideTopic* topic, QWidget* parent)
     : QWidget(parent),
-      flow_(flow),
-      placeholder_(flow == nullptr || flow->stepCount() == 0) {
+      topic_(topic),
+      placeholder_(topic == nullptr || topic->stepCount() == 0) {
   // 占位态也交给 QSS（[placeholder="true"]），与底色/边框同一处。
   // 构造期设一次即可，之后不变，所以不需要 unpolish/polish
   setProperty("placeholder", placeholder_);
   initUi();
 }
 
-void GuidanceCard::initUi() {
-  setObjectName(QStringLiteral("guidanceCard"));
+void TourCard::initUi() {
+  setObjectName(QStringLiteral("tourCard"));
   setAttribute(Qt::WA_TranslucentBackground);
   setAttribute(Qt::WA_StyledBackground, true);
   setCursor(Qt::PointingHandCursor);
@@ -52,31 +52,31 @@ void GuidanceCard::initUi() {
   layout->setSpacing(8);
 
   icon_label_ = new QLabel(this);
-  icon_label_->setObjectName(QStringLiteral("guidanceCardIcon"));
+  icon_label_->setObjectName(QStringLiteral("tourCardIcon"));
   icon_label_->setAlignment(Qt::AlignCenter);
-  if (flow_ != nullptr && !flow_->icon().isNull()) {
-    icon_label_->setPixmap(flow_->icon().scaled(
+  if (topic_ != nullptr && !topic_->icon().isNull()) {
+    icon_label_->setPixmap(topic_->icon().scaled(
         QSize(48, 48), Qt::KeepAspectRatio, Qt::SmoothTransformation));
   }
   layout->addWidget(icon_label_);
 
-  title_label_ = new QLabel(flow_ != nullptr ? flow_->name() : QString(), this);
-  title_label_->setObjectName(QStringLiteral("guidanceCardTitle"));
+  title_label_ = new QLabel(topic_ != nullptr ? topic_->name() : QString(), this);
+  title_label_->setObjectName(QStringLiteral("tourCardTitle"));
   title_label_->setAlignment(Qt::AlignCenter);
   title_label_->setWordWrap(true);
   layout->addWidget(title_label_);
 
   desc_label_ = new QLabel(
       placeholder_ ? QStringLiteral("敬请期待")
-                   : (flow_ != nullptr ? flow_->description() : QString()),
+                   : (topic_ != nullptr ? topic_->description() : QString()),
       this);
-  desc_label_->setObjectName(QStringLiteral("guidanceCardDesc"));
+  desc_label_->setObjectName(QStringLiteral("tourCardDesc"));
   desc_label_->setAlignment(Qt::AlignCenter);
   desc_label_->setWordWrap(true);
   layout->addWidget(desc_label_);
 }
 
-void GuidanceCard::setSelected(bool selected) {
+void TourCard::setSelected(bool selected) {
   if (selected_ == selected) {
     return;
   }
@@ -89,7 +89,7 @@ void GuidanceCard::setSelected(bool selected) {
   update();
 }
 
-void GuidanceCard::mousePressEvent(QMouseEvent* event) {
+void TourCard::mousePressEvent(QMouseEvent* event) {
   if (event->button() == Qt::LeftButton) {
     pressed_ = true;
     update();
@@ -98,7 +98,7 @@ void GuidanceCard::mousePressEvent(QMouseEvent* event) {
   QWidget::mousePressEvent(event);
 }
 
-void GuidanceCard::mouseReleaseEvent(QMouseEvent* event) {
+void TourCard::mouseReleaseEvent(QMouseEvent* event) {
   if (event->button() == Qt::LeftButton && pressed_) {
     pressed_ = false;
     update();
@@ -111,10 +111,10 @@ void GuidanceCard::mouseReleaseEvent(QMouseEvent* event) {
 }
 
 // ---------------------------------------------------------------------------
-// GuidanceHomePage
+// TourHomePage
 // ---------------------------------------------------------------------------
 
-GuidanceHomePage::GuidanceHomePage(GuidanceController* controller,
+TourHomePage::TourHomePage(TourController* controller,
                                    QWidget* parent)
     : QWidget(parent), controller_(controller) {
   // 覆盖层统一挂到顶层窗口：避免被侧边栏等中间父对象的边界裁剪，
@@ -133,19 +133,19 @@ GuidanceHomePage::GuidanceHomePage(GuidanceController* controller,
   initSignals();
 }
 
-int GuidanceHomePage::exec() {
+int TourHomePage::exec() {
   // 普通 QWidget 没有 QDialog 的事件循环，这里用局部 QEventLoop 模拟。
   // closed() 在 hideEvent 中发出，覆盖"外部直接调 hide()"的情况。
   show();
   raise();
 
   QEventLoop loop;
-  connect(this, &GuidanceHomePage::closed, &loop, &QEventLoop::quit);
+  connect(this, &TourHomePage::closed, &loop, &QEventLoop::quit);
   loop.exec();
   return 0;
 }
 
-void GuidanceHomePage::setHeading(const QString& title,
+void TourHomePage::setHeading(const QString& title,
                                   const QString& subtitle) {
   if (title_label_ != nullptr) {
     title_label_->setText(title);
@@ -155,11 +155,11 @@ void GuidanceHomePage::setHeading(const QString& title,
   }
 }
 
-void GuidanceHomePage::initUi() {
-  // 居中面板：固定尺寸，QSS #guidanceHomePanel 可覆盖背景（半透明 + 圆角）；
+void TourHomePage::initUi() {
+  // 居中面板：固定尺寸，QSS #tourHomePanel 可覆盖背景（半透明 + 圆角）；
   // 无 QSS 时用 palette Window 色兜底。阴影由 QGraphicsDropShadowEffect 加。
   panel_ = new QFrame(this);
-  panel_->setObjectName(QStringLiteral("guidanceHomePanel"));
+  panel_->setObjectName(QStringLiteral("tourHomePanel"));
   panel_->setFixedSize(880, 520);
   panel_->setAttribute(Qt::WA_StyledBackground);
   QPalette pal = panel_->palette();
@@ -193,7 +193,7 @@ void GuidanceHomePage::initUi() {
       app_name.isEmpty() ? QStringLiteral("欢迎使用")
                          : QStringLiteral("欢迎使用 %1").arg(app_name),
       panel_);
-  title_label_->setObjectName(QStringLiteral("guidanceHomeTitle"));
+  title_label_->setObjectName(QStringLiteral("tourHomeTitle"));
   title_label_->setAlignment(Qt::AlignCenter);
   QFont title_font = title_label_->font();
   title_font.setPointSize(20);
@@ -202,7 +202,7 @@ void GuidanceHomePage::initUi() {
   title_box->addWidget(title_label_);
 
   sub_label_ = new QLabel(QStringLiteral("选择一项开始了解"), panel_);
-  sub_label_->setObjectName(QStringLiteral("guidanceHomeSub"));
+  sub_label_->setObjectName(QStringLiteral("tourHomeSub"));
   sub_label_->setAlignment(Qt::AlignCenter);
   title_box->addWidget(sub_label_);
 
@@ -210,7 +210,7 @@ void GuidanceHomePage::initUi() {
   header_layout->addStretch(1);
 
   close_btn_ = new QToolButton(panel_);
-  close_btn_->setObjectName(QStringLiteral("guidanceHomeClose"));
+  close_btn_->setObjectName(QStringLiteral("tourHomeClose"));
   close_btn_->setIcon(style()->standardIcon(QStyle::SP_DockWidgetCloseButton));
   close_btn_->setIconSize(QSize(16, 16));
   close_btn_->setCursor(Qt::PointingHandCursor);
@@ -218,7 +218,7 @@ void GuidanceHomePage::initUi() {
 
   panel_layout->addLayout(header_layout);
 
-  // 卡片行：居中，rebuildCards() 按 controller_->flows() 往里填卡。
+  // 卡片行：居中，rebuildCards() 按 controller_->topics() 往里填卡。
   cards_layout_ = new QHBoxLayout;
   cards_layout_->setSpacing(16);
   cards_layout_->setAlignment(Qt::AlignCenter);
@@ -230,29 +230,29 @@ void GuidanceHomePage::initUi() {
   bottom_layout->setSpacing(16);
 
   auto_check_ = new QCheckBox(QStringLiteral("自动演示"), panel_);
-  auto_check_->setObjectName(QStringLiteral("guidanceAutoCheck"));
+  auto_check_->setObjectName(QStringLiteral("tourAutoCheck"));
   auto_check_->setLayoutDirection(Qt::RightToLeft);
   bottom_layout->addWidget(auto_check_);
 
   bottom_layout->addStretch(1);
 
   all_btn_ = new QPushButton(QStringLiteral("全部演示"), panel_);
-  all_btn_->setObjectName(QStringLiteral("guidanceAllBtn"));
+  all_btn_->setObjectName(QStringLiteral("tourAllBtn"));
   bottom_layout->addWidget(all_btn_);
 
   panel_layout->addLayout(bottom_layout);
 }
 
-void GuidanceHomePage::initStyleSheet() {
-  // 样式由 GuidanceStyle 在应用级统一并入（见 guidance_style.h）：气泡在实操
+void TourHomePage::initStyleSheet() {
+  // 样式由 TourStyle 在应用级统一并入（见 tour_style.h）：气泡在实操
   // 模式下会被 reparent 到 viewport，离开首页的子树，只设在首页上盖不到它。
   // 这里不再重复设一份，避免同一份 qss 读两遍、也避免两处优先级打架
-  GuidanceStyle::EnsureApplied();
+  TourStyle::EnsureApplied();
 }
 
-void GuidanceHomePage::initSignals() {
+void TourHomePage::initSignals() {
   connect(close_btn_, &QToolButton::clicked, this,
-          &GuidanceHomePage::hideHomePage);
+          &TourHomePage::hideHomePage);
   connect(all_btn_, &QPushButton::clicked, this, [this] {
     hideHomePage();
     if (controller_ != nullptr) {
@@ -261,7 +261,7 @@ void GuidanceHomePage::initSignals() {
   });
 }
 
-void GuidanceHomePage::rebuildCards() {
+void TourHomePage::rebuildCards() {
   while (QLayoutItem* item = cards_layout_->takeAt(0)) {
     if (QWidget* w = item->widget()) {
       w->deleteLater();
@@ -272,31 +272,31 @@ void GuidanceHomePage::rebuildCards() {
   if (controller_ == nullptr) {
     return;
   }
-  for (GuidanceFlow* flow : controller_->flows()) {
-    auto* card = new GuidanceCard(flow, this);
-    connect(card, &GuidanceCard::clicked, this,
-            [this, flow] { startFlow(flow); });
+  for (GuideTopic* topic : controller_->topics()) {
+    auto* card = new TourCard(topic, this);
+    connect(card, &TourCard::clicked, this,
+            [this, topic] { startTopic(topic); });
     cards_layout_->addWidget(card);
   }
 }
 
-void GuidanceHomePage::startFlow(GuidanceFlow* flow) {
-  if (flow == nullptr || flow->stepCount() == 0) {
+void TourHomePage::startTopic(GuideTopic* topic) {
+  if (topic == nullptr || topic->stepCount() == 0) {
     return;
   }
   hideHomePage();
   if (controller_ != nullptr) {
-    controller_->startOne(flow, auto_check_->isChecked());
+    controller_->startOne(topic, auto_check_->isChecked());
   }
 }
 
-void GuidanceHomePage::hideHomePage() {
+void TourHomePage::hideHomePage() {
   // hideEvent 会发 closed()，exec() 的局部事件循环随之退出。
   hide();
 }
 
-void GuidanceHomePage::showEvent(QShowEvent* event) {
-  // 每次显示前重建卡片（flows 可能已变）。
+void TourHomePage::showEvent(QShowEvent* event) {
+  // 每次显示前重建卡片（topics 可能已变）。
   rebuildCards();
 
   // 铺满父窗口客户区并置顶。父窗口 resize 时下次 show 会重新计算；
@@ -317,14 +317,14 @@ void GuidanceHomePage::showEvent(QShowEvent* event) {
   QWidget::showEvent(event);
 }
 
-void GuidanceHomePage::hideEvent(QHideEvent* event) {
+void TourHomePage::hideEvent(QHideEvent* event) {
   // 无论是 hideHomePage() 还是外部直接 hide()，都统一从这里发 closed()，
   // 让 exec() 的局部事件循环退出（等价于原 QDialog 关闭时的行为）。
   emit closed();
   QWidget::hideEvent(event);
 }
 
-void GuidanceHomePage::paintEvent(QPaintEvent* event) {
+void TourHomePage::paintEvent(QPaintEvent* event) {
   Q_UNUSED(event);
   // 自绘遮罩：半透明黑
   // 不调 QWidget::paintEvent，让子控件各自绘制、不被底色覆盖。

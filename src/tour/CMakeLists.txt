@@ -1,29 +1,29 @@
-set(TARGET_NAME ${APP_TARGET_PREFIX}_guidance)
+set(TARGET_NAME ${APP_TARGET_PREFIX}_tour)
 
 set(TARGET_SRCS
-    guidance_bridge.cpp
-    guidance_bridge.h
-    guidance_config.cpp
-    guidance_config.h
-    guidance_controller.cpp
-    guidance_controller.h
-    guidance_homepage.cpp
-    guidance_homepage.h
-    guidance_menu.cpp
-    guidance_menu.h
-    guidance_presentation.cpp
-    guidance_presentation.h
-    guidance_style.cpp
-    guidance_style.h
+    tour_bridge.cpp
+    tour_bridge.h
+    tour_catalog.cpp
+    tour_catalog.h
+    tour_controller.cpp
+    tour_controller.h
+    tour_homepage.cpp
+    tour_homepage.h
+    tour_menu.cpp
+    tour_menu.h
+    tour_overlay.cpp
+    tour_overlay.h
+    tour_style.cpp
+    tour_style.h
 )
 
 # 资源用 qt5_add_resources 显式生成，不同时开 AUTORCC——两套机制并存时看不出
 # 哪套在生效（实测只有前者产出了目标文件）。静态库里的 qrc 符号不会被自动
-# 链接进来，由 guidance_style.cpp 的 Q_INIT_RESOURCE 显式引用
-set(GUIDANCE_RESOURCES guidance_res.qrc)
-qt5_add_resources(GUIDANCE_RESOURCES_CPP ${GUIDANCE_RESOURCES})
+# 链接进来，由 tour_style.cpp 的 Q_INIT_RESOURCE 显式引用
+set(TOUR_RESOURCES tour_res.qrc)
+qt5_add_resources(TOUR_RESOURCES_CPP ${TOUR_RESOURCES})
 
-add_library(${TARGET_NAME} STATIC ${TARGET_SRCS} ${GUIDANCE_RESOURCES_CPP})
+add_library(${TARGET_NAME} STATIC ${TARGET_SRCS} ${TOUR_RESOURCES_CPP})
 
 set_target_properties(${TARGET_NAME} PROPERTIES
     AUTOMOC ON

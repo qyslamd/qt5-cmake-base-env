@@ -1,5 +1,5 @@
-#ifndef FILE_GUIDANCE_HOMEPAGE_H_
-#define FILE_GUIDANCE_HOMEPAGE_H_
+#ifndef FILE_TOUR_HOMEPAGE_H_
+#define FILE_TOUR_HOMEPAGE_H_
 
 #include <QWidget>
 
@@ -12,24 +12,24 @@ class QPushButton;
 class QShowEvent;
 class QToolButton;
 
-class GuidanceController;
-class GuidanceFlow;
+class TourController;
+class GuideTopic;
 
 // 引导首页主题卡片：图标 + 名称 + 描述。
 //
-// **卡片的样式只有 QSS 一个出处**（`guidance_default.qss` 里的
-// `#guidanceCard` 那几条）：底色/边框/圆角是规则本体，hover 走 `:hover`
+// **卡片的样式只有 QSS 一个出处**（`tour_default.qss` 里的
+// `#tourCard` 那几条）：底色/边框/圆角是规则本体，hover 走 `:hover`
 // 伪状态，选中与占位走动态属性 `selected` / `placeholder`。
 //
 // 这里曾经同时自绘一套底色与边框，注释还写着"QSS 覆盖、无 QSS 时自绘兜底"
 // ——不成立：自绘是无条件的，且画在 QSS 之后，实际是它盖住 QSS。改 QSS 的人
 // 会发现没反应。现在只保留 QSS 表达不了的东西：点击的按下/抬起配对判定
-class GuidanceCard : public QWidget {
+class TourCard : public QWidget {
   Q_OBJECT
  public:
-  explicit GuidanceCard(GuidanceFlow* flow, QWidget* parent = nullptr);
+  explicit TourCard(GuideTopic* topic, QWidget* parent = nullptr);
 
-  GuidanceFlow* flow() const { return flow_; }
+  GuideTopic* topic() const { return topic_; }
   bool isPlaceholder() const { return placeholder_; }
   void setSelected(bool selected);
   bool isSelected() const { return selected_; }
@@ -48,7 +48,7 @@ class GuidanceCard : public QWidget {
   QLabel* icon_label_ = nullptr;
   QLabel* title_label_ = nullptr;
   QLabel* desc_label_ = nullptr;
-  GuidanceFlow* flow_ = nullptr;
+  GuideTopic* topic_ = nullptr;
   bool placeholder_ = false;
   bool selected_ = false;
   bool pressed_ = false;
@@ -59,11 +59,11 @@ class GuidanceCard : public QWidget {
 // - 显示/隐藏：show() / hide()（exec() 保留阻塞式兼容接口）
 // - 父窗口尺寸变化：showEvent 中按 parentWidget()->rect() 同步几何
 // - 遮罩颜色自绘
-class GuidanceHomePage : public QWidget {
+class TourHomePage : public QWidget {
   Q_OBJECT
 
  public:
-  explicit GuidanceHomePage(GuidanceController* controller,
+  explicit TourHomePage(TourController* controller,
                             QWidget* parent = nullptr);
 
   // 兼容旧 QDialog::exec() 用法：显示并阻塞直到隐藏，返回 0。
@@ -88,7 +88,7 @@ class GuidanceHomePage : public QWidget {
   void initSignals();
   void rebuildCards();
   void hideHomePage();
-  void startFlow(GuidanceFlow* flow);
+  void startTopic(GuideTopic* topic);
 
  private:
   QFrame* panel_ = nullptr;
@@ -98,6 +98,6 @@ class GuidanceHomePage : public QWidget {
   QPushButton* all_btn_ = nullptr;
   QCheckBox* auto_check_ = nullptr;
   QHBoxLayout* cards_layout_ = nullptr;
-  GuidanceController* controller_ = nullptr;
+  TourController* controller_ = nullptr;
 };
-#endif  // FILE_GUIDANCE_HOMEPAGE_H_
+#endif  // FILE_TOUR_HOMEPAGE_H_

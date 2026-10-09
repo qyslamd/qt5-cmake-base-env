@@ -117,14 +117,14 @@ def exists(client, path):
 
 
 # 桥接对象是独立顶层窗口（不是主窗口的子控件）——脚本第一步就跑在登录
-# 对话框上，那时主窗口还没创建。见 docs/plan/guidance接入funq.md
-BRIDGE = "guidanceBridge"
+# 对话框上，那时主窗口还没创建。见 docs/plan/tour接入funq.md
+BRIDGE = "tourBridge"
 
 
-class Guidance(object):
-    """funq -> guidance 的薄封装：脚本走到哪一步，屏幕上就高亮到哪一步。
+class Tour(object):
+    """funq -> tour 的薄封装：脚本走到哪一步，屏幕上就高亮到哪一步。
 
-    底层是 guidanceBridge 上的两个槽，见 docs/plan/guidance接入funq.md。
+    底层是 tourBridge 上的两个槽，见 docs/plan/tour接入funq.md。
     桥接**回报**失败（ok=false，含原因）时不中断脚本——它只是可视化，不该把
     用例拖垮。但桥接本身调不通（对象不在、连接断了）会抛异常，那是另一回事，
     会直接中断——那种情况挂掉比静默继续好查。
@@ -191,7 +191,7 @@ def main():
     # 高亮助手：脚本每走一步，屏幕上就指到对应控件（失败不影响用例）
     print("每次高亮会停留 %.1f 秒（--dwell 可调），否则一步接一步全糊在一起。"
           % opts.dwell)
-    guide = Guidance(client, dwell=opts.dwell)
+    guide = Tour(client, dwell=opts.dwell)
 
     # 登录这三步只在带登录框的构建里成立：程序可能带 APP_ENABLE_AUTH=OFF 编，
     # 那样根本没有登录对话框、主窗口启动即建。判据只能问界面——脚本是经 TCP

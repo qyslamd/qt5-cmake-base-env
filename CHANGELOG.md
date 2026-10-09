@@ -158,9 +158,9 @@
   可视化层——脚本走到哪个控件，遮罩就高亮到哪个，同一套渲染层平时给用户当新手
   引导、跑脚本时给自动化当"看得见的光标"。实现上给演示层加了**被动模式**（按钮
   全隐、倒计时一律停、点遮罩不退出，推进全由外部给）与气泡开关，并给
-  `GuidanceBridge` 按 path 定位控件的两个 `Q_INVOKABLE`（**零 funq 依赖**：
-  自己用 Qt 的 `findChild` 解析、用引擎同一套 `mapToGlobal` 算矩形，所以 guidance
-  库不必链 funq）。实测撞出四处约束，都记在 `docs/plan/guidance接入funq.md`：
+  `TourBridge` 按 path 定位控件的两个 `Q_INVOKABLE`（**零 funq 依赖**：
+  自己用 Qt 的 `findChild` 解析、用引擎同一套 `mapToGlobal` 算矩形，所以 tour
+  库不必链 funq）。实测撞出四处约束，都记在 `docs/plan/tour接入funq.md`：
   桥接对象必须是**可见的 QWidget**（funq 的 `call_slot` 要 `qobject_cast<QWidget*>`，
   纯 QObject 判 `NotAWidget`）、必须**早于登录**就存在（脚本第一步跑在登录框上，
   那时主窗口还没创建，所以它是独立顶层窗口）、槽签名只能是"单个 `QVariant` 进、
@@ -171,19 +171,19 @@
   的部分按屏幕可用区裁掉，宿主占满屏幕时自然就不扩；目标不可见或尺寸为空时**拒绝
   高亮并回报原因**（菜单栏里的 `QMenu` 从没显示过，几何是未初始化的，画出来会把
   遮罩铺到屏幕角落去）
-- **功能引导模块 `src/guidance/`（静态库）**：把界面导向与操作高亮做成可复用的
-  独立库——`GuidanceController` 驱动演示层（半透明遮罩 + 目标高亮 + 气泡 +
-  倒计时），主题由使用方定义（Flow/Step，目标可以是**控件、一块区域或一张图**）；
+- **功能引导模块 `src/tour/`（静态库）**：把界面导向与操作高亮做成可复用的
+  独立库——`TourController` 驱动演示层（半透明遮罩 + 目标高亮 + 气泡 +
+  倒计时），主题由使用方定义（GuideTopic/Step，目标可以是**控件、一块区域或一张图**）；
   实操式主题下遮罩对鼠标穿透，用户可边看边动手。库自带 qrc 与样式表，并在
   **应用级**并入样式（追加而非覆盖，不动宿主已有的样式表）——气泡在实操模式下
   会被 reparent 到 viewport，只设在某个控件上的样式盖不到它。静态库的 qrc 符号
-  需要有人显式引用，这一步收在库内部（`GuidanceStyle::EnsureApplied()`），宿主
+  需要有人显式引用，这一步收在库内部（`TourStyle::EnsureApplied()`），宿主
   不必知道资源名——漏写的代价是静默丢样式。外部驱动分两个类各归各位：
-  `GuidanceBridge`（必须是可见 QWidget + 独立顶层窗口）管被动高亮，
-  `GuidanceMenu`（普通 QObject）给主窗口宿主挂菜单。移植进来时修掉了四处缺陷
+  `TourBridge`（必须是可见 QWidget + 独立顶层窗口）管被动高亮，
+  `TourMenu`（普通 QObject）给主窗口宿主挂菜单。移植进来时修掉了四处缺陷
   （跨主题自动模式不同步、实操主题被自动翻页、倒计时初值用反、第二遍运行气泡
   不显示），逐条记录在 `docs/plan/plan总结.md`（原文已归档，该文件已删除）
-- **引导演示示例 `examples/guidance_demo/`**：一个普通 QWidget 窗口（没有
+- **引导演示示例 `examples/tour_demo/`**：一个普通 QWidget 窗口（没有
   QMainWindow、也没有菜单栏——库的核心 API 对宿主是什么窗口没有要求）。演示
   三条主题：讲解式的控件导览、遮罩穿透的实操式主题、以及 QRect / QPixmap 两种
   目标。实操那条刻意夹在中间，跑一次「全部演示」即可看出跨主题时自动模式该降

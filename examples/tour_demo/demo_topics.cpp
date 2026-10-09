@@ -1,4 +1,4 @@
-#include "demo_flows.h"
+#include "demo_topics.h"
 
 #include <QColor>
 #include <QPainter>
@@ -12,20 +12,20 @@
 
 #include <QWidget>
 
-#include <guidance_config.h>
-#include <guidance_controller.h>
+#include <tour_catalog.h>
+#include <tour_controller.h>
 
 namespace {
 
-// 按 objectName 找控件。找不到返回 nullptr——GuidanceStep 接受空目标，那一步
+// 按 objectName 找控件。找不到返回 nullptr——TourStep 接受空目标，那一步
 // 会退化成纯讲解，不会崩
 QWidget* Find(QWidget* root, const QString& name) {
   return root->findChild<QWidget*>(name);
 }
 
-GuidanceStep* MakeStep(QWidget* target, const QString& title,
+TourStep* MakeStep(QWidget* target, const QString& title,
                        const QString& description) {
-  auto* step = new GuidanceStep(target);
+  auto* step = new TourStep(target);
   step->setTitle(title);
   step->setDescription(description);
   return step;
@@ -52,7 +52,7 @@ QPixmap MakeSamplePixmap() {
 
 }  // namespace
 
-void AddDemoFlows(GuidanceController* controller, QWidget* root) {
+void AddDemoTopics(TourController* controller, QWidget* root) {
   if (controller == nullptr || root == nullptr) {
     return;
   }
@@ -60,7 +60,7 @@ void AddDemoFlows(GuidanceController* controller, QWidget* root) {
   // ------------------------------------------------------------------
   // 一、基本控件导览（讲解式）：逐个控件高亮
   // ------------------------------------------------------------------
-  auto* controls = new GuidanceFlow(QStringLiteral("基本控件导览"),
+  auto* controls = new GuideTopic(QStringLiteral("基本控件导览"),
                                     QStringLiteral("认识窗口里的几个控件"));
   controls->addStep(MakeStep(
       Find(root, QStringLiteral("demoNameEdit")), QStringLiteral("输入框"),
@@ -80,12 +80,12 @@ void AddDemoFlows(GuidanceController* controller, QWidget* root) {
   controls->addStep(MakeStep(nullptr, QStringLiteral("这条就到这里"),
                              QStringLiteral("下一条是实操式的——"
                                             "那条不自动翻页，等你自己动手。")));
-  controller->addFlow(controls);
+  controller->addTopic(controls);
 
   // ------------------------------------------------------------------
   // 二、动手试试（实操式）：遮罩穿透，边看边操作
   // ------------------------------------------------------------------
-  auto* hands_on = new GuidanceFlow(QStringLiteral("动手试试"),
+  auto* hands_on = new GuideTopic(QStringLiteral("动手试试"),
                                     QStringLiteral("遮罩穿透，边看边操作"));
   hands_on->setInteractive(true);
   hands_on->addStep(MakeStep(
@@ -100,16 +100,16 @@ void AddDemoFlows(GuidanceController* controller, QWidget* root) {
       nullptr, QStringLiteral("手也动完了"),
       QStringLiteral("退出走气泡的「跳过」——实操模式下点遮罩空白不退出，"
                      "那片空白特意让给下层控件了。")));
-  controller->addFlow(hands_on);
+  controller->addTopic(hands_on);
 
   // ------------------------------------------------------------------
   // 三、区域和插图：QRect 与 QPixmap 两种目标
   // ------------------------------------------------------------------
-  auto* shapes = new GuidanceFlow(QStringLiteral("区域和插图"),
+  auto* shapes = new GuideTopic(QStringLiteral("区域和插图"),
                                   QStringLiteral("高亮一块区域，或插一张图"));
 
   // QRect 目标必须是**全局坐标**，而窗口位置要到运行时才知道，所以目标的计算
-  // 放进 enter 回调——这正是 GuidanceStep::setTarget 的用途
+  // 放进 enter 回调——这正是 TourStep::setTarget 的用途
   QWidget* status = Find(root, QStringLiteral("demoStatusLabel"));
   auto* rect_step =
       MakeStep(nullptr, QStringLiteral("框住一块区域"),
@@ -134,5 +134,5 @@ void AddDemoFlows(GuidanceController* controller, QWidget* root) {
   shapes->addStep(MakeStep(nullptr, QStringLiteral("演示结束"),
                            QStringLiteral("三条主题都走完了。"
                                           "主页里可以单独挑一条重播。")));
-  controller->addFlow(shapes);
+  controller->addTopic(shapes);
 }

@@ -24,52 +24,52 @@
 `binaryDir` 与 Windows 侧同名会互相覆盖缓存），现用 `scripts/build_ninja.sh`。
 §6 遗留项了结三条，只剩 `single_instance.cpp` 的 `_WIN32` 守卫风格（MSVC-only，不改）。
 
-## guidance 模块的四处缺陷（2026-09-22，原《引入的guidance的bug记录》）
+## tour 模块的四处缺陷（2026-09-22，原《引入的tour的bug记录》）
 
 - B1 / B2 模式状态存了两份（控制器 + 演示层），跨主题只更新一份；且
   `auto_mode_` 全仓没有置回 true 的路径 → 收口成一个 `syncPresentationMode()`
 - B3 `time_percent_` 的语义是"已过去的比例"，初值给反成了 1.0
 - B4 **被显式 `hide()` 过的子控件，不会随父控件 `show()` 回来**
-  （`showChildren()` 跳过 `isHidden()` 的子控件）→ `guidance_presentation.cpp:387`
+  （`showChildren()` 跳过 `isHidden()` 的子控件）→ `tour_overlay.cpp:387`
 
-B1 / B2 只在多主题、且其中一条是实操式时显形；`guidance_demo` 三条主题跑一遍
+B1 / B2 只在多主题、且其中一条是实操式时显形；`tour_demo` 三条主题跑一遍
 「全部演示」即覆盖。未做完的两条见文末挂起清单第 5、6 条。
 
 ### 又五处（2026-10-03，逐文件复审后修）
 
-- **B5 实操模式的鼠标穿透从来没生效过**。`ApplyFlowOptions` 里连着调
-  `setInteractive(flow->interactive())` 再 `setPassiveMode(false)`，两个 setter
+- **B5 实操模式的鼠标穿透从来没生效过**。`ApplyTopicOptions` 里连着调
+  `setInteractive(topic->interactive())` 再 `setPassiveMode(false)`，两个 setter
   各写一次 `WA_TransparentForMouseEvents`，后者无条件把前者刚设的 true 盖回
   false。后果：hands-on 主题里被高亮的控件点不动，文案承诺的"点遮罩空白不退出"
   也反向——点空白反而 `emit skipClicked()` 退出。**B1/B2 的同一形态下沉了一层**：
   状态从"两份"变成了"一处状态两个写者"。修法：属性由
   `passive_mode_ || interactive_` 现算，只留 `UpdateMouseTransparency()` 一个出口
-- **B6 卡片样式有两个出处**。`GuidanceCard::paintEvent` 无条件自绘底色与边框，
-  且画在 QSS 之后——`guidance_default.qss` 里的 `#guidanceCard` 实际被盖住，
+- **B6 卡片样式有两个出处**。`TourCard::paintEvent` 无条件自绘底色与边框，
+  且画在 QSS 之后——`tour_default.qss` 里的 `#tourCard` 实际被盖住，
   改 QSS 没反应；而头文件注释写着"QSS 覆盖、无 QSS 时自绘兜底"，不成立。
   修法：自绘整段删除，hover 走 `:hover`，选中/占位走动态属性
   `selected` / `placeholder`（改属性后 `unpolish` + `polish`）
-- **B7 首页标题写死了产品名**。`guidance_homepage.cpp` 里写死"欢迎使用
+- **B7 首页标题写死了产品名**。`tour_homepage.cpp` 里写死"欢迎使用
   EP-X6502 PNP演示程序"——这个字串全仓只此一处，对不上任何东西（是本模块从
   老 Demo 抽出来时带过来的）。引导是通用库，改成默认取宿主的
   `applicationName()`，并加 `setHeading()` 供宿主覆盖
-- **B8 "最后一条"有两处口径**。`refreshStepPresentation` 拿
-  `flows().count() - 1` 判末尾，而 `nextPlayableFlowIndex` 跳的是**最后一个可
+- **B8 "最后一条"有两处口径**。`refreshStepOverlay` 拿
+  `topics().count() - 1` 判末尾，而 `nextPlayableTopicIndex` 跳的是**最后一个可
   播放**的主题（首页会给 `stepCount()==0` 的占位主题建卡）。末尾是占位主题时
   最后一步永远显示"下一步"而非"完成！"；首端是占位主题时"上一步"亮着却点不动
-  （`previousPlayableFlowIndex` 返回 -1 直接 return）。修法：两处都改用这两个
+  （`previousPlayableTopicIndex` 返回 -1 直接 return）。修法：两处都改用这两个
   谓词，"还有没有下一站"只留一个出处
-- **B9 菜单文字与实际播的内容脱钩**。`GuidanceMenu` 的「模板导览」播的是
-  `flows().first()`，`main.cpp` 的 `guideRequested` 槽同样——靠注册顺序维系。
-  多注册一条主题就播错。修法：主题由宿主显式传入 `attachMenu(window, flow)`
+- **B9 菜单文字与实际播的内容脱钩**。`TourMenu` 的「模板导览」播的是
+  `topics().first()`，`main.cpp` 的 `guideRequested` 槽同样——靠注册顺序维系。
+  多注册一条主题就播错。修法：主题由宿主显式传入 `attachMenu(window, topic)`
 
-B5–B9 都**没有用例覆盖**（`tests/` 下没有 guidance 目标）。编译与
+B5–B9 都**没有用例覆盖**（`tests/` 下没有 tour 目标）。编译与
 `ctest -E test_funq_app` 21/21 通过只能证明没编坏，证明不了这五处的运行时行为；
 B5 与 B6 需要人眼/手验一次。
 
 ### 再三处（2026-10-04，同一模块的静态缺陷）
 
-- **B10 `GuidancePresentation` 析构漏气泡**。`bubble_widget_(new QWidget(this))`
+- **B10 `TourOverlay` 析构漏气泡**。`bubble_widget_(new QWidget(this))`
   本来挂在遮罩下，但实操模式的 `setInteractive(true)` 里有
   `bubble_widget_->setParent(nullptr)`——把它提成了独立顶层窗口，**同时摘掉了
   Qt 的父子所有权**。类里没有析构函数，于是"进过实操模式再销毁"就漏一个
@@ -79,7 +79,7 @@ B5 与 B6 需要人眼/手验一次。
   early return **之前**：`app == nullptr`（QApplication 还没建）或 QSS 读取失败
   时，标记已经置真，之后每次调用都在第一行返回——样式永远不生效，且不报错。
   修法：只有真的 `setStyleSheet` 成功之后才置真；前两条路各自留一次重试的机会
-- **B12 getter 按值返回**。`GuidanceStep` / `GuidanceFlow` 的 10 个 getter
+- **B12 getter 按值返回**。`TourStep` / `GuideTopic` 的 10 个 getter
   全按值返回，其中 `Target` 是 variant（可能装 `QPixmap`）、`Func` 是
   `std::function`（按值拷可能堆分配）。而控制器里的写法普遍是
   `if (x->enterFunc()) { x->enterFunc()(); }`——**一次调用就拷两遍**；
@@ -138,7 +138,7 @@ B5 与 B6 需要人眼/手验一次。
   以为"QSS 没生效"的一条
 - 原生对话框（`QFileDialog`）与非客户区（窗口边框、标题栏）不在 QSS 能管的范围
 
-**偏离方案的两处**：① guidance 那份表**仍**追加到应用级（原计划改打自己子树）
+**偏离方案的两处**：① tour 那份表**仍**追加到应用级（原计划改打自己子树）
 ——实操模式下气泡会被 reparent 到 viewport、离开首页子树，只设在首页盖不到；
 真要切断这层顺序依赖，做法是设到顶层窗口上，需引导模块拿到宿主窗口。
 ② `QFrame` 与 `QSplitterHandle` 故意不给裸规则：`SARibbonPanel` /
@@ -148,7 +148,7 @@ QSplitterHandle 只能通过 `QSplitter::handle` 表达。
 **未做人眼确认**：功能区（画廊、滚动条）、登录框勾选框、主按钮是最可能露馅的
 三处。底座层靠 `examples/style_demo`（按控件族分六页）眼验。
 
-## guidance 接入 funq（2026-09-22，原同名文档）
+## tour 接入 funq（2026-09-22，原同名文档）
 
 把引导的演示层当 funq 的**可视化层**：脚本每动一个控件，屏幕上就有高亮框指到它。
 平时给用户当新手引导，跑脚本时给自动化当"看得见的光标"。
@@ -156,11 +156,11 @@ QSplitterHandle 只能通过 `QSplitter::handle` 表达。
 **仍有效**
 
 - **矩形在 C++ 侧按 path 解析，不依赖 funq**：bridge 收路径字符串，用引擎自己
-  那套 `mapToGlobal` 算矩形——零依赖（guidance 库保持干净）、与引擎同源（不会
+  那套 `mapToGlobal` 算矩形——零依赖（tour 库保持干净）、与引擎同源（不会
   出现"算出来的框和引擎画的对不上"）。解析规则照 `libFunq/objectpath.cpp`
   **重写**：名字取 objectName、为空退类名、同名兄弟带 `-<序号>` 后缀、按 `::`
   下钻，所以含**合成段**的路径（`...settingsRow-1::QSpinBox`）也能解析。
-  **不抄源码**：funq 是 CeCILL v2.1（copyleft），拷进来会把 guidance 卷进那个
+  **不抄源码**：funq 是 CeCILL v2.1（copyleft），拷进来会把 tour 卷进那个
   许可证；算法本身不受版权保护
 - 桥接的三条硬约束，都是实测撞出来的：**必须是可见的 QWidget**（`call_slot` 走
   `qobject_cast<QWidget*>`，纯 `QObject` 判 `NotAWidget`，且 `client.widget()`
@@ -176,11 +176,11 @@ QSplitterHandle 只能通过 `QSplitter::handle` 表达。
 - 目标不可见或尺寸为空时**拒绝高亮并回报原因**：踩过——菜单栏里的 `QMenu` 从没
   显示过，几何是未初始化的 `(0,0,100x30)`，指它会把遮罩铺到屏幕左上角一个小方块
 
-**结构**：拆成两个类——`GuidanceBridge`（**QWidget**：被动模式 + 按 path 高亮，
-两个 `Q_INVOKABLE` 槽）与 `GuidanceMenu`（`QObject`：给 QMainWindow 宿主挂菜单、
-懒建主题主页）。原先合成一个 `GuidanceSupport`，结果是菜单那半白白背着 QWidget
+**结构**：拆成两个类——`TourBridge`（**QWidget**：被动模式 + 按 path 高亮，
+两个 `Q_INVOKABLE` 槽）与 `TourMenu`（`QObject`：给 QMainWindow 宿主挂菜单、
+懒建主题主页）。原先合成一个 `TourSupport`，结果是菜单那半白白背着 QWidget
 基类和"0 尺寸 + 必须 `show()`"的包袱——**它之所以是 QWidget 纯粹是 funq 对桥接
-的要求**。被动模式加在 `GuidancePresentation`（渲染层）而非 controller。
+的要求**。被动模式加在 `TourOverlay`（渲染层）而非 controller。
 
 ## 崩溃报告回传链路（2026-09-28，原《崩溃报告回传链路设计》）
 
@@ -291,21 +291,21 @@ exe + PDB 解析 minidump。
 全是 configure 生成、入库没有意义的产物。结论：约定本来就是一致的，没有要拍的
 板。（2026-09-29 做 funq 随包分发时顺手核的。）
 
-### 5. guidance 库的告警通道：`qWarning` 还是 `Logger` 宏
+### 5. tour 库的告警通道：`qWarning` 还是 `Logger` 宏
 
-**现状**：`guidance_bridge.cpp:128`、`guidance_config.cpp:12/16/39/43`、
-`guidance_controller.cpp:98/105/122/131`、`guidance_style.cpp:46` 共 9 处用
+**现状**：`tour_bridge.cpp:128`、`tour_catalog.cpp:12/16/39/43`、
+`tour_controller.cpp:98/105/122/131`、`tour_style.cpp:46` 共 9 处用
 `qWarning()`，而项目规则要求尽可能走封装的 `Logger` 宏。
 
-**卡在哪**：`src/guidance` 的依赖只有 `Qt5::Gui/Widgets/Core`——它**不链 core**，
+**卡在哪**：`src/tour` 的依赖只有 `Qt5::Gui/Widgets/Core`——它**不链 core**，
 而且刻意如此（库可整包拷到别的工程用）。要用 `LOG_*` 就得把 core 拖进来，会破坏
 这个卖点。两条路：① 链 core 换 Logger 宏（统一日志，代价是库不再零依赖）；
 ② 保留 `qWarning`，把"为什么不链 core"写成注释，免得下次又被当缺陷报一遍。
 
-### 6. 待你拍板：guidance 的告警文案与链式构造器 API 风格
+### 6. 待你拍板：tour 的告警文案与链式构造器 API 风格
 
-`guidance_config.cpp:12/16/39/43` 的告警文案是 `"foolish! step is nullptr!"`
-一类，措辞不像本仓手笔，疑为外部移植残留；`withTitle` / `withStep` / `addFlow`
+`tour_catalog.cpp:12/16/39/43` 的告警文案是 `"foolish! step is nullptr!"`
+一类，措辞不像本仓手笔，疑为外部移植残留；`withTitle` / `withStep` / `addTopic`
 那套链式构造器 API 与本仓其余部分的风格也不一致。保留（尊重上游写法）还是改写
 （与本仓风格统一，涉及库的公开 API），需要定。
 

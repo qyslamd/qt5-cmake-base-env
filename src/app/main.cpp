@@ -23,14 +23,14 @@
 //   短生命周期                  → 栈对象（LoginDialog /
 //                                 MainWindow）
 //   活到进程结束，且是 QObject   → 挂到 app 或宿主窗口下，由 Qt 父子回收
-//   活到进程结束，但不是 QObject → unique_ptr（如 GuidanceBridge，它不能有
+//   活到进程结束，但不是 QObject → unique_ptr（如 TourBridge，它不能有
 //                                 父级）
 //
 // 标了「可删」的段落不需要时整段拿掉即可，不影响其余部分。
 
-#include <guidance_bridge.h>
-#include <guidance_controller.h>
-#include <guidance_menu.h>
+#include <tour_bridge.h>
+#include <tour_controller.h>
+#include <tour_menu.h>
 #include <style.h>
 
 #include <cstdio>
@@ -63,7 +63,7 @@
 #ifdef APP_ENABLE_AUTH
 #include "dialogs/login_dialog.h"
 #endif
-#include "guidance_app_flows.h"
+#include "tour_app_topics.h"
 #include "launch_options.h"
 #include "logger/logger.h"
 #include "mainwindow.h"
@@ -446,9 +446,9 @@ int main(int argc, char* argv[]) {
   // **必须在登录之前**：外部脚本的第一步就跑在登录对话框上，那时主窗口还不
   // 存在，挂到主窗口下的话那几步没法高亮。桥接对象因此是独立顶层窗口，没有
   // Qt 父级，由这里的 unique_ptr 持有（控制器挂在 app 下）
-  auto* guidance_controller = new GuidanceController(&app);
-  auto guidance_bridge =
-      std::make_unique<GuidanceBridge>(guidance_controller->presentation());
+  auto* tour_controller = new TourController(&app);
+  auto tour_bridge =
+      std::make_unique<TourBridge>(tour_controller->overlay());
 
   // ========================= 5. 登录 =========================
   // 登录成功前不创建主窗口。回放模式跳过登录：录制入口在主窗口菜单里，
@@ -488,13 +488,13 @@ int main(int argc, char* argv[]) {
   // ========================= 7. 窗口之后的接线 =========================
   // 引导的 viewport 与主题要靠 findChild 找到主窗口里的控件，所以只能等窗口
   // 建好之后再接
-  guidance_controller->setViewport(&w);
-  GuidanceFlow* tour_flow =
-      guidance_controller->addFlow(BuildTemplateTourFlow(&w));
-  auto* guidance_menu = new GuidanceMenu(guidance_controller, &w);
+  tour_controller->setViewport(&w);
+  GuideTopic* tour_topic =
+      tour_controller->addTopic(BuildTemplateGuideTopic(&w));
+  auto* tour_menu = new TourMenu(tour_controller, &w);
   // 主题显式传给菜单：菜单文字写的是「模板导览」，那就得真播模板导览那一条，
   // 不能再靠"第一个注册的"这个位置关系
-  guidance_menu->attachMenu(&w, tour_flow);
+  tour_menu->attachMenu(&w, tour_topic);
 
   AttachHostFeatures(single_instance, w);
   SetupUiTesting(w, opts);

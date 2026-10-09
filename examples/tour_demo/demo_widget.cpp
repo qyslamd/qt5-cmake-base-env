@@ -9,10 +9,10 @@
 #include <QString>
 #include <QVBoxLayout>
 
-#include <guidance_controller.h>
-#include <guidance_homepage.h>
+#include <tour_controller.h>
+#include <tour_homepage.h>
 
-#include "demo_flows.h"
+#include "demo_topics.h"
 
 DemoWidget::DemoWidget(QWidget* parent) : QWidget(parent) {
   initUi();
@@ -20,9 +20,9 @@ DemoWidget::DemoWidget(QWidget* parent) : QWidget(parent) {
 
   // 引擎放在最后建：主题要靠 findChild 按 objectName 找到上面那些控件，
   // 控件没建齐就注册主题，高亮会全部退化成空目标
-  controller_ = new GuidanceController(this);
+  controller_ = new TourController(this);
   controller_->setViewport(this);
-  AddDemoFlows(controller_, this);
+  AddDemoTopics(controller_, this);
 }
 
 void DemoWidget::initUi() {
@@ -97,7 +97,7 @@ void DemoWidget::onOpenHomePage() {
   }
   // 懒建一次后复用：主页是覆盖层，重复 new 会叠出一堆
   if (home_page_ == nullptr) {
-    home_page_ = new GuidanceHomePage(controller_, this);
+    home_page_ = new TourHomePage(controller_, this);
   }
   // exec() 是"显示 + 阻塞到关闭"：主页里点卡片会先隐藏自己（hideEvent 发
   // closed），局部事件循环随之退出，控制器才开播——阻塞在这里不会挡住引导

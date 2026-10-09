@@ -1,9 +1,9 @@
-#ifndef FILE_EXAMPLES_GUIDANCE_DEMO_DEMO_FLOWS_H_
-#define FILE_EXAMPLES_GUIDANCE_DEMO_DEMO_FLOWS_H_
+#ifndef FILE_EXAMPLES_TOUR_DEMO_DEMO_FLOWS_H_
+#define FILE_EXAMPLES_TOUR_DEMO_DEMO_FLOWS_H_
 
 class QWidget;
 
-class GuidanceController;
+class TourController;
 
 // 给演示窗口注册三条主题，分别覆盖引导引擎的一类能力：
 //
@@ -15,6 +15,6 @@ class GuidanceController;
 //
 // 顺序有讲究：实操式那条夹在中间，配合主页的「全部演示」正好验证
 // "走过实操主题之后，后续讲解主题能不能回到自动"
-void AddDemoFlows(GuidanceController* controller, QWidget* root);
+void AddDemoTopics(TourController* controller, QWidget* root);
 
-#endif  // FILE_EXAMPLES_GUIDANCE_DEMO_DEMO_FLOWS_H_
+#endif  // FILE_EXAMPLES_TOUR_DEMO_DEMO_FLOWS_H_

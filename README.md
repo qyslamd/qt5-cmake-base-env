@@ -81,7 +81,7 @@ src/
 cmake/      构建脚本模块（版本、运行脚本、测试宏、符号归档、打包）
 scripts/    构建与打包入口脚本
 tests/      单元测试
-examples/   style_demo（样式表样例）、guidance_demo、funq 手动分离运行示例
+examples/   style_demo（样式表样例）、tour_demo、funq 手动分离运行示例
 docs/       文档
 config/     随构建拷贝到输出目录的配置样例
 ```

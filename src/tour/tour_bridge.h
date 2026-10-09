@@ -1,11 +1,11 @@
-#ifndef FILE_GUIDANCE_BRIDGE_H_
-#define FILE_GUIDANCE_BRIDGE_H_
+#ifndef FILE_TOUR_BRIDGE_H_
+#define FILE_TOUR_BRIDGE_H_
 
 #include <QPointer>
 #include <QVariant>
 #include <QWidget>
 
-class GuidancePresentation;
+class TourOverlay;
 
 // 外部驱动的桥接层：让测试工具从**进程外**高亮界面上的控件——脚本走到哪一步，
 // 屏幕上就指到哪一步。
@@ -30,20 +30,20 @@ class GuidancePresentation;
 //
 // 参数用 map：{"path":…, "title":…, "text":…}；
 // 返回 {"ok": bool, "message": str}，调用方可据此判断，不会静默。
-class GuidanceBridge : public QWidget {
+class TourBridge : public QWidget {
   Q_OBJECT
 
  public:
-  // presentation 由控制器持有，本类只引用它：桥接要做的只是"套被动模式 +
+  // overlay 由控制器持有，本类只引用它：桥接要做的只是"套被动模式 +
   // 指一个控件"，不碰主题/步骤那套推进逻辑
-  explicit GuidanceBridge(GuidancePresentation* presentation,
+  explicit TourBridge(TourOverlay* overlay,
                           QWidget* parent = nullptr);
 
   Q_INVOKABLE QVariant showHighlight(const QVariant& params);
   Q_INVOKABLE QVariant hideHighlight(const QVariant& params);
 
  private:
-  QPointer<GuidancePresentation> presentation_;
+  QPointer<TourOverlay> overlay_;
 };
 
-#endif  // FILE_GUIDANCE_BRIDGE_H_
+#endif  // FILE_TOUR_BRIDGE_H_

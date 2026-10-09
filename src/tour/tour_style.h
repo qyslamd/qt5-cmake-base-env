@@ -1,5 +1,5 @@
-#ifndef FILE_GUIDANCE_STYLE_H_
-#define FILE_GUIDANCE_STYLE_H_
+#ifndef FILE_TOUR_STYLE_H_
+#define FILE_TOUR_STYLE_H_
 
 // 引导自带的样式表。
 //
@@ -10,10 +10,10 @@
 // 同时它也是库资源的初始化点——静态库里的 qrc 生成的符号不会被自动链接进来，
 // 得有代码显式引用一次。放在库内部，宿主就不必知道资源叫什么（漏写的代价是
 // 静默丢样式：QFile 打不开、样式为空、不报错）。
-class GuidanceStyle {
+class TourStyle {
  public:
   // 首次调用时把引导样式追加进应用样式表，可重复调用
   static void EnsureApplied();
 };
 
-#endif  // FILE_GUIDANCE_STYLE_H_
+#endif  // FILE_TOUR_STYLE_H_

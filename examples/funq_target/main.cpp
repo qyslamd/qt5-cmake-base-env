@@ -1,6 +1,6 @@
 // funq 注入式 UI 测试的靶子程序。
 //
-// 与另外两个示例的分工：style_demo 眼验底座层 QSS、guidance_demo 演示引导
+// 与另外两个示例的分工：style_demo 眼验底座层 QSS、tour_demo 演示引导
 // 系统，本示例只做一件事——给 funq 提供一个「控件少而稳、路径可预测」的靶子。
 //
 // 为什么控件少而稳：funq 的控件路径优先取 objectName，取不到就退化成
