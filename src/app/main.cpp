@@ -489,8 +489,8 @@ int main(int argc, char* argv[]) {
   // 引导的 viewport 与主题要靠 findChild 找到主窗口里的控件，所以只能等窗口
   // 建好之后再接
   tour_controller->setViewport(&w);
-  GuideTopic* tour_topic =
-      tour_controller->addTopic(BuildTemplateGuideTopic(&w));
+  TourTopic* tour_topic =
+      tour_controller->addTopic(BuildTemplateTourTopic(&w));
   auto* tour_menu = new TourMenu(tour_controller, &w);
   // 主题显式传给菜单：菜单文字写的是「模板导览」，那就得真播模板导览那一条，
   // 不能再靠"第一个注册的"这个位置关系

@@ -1,5 +1,5 @@
-#ifndef FILE_TOUR_PRESENTATION_H_
-#define FILE_TOUR_PRESENTATION_H_
+#ifndef FILE_TOUR_OVERLAY_H_
+#define FILE_TOUR_OVERLAY_H_
 
 #include <QColor>
 #include <QPixmap>
@@ -18,7 +18,7 @@ class QVariantAnimation;
 
  
 
-class GuideTopic;
+class TourTopic;
 class TourStep;
 
 // 演示层：覆盖整个 viewport 的半透明遮罩 + 目标高亮 + 气泡导航。
@@ -27,6 +27,13 @@ class TourStep;
 // 气泡内部子控件（title/text/countdown/skip/prev/next）只设 objectName，由 QSS 覆盖。
 class TourOverlay : public QWidget {
   Q_OBJECT
+
+  // 本次高亮框了几处（含锚点）。**必须是静态 Q_PROPERTY**：funq 的 properties()
+  // 只枚举元对象里声明过的（服务端走 metaObject()->propertyCount()），动态属性
+  // 读出来是 KeyError 而不是报错——"框了三个"这件事只有眼睛看得见，这个数字
+  // 是它唯一的自动判定出口（《一步多靶设计》§六）
+  Q_PROPERTY(int highlightCount READ highlightCount)
+
  public:
   explicit TourOverlay(QWidget* parent = nullptr);
   // 实操模式下气泡被提成了独立顶层窗口（见 setInteractive 里的
@@ -34,7 +41,7 @@ class TourOverlay : public QWidget {
   // 析构时它就漏了，而且那个窗口会一直留在屏幕上。仍挂在遮罩下时删它同样安全
   ~TourOverlay() override;
 
-  void updateUi(GuideTopic* const topic,
+  void updateUi(TourTopic* const topic,
                 TourStep* const step,
                 bool canPrev,
                 bool canNext);
@@ -64,14 +71,36 @@ class TourOverlay : public QWidget {
   void SetHost(QWidget* host, bool inflate = false);
 
   // 外部驱动的高亮：不经主题/步骤，直接指一个控件、说一句话。
-  // 桥接层配合 setPassiveMode(true) 使用
+  // 桥接层配合 setPassiveMode(true) 使用。
+  //
+  // extras 是**锚点之外还要一起框住**的控件（《一步多靶设计》）：给了就一起挖孔，
+  // 气泡仍挂在锚点旁。**按参数无条件赋值**——没给就是空表，上一步的框要跟着消失
   void showHighlight(QWidget* target, const QString& title,
-                     const QString& text);
+                     const QString& text,
+                     const QList<QWidget*>& extras = QList<QWidget*>());
+  // 同上，但指一块**全局坐标的矩形**而不是控件。
+  //
+  // 页签（`QTabBar` 的某一个 tab）不是 QWidget、只是画出来的，按 path 找不到
+  // 它；桥接那边用 `tabRect()` 把目标页签的矩形算出来，走这一条送进来。
+  // host 是这块矩形所在的窗口——遮罩要铺到它上面
+  void showHighlightRect(QWidget* host, const QRect& global_rect,
+                         const QString& title, const QString& text,
+                         const QList<QRect>& extras = QList<QRect>());
+  // 视觉倒计时：气泡上走一条进度条与秒数，到点自己停。
+  //
+  // **不推进任何东西**（不 emit nextClicked）：外部驱动那套里下一步做什么由
+  // 脚本决定，这里只让"马上要切页了"这件事看得见
+  void ShowCountdown(int seconds);
   void clearHighlight();
 
   // 最近一次高亮的矩形（遮罩坐标系）。桥接层回报给脚本侧核对：高亮和遮罩
   // 到底算在了哪儿，是"看不见"这类问题唯一能拿到的数字
   QRect highlightRect() const { return highlightRect_; }
+
+  // 本次高亮**一共框了几处**（含锚点）。给 funq 观测用：单靶恒为 1，
+  // 多靶是几就是几——"框了三个"这件事只有眼睛看得见，这个数字是它唯一的出口。
+  // 桥接层也读它填返回值的 count
+  int highlightCount() const;
 
  protected:
   void setTitle(const QString& title);
@@ -134,6 +163,9 @@ class TourOverlay : public QWidget {
 
   // overlay members
   QRect highlightRect_;
+  // 锚点之外还要一起挖孔的矩形（遮罩坐标系，与 highlightRect_ 同域）。
+  // **每一步开头/每次外部高亮都无条件重算**，见 updateUi 与两个 showHighlight*
+  QList<QRect> extra_rects_;
   QPixmap pixmap_;
   int margin_ = 10;
   int borderWidth_ = 3;
@@ -150,6 +182,10 @@ class TourOverlay : public QWidget {
   // 控件 → 遮罩坐标系的高亮矩形。updateUi 的 QWidget* 分支与外部驱动的
   // 高亮（showHighlight）共用同一套算法，避免两处算出不同的框
   void ApplyWidgetHighlight(QWidget* target);
+
+  // 两个 showHighlight* 的收尾：摆气泡、刷出来、显示并置顶。
+  // 矩形已经算好放在 highlightRect_ 里了
+  void FinishShowHighlight(const QString& title, const QString& text);
 
   // 遮罩要不要吞鼠标，由**两个标志共同决定**（被动模式 / 实操模式），只在
   // 这一个出口写 WA_TransparentForMouseEvents。
@@ -180,6 +216,11 @@ class TourOverlay : public QWidget {
   qreal time_percent_ = 0.0;
   // 本次自动倒计时已走的 tick 数；每次开始/停止都复位，避免续接上次残留值。
   int count_down_tick_ = 0;
+  // 本次倒计时的总 tick 数。默认是自动挡那 5 秒；ShowCountdown 按传入秒数改
+  int count_down_max_ticks_ = kCountDownMaxTicks;
+  // 本次倒计时是不是"只显示、不推进"（外部驱动的视觉倒计时）。
+  // 为真时走到头只把显示收掉，不 emit nextClicked
+  bool countdown_silent_ = false;
 
   // 遮罩跟随的宿主窗口。不设 Qt 父子，所以用 QPointer 防悬空
   QPointer<QWidget> host_;
@@ -189,4 +230,4 @@ class TourOverlay : public QWidget {
 };
 
  
-#endif  // FILE_TOUR_PRESENTATION_H_
+#endif  // FILE_TOUR_OVERLAY_H_

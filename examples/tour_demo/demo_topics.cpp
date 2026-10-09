@@ -60,7 +60,7 @@ void AddDemoTopics(TourController* controller, QWidget* root) {
   // ------------------------------------------------------------------
   // 一、基本控件导览（讲解式）：逐个控件高亮
   // ------------------------------------------------------------------
-  auto* controls = new GuideTopic(QStringLiteral("基本控件导览"),
+  auto* controls = new TourTopic(QStringLiteral("基本控件导览"),
                                     QStringLiteral("认识窗口里的几个控件"));
   controls->addStep(MakeStep(
       Find(root, QStringLiteral("demoNameEdit")), QStringLiteral("输入框"),
@@ -85,7 +85,7 @@ void AddDemoTopics(TourController* controller, QWidget* root) {
   // ------------------------------------------------------------------
   // 二、动手试试（实操式）：遮罩穿透，边看边操作
   // ------------------------------------------------------------------
-  auto* hands_on = new GuideTopic(QStringLiteral("动手试试"),
+  auto* hands_on = new TourTopic(QStringLiteral("动手试试"),
                                     QStringLiteral("遮罩穿透，边看边操作"));
   hands_on->setInteractive(true);
   hands_on->addStep(MakeStep(
@@ -105,7 +105,7 @@ void AddDemoTopics(TourController* controller, QWidget* root) {
   // ------------------------------------------------------------------
   // 三、区域和插图：QRect 与 QPixmap 两种目标
   // ------------------------------------------------------------------
-  auto* shapes = new GuideTopic(QStringLiteral("区域和插图"),
+  auto* shapes = new TourTopic(QStringLiteral("区域和插图"),
                                   QStringLiteral("高亮一块区域，或插一张图"));
 
   // QRect 目标必须是**全局坐标**，而窗口位置要到运行时才知道，所以目标的计算

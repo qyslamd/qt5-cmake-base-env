@@ -6,7 +6,7 @@
 
 class QMainWindow;
 class TourController;
-class GuideTopic;
+class TourTopic;
 class TourHomePage;
 
 // 给 QMainWindow 宿主用的便利层：在菜单栏挂一个「功能引导」入口
@@ -25,7 +25,7 @@ class TourMenu : public QObject {
   // 原先这里取 topics().first()——菜单文字与"第几条"是两回事，谁先注册谁就
   // "是"模板导览，纯靠注册顺序维系；多注册一条主题就会播错。传 nullptr
   // 则该菜单项置灰
-  void attachMenu(QMainWindow* window, GuideTopic* tour_topic);
+  void attachMenu(QMainWindow* window, TourTopic* tour_topic);
 
  private:
   TourController* controller_ = nullptr;

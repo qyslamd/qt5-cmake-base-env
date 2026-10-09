@@ -30,7 +30,7 @@
 // TourCard
 // ---------------------------------------------------------------------------
 
-TourCard::TourCard(GuideTopic* topic, QWidget* parent)
+TourCard::TourCard(TourTopic* topic, QWidget* parent)
     : QWidget(parent),
       topic_(topic),
       placeholder_(topic == nullptr || topic->stepCount() == 0) {
@@ -272,7 +272,7 @@ void TourHomePage::rebuildCards() {
   if (controller_ == nullptr) {
     return;
   }
-  for (GuideTopic* topic : controller_->topics()) {
+  for (TourTopic* topic : controller_->topics()) {
     auto* card = new TourCard(topic, this);
     connect(card, &TourCard::clicked, this,
             [this, topic] { startTopic(topic); });
@@ -280,7 +280,7 @@ void TourHomePage::rebuildCards() {
   }
 }
 
-void TourHomePage::startTopic(GuideTopic* topic) {
+void TourHomePage::startTopic(TourTopic* topic) {
   if (topic == nullptr || topic->stepCount() == 0) {
     return;
   }

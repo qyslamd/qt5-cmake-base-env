@@ -13,7 +13,7 @@ class QShowEvent;
 class QToolButton;
 
 class TourController;
-class GuideTopic;
+class TourTopic;
 
 // 引导首页主题卡片：图标 + 名称 + 描述。
 //
@@ -27,9 +27,9 @@ class GuideTopic;
 class TourCard : public QWidget {
   Q_OBJECT
  public:
-  explicit TourCard(GuideTopic* topic, QWidget* parent = nullptr);
+  explicit TourCard(TourTopic* topic, QWidget* parent = nullptr);
 
-  GuideTopic* topic() const { return topic_; }
+  TourTopic* topic() const { return topic_; }
   bool isPlaceholder() const { return placeholder_; }
   void setSelected(bool selected);
   bool isSelected() const { return selected_; }
@@ -48,7 +48,7 @@ class TourCard : public QWidget {
   QLabel* icon_label_ = nullptr;
   QLabel* title_label_ = nullptr;
   QLabel* desc_label_ = nullptr;
-  GuideTopic* topic_ = nullptr;
+  TourTopic* topic_ = nullptr;
   bool placeholder_ = false;
   bool selected_ = false;
   bool pressed_ = false;
@@ -88,7 +88,7 @@ class TourHomePage : public QWidget {
   void initSignals();
   void rebuildCards();
   void hideHomePage();
-  void startTopic(GuideTopic* topic);
+  void startTopic(TourTopic* topic);
 
  private:
   QFrame* panel_ = nullptr;

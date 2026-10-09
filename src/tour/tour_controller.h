@@ -18,10 +18,10 @@ class TourController : public QObject {
   ~TourController() override;
 
   void setViewport(QWidget* viewport);
-  GuideTopic* addTopic(GuideTopic* topic);
+  TourTopic* addTopic(TourTopic* topic);
   void clearFlows();
   void startAll(bool autoMode = false);
-  void startOne(GuideTopic* const topic, bool autoMode = false);
+  void startOne(TourTopic* const topic, bool autoMode = false);
   void stop();
 
   bool isRunning() const { return isRunning_; }
@@ -29,7 +29,7 @@ class TourController : public QObject {
   int totalSteps() const { return catalog_.totalSteps(); }
 
   // 首页构建主题卡片用：当前已注册的 Flow 列表。
-  const QList<GuideTopic*>& topics() const { return catalog_.topics(); }
+  const QList<TourTopic*>& topics() const { return catalog_.topics(); }
 
   // 演示层由控制器持有。桥接层（TourBridge）要拿它响应外部高亮请求，
   // 所以这里开个口子，而不是让调用方自己 new 一个
@@ -58,7 +58,7 @@ class TourController : public QObject {
   void refreshStepOverlay();
   // 把当前主题的演示选项套给演示层：实操式 → 遮罩穿透 + 气泡独立；
   // 实操主题忽略自动倒计时（等用户操作优先于自动翻页）
-  void ApplyTopicOptions(GuideTopic* const topic);
+  void ApplyTopicOptions(TourTopic* const topic);
   // 自 fromIndex 起向后/向前找第一个可播放（stepCount()>0）的 Flow 下标，无则
   // -1。
   int nextPlayableTopicIndex(int fromIndex) const;

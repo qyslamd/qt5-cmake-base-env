@@ -37,7 +37,7 @@ void TourController::setViewport(QWidget* viewport) {
   viewport_ = viewport;
 }
 
-GuideTopic* TourController::addTopic(GuideTopic* topic) {
+TourTopic* TourController::addTopic(TourTopic* topic) {
   return catalog_.addTopic(topic);
 }
 
@@ -55,7 +55,7 @@ void TourController::execute() {
   // 主题级 enterFunc 在 startOne/startAll 直启路径此前从不执行（只有
   // 跨主题前进/回退才调），上层挂在这上的状态编排会被静默跳过——统一
   // 收口到 execute()，两条路径行为一致
-  GuideTopic* topic = catalog_.topics().at(curTopicIndex_);
+  TourTopic* topic = catalog_.topics().at(curTopicIndex_);
   // 模式推送收口在 ApplyTopicOptions 里，避免像以前那样只有本路径记得推、
   // 跨主题那两条漏掉
   ApplyTopicOptions(topic);
@@ -68,7 +68,7 @@ void TourController::execute() {
   emit started();
 }
 
-void TourController::ApplyTopicOptions(GuideTopic* const topic) {
+void TourController::ApplyTopicOptions(TourTopic* const topic) {
   if (topic == nullptr) {
     return;
   }
@@ -113,7 +113,7 @@ void TourController::startAll(bool autoMode) {
   execute();
 }
 
-void TourController::startOne(GuideTopic* const topic, bool autoMode) {
+void TourController::startOne(TourTopic* const topic, bool autoMode) {
   if (topic == nullptr) {
     return;
   }
@@ -158,7 +158,7 @@ void TourController::onNextClicked() {
     return;
   }
 
-  GuideTopic* curTopic = catalog_.topics().at(curTopicIndex_);
+  TourTopic* curTopic = catalog_.topics().at(curTopicIndex_);
   if (curStepIndex_ >= curTopic->stepCount()) {
     stop();
     emit finished();
@@ -201,7 +201,7 @@ void TourController::onNextClicked() {
 
   curTopicIndex_ = nextIndex;
   curStepIndex_ = 0;
-  GuideTopic* nextTopic = catalog_.topics().at(curTopicIndex_);
+  TourTopic* nextTopic = catalog_.topics().at(curTopicIndex_);
   ApplyTopicOptions(nextTopic);
   if (nextTopic->enterFunc()) {
     nextTopic->enterFunc()();
@@ -229,13 +229,13 @@ void TourController::onPrevClicked() {
     return;
   }
 
-  GuideTopic* curTopic = catalog_.topics().at(curTopicIndex_);
+  TourTopic* curTopic = catalog_.topics().at(curTopicIndex_);
   if (curTopic->exitFunc()) {
     curTopic->exitFunc()();
   }
 
   curTopicIndex_ = prevIndex;
-  GuideTopic* prevTopic = catalog_.topics().at(curTopicIndex_);
+  TourTopic* prevTopic = catalog_.topics().at(curTopicIndex_);
   curStepIndex_ = prevTopic->stepCount() - 1;
   ApplyTopicOptions(prevTopic);
   if (prevTopic->enterFunc()) {
@@ -260,7 +260,7 @@ void TourController::updateStep() {
     return;
   }
 
-  GuideTopic* curTopic = catalog_.topics().at(curTopicIndex_);
+  TourTopic* curTopic = catalog_.topics().at(curTopicIndex_);
   if (curStepIndex_ < 0 || curStepIndex_ >= curTopic->stepCount()) {
     return;
   }
@@ -295,7 +295,7 @@ void TourController::refreshStepOverlay() {
     return;
   }
 
-  GuideTopic* curTopic = catalog_.topics().at(curTopicIndex_);
+  TourTopic* curTopic = catalog_.topics().at(curTopicIndex_);
   if (curStepIndex_ < 0 || curStepIndex_ >= curTopic->stepCount()) {
     return;
   }

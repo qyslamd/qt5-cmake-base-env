@@ -28,8 +28,12 @@ class TourOverlay;
 //     Q_RETURN_ARG(QVariant), Q_ARG(QVariant)) 调；拆成多个形参匹配不上，
 //     直接返回 NoMethodInvoked
 //
-// 参数用 map：{"path":…, "title":…, "text":…}；
-// 返回 {"ok": bool, "message": str}，调用方可据此判断，不会静默。
+// 参数用 map：{"path":…, "title":…, "text":…}，可选 {"paths": […], "tab": N,
+// "countdown": N}。`paths` 是**一步多靶**（《一步多靶设计》）：[0] 是锚点
+// （气泡挂它旁边），其余是要一起框住的额外靶，与 `path` 同时给时按 `paths` 处理；
+// `tab` 只作用于锚点（页签不是控件，当不成额外靶）。
+// 返回 {"ok": bool, "message": str, "rect": str, "count": int, "overlay": str,
+// "host": str}，调用方可据此判断，不会静默。`rect` 只报锚点，框的个数看 `count`。
 class TourBridge : public QWidget {
   Q_OBJECT
 

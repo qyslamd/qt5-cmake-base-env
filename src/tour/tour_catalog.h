@@ -1,5 +1,5 @@
-#ifndef FILE_TOUR_CONFIG_H_
-#define FILE_TOUR_CONFIG_H_
+#ifndef FILE_TOUR_CATALOG_H_
+#define FILE_TOUR_CATALOG_H_
 
 #include <functional>
 #include <variant>
@@ -21,6 +21,9 @@ class TourStep {
   QString title_;
   QString description_;
   Target target_;
+  // 除锚点外**还要一起框住**的靶（《一步多靶设计》）。空 = 单靶，与从前一致。
+  // 锚点是气泡与三角箭头的依托，所以只能有一个；其余的进这里，没有主次之分
+  QList<Target> extra_targets_;
   std::function<void()> onEnter;
   std::function<void()> onExit;
 
@@ -41,10 +44,20 @@ class TourStep {
   inline const QString& description() const { return description_; }
   inline void setDescription(const QString& desc) { description_ = desc; }
 
+  // 锚点：框里它，气泡与三角箭头也挂在它旁边。"一个步骤讲一件事"曾经靠它就够了，
+  // 现在它多一层含义——多靶时它是**主靶**，其余的见 extraTargets()
   inline const Target& target() const { return target_; }
 
   // 允许在 enter 回调中延迟定位目标
   inline void setTarget(const Target& target) { target_ = target; }
+
+  inline const QList<Target>& extraTargets() const { return extra_targets_; }
+  // 链式，可调多次。只认控件与矩形（QPixmap 是"洞里贴一张合成图"，多张要变成
+  // (rect, pixmap) 成对的结构，不值当——见设计 D4）
+  TourStep* withExtraTarget(const Target& target) {
+    extra_targets_.append(target);
+    return this;
+  }
 
   inline const Func& enterFunc() const { return onEnter; }
   inline void setEnterFunc(const Func& func) { onEnter = func; }
@@ -72,7 +85,7 @@ class TourStep {
 
 // 一条引导主题（Flow）：图标 + 名称/描述 + 一组 Step + 主题级进入/退出回调。
 // 纯类，无 Q_OBJECT。
-class GuideTopic {
+class TourTopic {
  private:
   QPixmap icon_;
   QString name_;
@@ -85,16 +98,16 @@ class GuideTopic {
   bool interactive_ = false;
 
  public:
-  GuideTopic(const QString& name, const QString& desc)
+  TourTopic(const QString& name, const QString& desc)
       : name_(name), description_(desc) {}
 
-  GuideTopic(const QPixmap& icon, const QString& name, const QString& desc)
+  TourTopic(const QPixmap& icon, const QString& name, const QString& desc)
       : icon_(icon), name_(name), description_(desc) {}
 
-  GuideTopic(const QPixmap& icon) : icon_(icon) {}
+  TourTopic(const QPixmap& icon) : icon_(icon) {}
 
-  GuideTopic() = default;
-  ~GuideTopic();
+  TourTopic() = default;
+  ~TourTopic();
 
   void addStep(TourStep* step);
   void clear();
@@ -114,7 +127,7 @@ class GuideTopic {
 
   inline bool interactive() const { return interactive_; }
   inline void setInteractive(bool on) { interactive_ = on; }
-  GuideTopic* withInteractive(bool on) {
+  TourTopic* withInteractive(bool on) {
     interactive_ = on;
     return this;
   }
@@ -127,7 +140,7 @@ class GuideTopic {
   inline const std::function<void()>& exitFunc() const { return onExit; }
   inline void setExitFunc(const std::function<void()>& func) { onExit = func; }
 
-  GuideTopic* withStep(TourStep* step) {
+  TourTopic* withStep(TourStep* step) {
     addStep(step);
     return this;
   }
@@ -139,15 +152,15 @@ class TourCatalog {
   TourCatalog();
   ~TourCatalog();
 
-  inline const QList<GuideTopic*>& topics() const { return topics_; }
+  inline const QList<TourTopic*>& topics() const { return topics_; }
 
-  GuideTopic* addTopic(GuideTopic* topic);
+  TourTopic* addTopic(TourTopic* topic);
   void clear();
   int totalSteps() const;
 
  private:
-  QList<GuideTopic*> topics_;
+  QList<TourTopic*> topics_;
 };
 
-Q_DECLARE_METATYPE(GuideTopic*)
-#endif  // FILE_TOUR_CONFIG_H_
+Q_DECLARE_METATYPE(TourTopic*)
+#endif  // FILE_TOUR_CATALOG_H_

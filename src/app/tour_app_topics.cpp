@@ -30,12 +30,12 @@ TourStep* MakeStep(QWidget* target, const QString& title,
 // 「工具」与「帮助」。这两处的容器随形态而变（功能区下是有名字的面板，菜单栏
 // 下是菜单标题），而入口本身（日志窗口 / 设置 / 关于）是 QAction 不是控件、
 // 高亮指不了，所以两种形态都指到容器上
-GuideTopic* BuildTemplateGuideTopic(QMainWindow* window) {
+TourTopic* BuildTemplateTourTopic(QMainWindow* window) {
   if (window == nullptr) {
     return nullptr;
   }
 
-  auto* topic = new GuideTopic(QStringLiteral("模板导览"),
+  auto* topic = new TourTopic(QStringLiteral("模板导览"),
                                 QStringLiteral("认识这个模板的主界面"));
 
   topic->addStep(

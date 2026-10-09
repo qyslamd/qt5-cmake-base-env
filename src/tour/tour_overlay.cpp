@@ -1,6 +1,7 @@
 #include "tour_overlay.h"
 
 #include <QApplication>
+#include <QDebug>
 #include <QEasingCurve>
 #include <QHBoxLayout>
 #include <QHideEvent>
@@ -18,6 +19,38 @@
 #include <QVariantAnimation>
 
 #include "tour_catalog.h"
+
+namespace {
+
+// 额外靶 → 遮罩局部矩形（《一步多靶设计》§3.2）。**只认控件与矩形**：QPixmap
+// 那一种是"洞里贴一张合成图"，多靶要变成 (rect, pixmap) 成对的结构才说得通，
+// 不值当（设计 D4）。锚点那一支不走这里——它是唯一处理图片的地方，原样不动
+QRect RectForExtraTarget(const QWidget* overlay,
+                         const TourStep::Target& target) {
+  return std::visit(
+      [overlay](auto&& t) -> QRect {
+        using T = std::decay_t<decltype(t)>;
+        if constexpr (std::is_same_v<T, QWidget*>) {
+          if (t == nullptr) {
+            return QRect();
+          }
+          return QRect(overlay->mapFromGlobal(t->mapToGlobal(QPoint(0, 0))),
+                       t->size());
+        } else if constexpr (std::is_same_v<T, QRect>) {
+          if (t.isNull()) {
+            return QRect();
+          }
+          // 假定传进来的是全局坐标系（与 updateUi 里那一支同一条口径）
+          return QRect(overlay->mapFromGlobal(t.topLeft()), t.size());
+        } else {
+          qWarning() << "引导演示：额外靶不支持图片，已忽略";
+          return QRect();
+        }
+      },
+      target);
+}
+
+}  // namespace
 
 TourOverlay::TourOverlay(QWidget* parent)
     : QWidget(parent),
@@ -152,26 +185,35 @@ void TourOverlay::initSignals() {
   });
 
   connect(count_down_timer_, &QTimer::timeout, this, [this] {
-    // 走满 kCountDownSeconds 秒就把这一步翻过去
-    if (++count_down_tick_ >= kCountDownMaxTicks) {
+    // 走满本次该走的 tick 数（默认 5 秒，ShowCountdown 可改）就到点
+    if (++count_down_tick_ >= count_down_max_ticks_) {
       time_percent_ = 1.0;
       count_down_timer_->stop();
       count_down_tick_ = 0;  // 复位，避免下次续接残留值
+      if (countdown_silent_) {
+        // 外部驱动的视觉倒计时：到点只把显示收掉，**不推进任何东西**——
+        // 下一步做什么由脚本决定（见 ShowCountdown）
+        countdown_silent_ = false;
+        countdown_label_->setVisible(auto_mode_);
+        bubble_widget_->update();
+        return;
+      }
       emit nextClicked();
     } else {
       time_percent_ = static_cast<qreal>(count_down_tick_) /
-                      static_cast<qreal>(kCountDownMaxTicks);
+                      static_cast<qreal>(count_down_max_ticks_);
 
-      // 剩余秒数由"已过去的比例"反推，向上展示 5..0
+      // 剩余秒数由"已过去的比例"反推
+      const int total_seconds = count_down_max_ticks_ * kCountDownTickMs / 1000;
       const qreal remain = 1.0 - time_percent_;
-      const int seconds = static_cast<int>(kCountDownSeconds * remain);
+      const int seconds = static_cast<int>(total_seconds * remain);
       countdown_label_->setText(QString::number(seconds));
       bubble_widget_->update();
     }
   });
 }
 
-void TourOverlay::updateUi(GuideTopic* const topic,
+void TourOverlay::updateUi(TourTopic* const topic,
                                     TourStep* const step, bool canPrev,
                                     bool canNext) {
   //-------------------------------
@@ -188,6 +230,13 @@ void TourOverlay::updateUi(GuideTopic* const topic,
   //--------------------------------
   // 高亮区域
   pixmap_ = QPixmap();
+  // 额外靶**每一步开头都要清**（与上面那行清 pixmap_ 同构）：不清的话上一步的框
+  // 会留在屏幕上——第 4 步（三张卡）是三靶、紧随其后的第 5 步是单靶
+  extra_rects_.clear();
+
+  // 多靶判定用步骤自己的声明，**不要写 extra_rects_.isEmpty()**：上面刚清过、
+  // 锚点那支 visit 完还没收集，那一刻它必然是空表，那个条件恒真
+  const bool multi = !step->extraTargets().isEmpty();
 
   // 空目标步（接线/收尾等纯讲解）：显式清掉上一步的高亮残留——
   // 动画分支不会重置 highlightRect_，否则高亮框滞留在上一个控件上
@@ -197,10 +246,17 @@ void TourOverlay::updateUi(GuideTopic* const topic,
     highlightRect_ = QRect();
   }
 
-  if (use_anime_) {
+  if (multi) {
+    // 多靶不走动画（设计 D2）：并集难看、N 路并行不值。**stop() 不能省**：
+    // 上一步的动画还在跑时（kAnimeDur = 300 ms，连点两下「下一步」就会撞上）
+    // 它会经 valueChanged 继续写 anime_highlight_rect_，把下面那行赋值盖掉
+    anime_highlight_->stop();
+  }
+
+  if (use_anime_ && !multi) {
     // 计算之前设置开始值
     anime_highlight_->setStartValue(highlightRect_);
-  } else {
+  } else if (!use_anime_) {
     highlightRect_ = QRect();
   }
 
@@ -228,7 +284,22 @@ void TourOverlay::updateUi(GuideTopic* const topic,
       },
       target);
 
-  if (use_anime_) {
+  // 额外靶：锚点算完之后逐个补上（非空矩形才收，空靶不占位——设计 D6）
+  for (const TourStep::Target& extra : step->extraTargets()) {
+    const QRect r = RectForExtraTarget(this, extra);
+    if (!r.isNull()) {
+      extra_rects_.append(r);
+    }
+  }
+
+  if (multi) {
+    // 多靶这一支不走动画，而 drawHighlight / mousePressEvent 读的是
+    // anime_highlight_rect_（use_anime_ 恒真、没有 setter），所以这个成员
+    // **得自己同步**——不补的话锚点框会停在上一个靶的位置上（幽灵框），
+    // 气泡与命中区也跟着错，而且 highlightCount 照样报数，用例抓不住
+    anime_highlight_rect_ = highlightRect_;
+    update();
+  } else if (use_anime_) {
     anime_highlight_->setEndValue(highlightRect_);
     anime_highlight_->start();
   } else {
@@ -255,6 +326,10 @@ void TourOverlay::setIsAutoMode(bool autoMode) {
   countdown_label_->setVisible(auto_mode_);
   // 每次切换都复位计数并停表，避免下次重启从残留值继续。
   count_down_tick_ = 0;
+  // 时长与"只显示不推进"都回到自动挡的默认；外部驱动的视觉倒计时
+  // （ShowCountdown）用完之后不留痕
+  count_down_max_ticks_ = kCountDownMaxTicks;
+  countdown_silent_ = false;
   if (!auto_mode_) {
     count_down_timer_->stop();
   }
@@ -363,7 +438,8 @@ void TourOverlay::ApplyWidgetHighlight(QWidget* target) {
 }
 
 void TourOverlay::showHighlight(QWidget* target, const QString& title,
-                                         const QString& text) {
+                                         const QString& text,
+                                         const QList<QWidget*>& extras) {
   if (target == nullptr) {
     return;
   }
@@ -377,12 +453,48 @@ void TourOverlay::showHighlight(QWidget* target, const QString& title,
   }
 
   ApplyWidgetHighlight(target);
+  // **无条件按参数赋值**：给了 extras 就是它们，没给就是空表（不清的话上一步
+  // 的多靶框会留在屏幕上——两步之间不一定有 hideHighlight）
+  extra_rects_.clear();
+  for (QWidget* extra : extras) {
+    const QRect r = RectForExtraTarget(this, TourStep::Target(extra));
+    if (!r.isNull()) {
+      extra_rects_.append(r);
+    }
+  }
+  FinishShowHighlight(title, text);
+}
+
+void TourOverlay::showHighlightRect(
+    QWidget* host, const QRect& global_rect, const QString& title,
+    const QString& text, const QList<QRect>& extras) {
+  if (host == nullptr || global_rect.isNull()) {
+    return;
+  }
+  // 矩形已经是全局坐标，遮罩铺到它所在的窗口上就够（不外扩：矩形是别人算好的）
+  SetHost(host, /*inflate=*/false);
+  highlightRect_ = QRect(mapFromGlobal(global_rect.topLeft()),
+                         global_rect.size());
+  // 同 showHighlight：无条件赋值，空参数 = 空表
+  extra_rects_.clear();
+  for (const QRect& extra : extras) {
+    const QRect r = RectForExtraTarget(this, TourStep::Target(extra));
+    if (!r.isNull()) {
+      extra_rects_.append(r);
+    }
+  }
+  FinishShowHighlight(title, text);
+}
+
+void TourOverlay::FinishShowHighlight(const QString& title,
+                                               const QString& text) {
   anime_highlight_rect_ = highlightRect_;
   pixmap_ = QPixmap();
 
   setTitle(title);
   setText(text);
-  // 外部驱动：不走动画、也不碰倒计时（被动模式下它本来就是停的）
+  // 外部驱动：不走动画、也不碰倒计时（被动模式下它本来就是停的）。
+  // 要倒计时的场合由桥接另外调 ShowCountdown
   changeBubblePosition();
   update();
 
@@ -390,11 +502,34 @@ void TourOverlay::showHighlight(QWidget* target, const QString& title,
   raise();
 }
 
+void TourOverlay::ShowCountdown(int seconds) {
+  if (seconds <= 0 || count_down_timer_ == nullptr) {
+    return;
+  }
+  countdown_silent_ = true;
+  count_down_max_ticks_ = seconds * 1000 / kCountDownTickMs;
+  time_percent_ = 0.0;
+  count_down_tick_ = 0;
+  // 起表这一帧自己把状态刷到位，否则第一帧显示的还是上一次留下的空白
+  countdown_label_->setText(QString::number(seconds));
+  countdown_label_->setVisible(true);
+  bubble_widget_->update();
+  count_down_timer_->start(kCountDownTickMs);
+}
+
 void TourOverlay::clearHighlight() {
   highlightRect_ = QRect();
+  // 额外靶也要清：clearHighlight 是"把屏幕上的框全撤掉"，只清锚点会留下几个
+  // 没有依托的孤框
+  extra_rects_.clear();
   anime_highlight_rect_ = QRect();
   pixmap_ = QPixmap();
   hide();
+}
+
+int TourOverlay::highlightCount() const {
+  // 锚点 + 额外靶。空锚点（纯讲解步）不算——那一步屏幕上本来就没有框
+  return (highlightRect_.isEmpty() ? 0 : 1) + extra_rects_.size();
 }
 
 void TourOverlay::showEvent(QShowEvent* event) {
@@ -424,7 +559,8 @@ void TourOverlay::hideEvent(QHideEvent* event) {
 }
 
 void TourOverlay::drawCountDownOnBubble(QPainter* painter) {
-  if (!auto_mode_) {
+  // 自动挡与"外部驱动的视觉倒计时"都要画这条进度
+  if (!auto_mode_ && !countdown_silent_) {
     return;
   }
 
@@ -509,19 +645,34 @@ void TourOverlay::drawHighlight(QPainter* painter) {
   QRect target_rect = use_anime_ ? anime_highlight_rect_ : highlightRect_;
 
   auto& p = *painter;
-  if (target_rect.isNull()) {
+  if (target_rect.isNull() && extra_rects_.isEmpty()) {
     p.fillRect(rect(), maskColor());
     return;
   }
 
-  QRectF highlightWithMargin =
-      target_rect.adjusted(-margin_, -margin_, margin_, margin_);
+  // 锚点 + 额外靶一起挖（《一步多靶设计》§3.2）。锚点可能为空（纯讲解步），
+  // 那一步只画额外靶
+  QList<QRect> rects;
+  if (!target_rect.isNull()) {
+    rects.append(target_rect);
+  }
+  for (const QRect& extra : extra_rects_) {
+    rects.append(extra);
+  }
 
   QPainterPath fullPath;
   fullPath.addRect(rect());
 
   QPainterPath highlightPath;
-  highlightPath.addRoundedRect(highlightWithMargin, 8, 8);
+  // **WindingFill 不能省**：路径的集合运算把路径当"区域"，而区域由 fill rule
+  // 决定——默认的 OddEvenFill 下，两个重叠的圆角矩形在重叠区是"偶数次覆盖"、
+  // 算作洞外，相减之后那块仍被遮罩涂黑。相邻两个框必然重叠（卡片的
+  // QHBoxLayout 间距 8px，而框往外扩 margin_ = 10），不改就是一条条黑竖条
+  highlightPath.setFillRule(Qt::WindingFill);
+  for (const QRect& r : rects) {
+    highlightPath.addRoundedRect(
+        r.adjusted(-margin_, -margin_, margin_, margin_), 8, 8);
+  }
 
   // 通过挖孔的方式突出高亮
   QPainterPath maskPath = fullPath - highlightPath;
@@ -531,11 +682,13 @@ void TourOverlay::drawHighlight(QPainter* painter) {
   p.save();
   p.setPen(QPen(accentColor(), borderWidth_, Qt::DashLine, Qt::RoundCap,
                 Qt::RoundJoin));
-  p.drawRoundedRect(highlightWithMargin, 8, 8);
+  for (const QRect& r : rects) {
+    p.drawRoundedRect(r.adjusted(-margin_, -margin_, margin_, margin_), 8, 8);
+  }
   p.restore();
 
-  // 如果有图片，在区域内绘制图片
-  if (!pixmap_.isNull()) {
+  // 如果有图片，在区域内绘制图片（图片只可能是锚点：多靶不支持图片，见 D4）
+  if (!pixmap_.isNull() && !target_rect.isNull()) {
     p.drawPixmap(target_rect, pixmap_, pixmap_.rect());
   }
 }
@@ -547,10 +700,22 @@ void TourOverlay::mousePressEvent(QMouseEvent* event) {
   }
 
   // 高亮目标区域：引导期间目标不响应鼠标，点击仅拦截不退出。
+  //
+  // **逐个矩形判，不合并并集**（设计 D3）：多靶时两块之间那块空白也算"点在
+  // 目标上"的话，遮罩就永远关不掉了（讲解式主题点空白 = 退出）
   QRect target_rect = use_anime_ ? anime_highlight_rect_ : highlightRect_;
-  if (target_rect.adjusted(-margin_, -margin_, margin_, margin_)
-          .contains(event->pos())) {
-    return;
+  QList<QRect> hit_rects;
+  if (!target_rect.isNull()) {
+    hit_rects.append(target_rect);
+  }
+  for (const QRect& extra : extra_rects_) {
+    hit_rects.append(extra);
+  }
+  for (const QRect& r : hit_rects) {
+    if (r.adjusted(-margin_, -margin_, margin_, margin_)
+            .contains(event->pos())) {
+      return;
+    }
   }
 
   // 遮罩空白：退出引导。

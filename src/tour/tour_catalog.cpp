@@ -3,11 +3,11 @@
 #include <QtDebug>
 
 
-GuideTopic::~GuideTopic() {
+TourTopic::~TourTopic() {
   clear();
 }
 
-void GuideTopic::addStep(TourStep* step) {
+void TourTopic::addStep(TourStep* step) {
   if (step == nullptr) {
     qWarning() << __FUNCTION__ << "foolish! step is nullptr!";
     return;
@@ -19,7 +19,7 @@ void GuideTopic::addStep(TourStep* step) {
   steps_.append(step);
 }
 
-void GuideTopic::clear() {
+void TourTopic::clear() {
   auto it = steps_.begin();
   while (it != steps_.end()) {
     delete (*it);
@@ -34,7 +34,7 @@ TourCatalog::~TourCatalog() {
   clear();
 }
 
-GuideTopic* TourCatalog::addTopic(GuideTopic* topic) {
+TourTopic* TourCatalog::addTopic(TourTopic* topic) {
   if (topic == nullptr) {
     qWarning() << __FUNCTION__ << "foolish! topic is nullptr!";
     return topic;

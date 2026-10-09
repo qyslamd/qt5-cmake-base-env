@@ -79,7 +79,7 @@ B5 与 B6 需要人眼/手验一次。
   early return **之前**：`app == nullptr`（QApplication 还没建）或 QSS 读取失败
   时，标记已经置真，之后每次调用都在第一行返回——样式永远不生效，且不报错。
   修法：只有真的 `setStyleSheet` 成功之后才置真；前两条路各自留一次重试的机会
-- **B12 getter 按值返回**。`TourStep` / `GuideTopic` 的 10 个 getter
+- **B12 getter 按值返回**。`TourStep` / `TourTopic` 的 10 个 getter
   全按值返回，其中 `Target` 是 variant（可能装 `QPixmap`）、`Func` 是
   `std::function`（按值拷可能堆分配）。而控制器里的写法普遍是
   `if (x->enterFunc()) { x->enterFunc()(); }`——**一次调用就拷两遍**；
