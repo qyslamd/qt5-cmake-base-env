@@ -450,6 +450,10 @@ if(WIN32)
             "${FUNQ_KIT_DIR}/funq-server.bat" @ONLY)
         configure_file("${CMAKE_SOURCE_DIR}/cmake/template/funq-self-test.bat.in"
             "${FUNQ_KIT_DIR}/funq-self-test.bat" @ONLY)
+        # 一键版：自己把服务起在另一个最小化窗口里，再跑自测客户端。给"只想看
+        # 它跑一遍"的人——两步那套（server + self-test）留着，分工看得更清楚
+        configure_file("${CMAKE_SOURCE_DIR}/cmake/template/funq-quickstart.bat.in"
+            "${FUNQ_KIT_DIR}/funq-quickstart.bat" @ONLY)
         configure_file("${CMAKE_SOURCE_DIR}/cmake/template/funq-kit-readme.txt.in"
             "${FUNQ_KIT_DIR}/README.txt" @ONLY)
 
