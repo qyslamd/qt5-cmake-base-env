@@ -13,4 +13,5 @@ rem (see --help of the script, e.g. --dwell 0 to turn the demo pauses off).
 
 setlocal
 set "FUNQ_DIR=%~dp0"
-"%FUNQ_DIR%python\python.exe" "%FUNQ_DIR%funq_client_demo.py" --port @FUNQ_DEMO_PORT@ %*
+rem -u above: see the note in funq-server.bat about redirected output
+"%FUNQ_DIR%python\python.exe" -u "%FUNQ_DIR%funq_client_demo.py" --port @FUNQ_DEMO_PORT@ %*

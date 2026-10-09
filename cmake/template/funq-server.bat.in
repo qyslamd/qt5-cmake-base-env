@@ -32,7 +32,11 @@ if not exist "%APP_EXE%" (
 rem With an existing instance the runner starts a process that gets swallowed by
 rem the application's single instance check and then reports an error that does
 rem not explain itself - say it clearly here instead
-"%FUNQ_DIR%python\python.exe" "%FUNQ_DIR%check_no_instance.py" --name @APP_APP_NAME@
+rem -u on every python call in the kit: to a console stdout is line buffered,
+rem but redirecting it (funq-server.bat > log, or calling it from a script)
+rem switches it to **block** buffering - the whole run then arrives as one lump
+rem when the process ends, and any timing read off that log is wrong
+"%FUNQ_DIR%python\python.exe" -u "%FUNQ_DIR%check_no_instance.py" --name @APP_APP_NAME@
 if errorlevel 1 (
     echo.
     echo Not started. Close the running @APP_APP_NAME@ and run this script again.
@@ -43,4 +47,4 @@ echo Starting @APP_APP_NAME@ with libFunQ injected on localhost:@FUNQ_DEMO_PORT@
 echo Run funq-self-test.bat in another window to check it works. Ctrl+C to stop.
 echo.
 
-"%FUNQ_DIR%python\python.exe" -m funq_server.runner --port @FUNQ_DEMO_PORT@ --library "%FUNQ_DIR%server\funq_server\libFunQ.dll" "%APP_EXE%"
+"%FUNQ_DIR%python\python.exe" -u -m funq_server.runner --port @FUNQ_DEMO_PORT@ --library "%FUNQ_DIR%server\funq_server\libFunQ.dll" "%APP_EXE%"
