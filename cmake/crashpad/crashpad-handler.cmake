@@ -67,6 +67,13 @@ set_target_properties(crashpad_handler PROPERTIES
     CXX_VISIBILITY_PRESET "hidden"
     C_VISIBILITY_PRESET "hidden"
     VISIBILITY_INLINES_HIDDEN ON
+    # 必须是 GUI 子系统。上游把 handler 编成控制台程序（它的 LOG 写 stderr，
+    # 手工跑看得见），而主程序是 GUI：**GUI 进程起一个控制台子进程时，Windows
+    # 会给它新开一个控制台窗口**（crashpad 的 CreateProcess 没带
+    # CREATE_NO_WINDOW，见 client/crashpad_client_win.cc）。于是双击主程序，
+    # 旁边一直挂着一个黑框——实测 crashpad_handler.exe 的 PE 子系统是
+    # WINDOWS_CUI。改成 GUI 之后它照样收 dump，只是 stderr 没人接
+    WIN32_EXECUTABLE TRUE
 )
 
 target_link_libraries(crashpad_handler PRIVATE
