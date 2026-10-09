@@ -25,3 +25,14 @@ add_unit_test(
     LABELS TOUR
     NO_GTEST_MAIN
 )
+
+# 遮罩铺法（PlaceMask）：宿主比"最小视口"小时撑大、再裁到屏幕。
+# 症状是"登录框上的气泡压着目标"，而这段逻辑原先埋在 setHost 里、只对
+# inflate 那条路生效——纯几何才是能逐情形断言的地方
+add_unit_test(
+    NAME test_tour_mask_geometry
+    SOURCES mask_geometry_test.cpp
+    LIBS ${APP_TARGET_PREFIX}_tour
+    QT_MODULES Core
+    LABELS TOUR
+)

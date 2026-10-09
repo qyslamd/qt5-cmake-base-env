@@ -22,10 +22,15 @@ struct BubblePlacement {
   BubbleSide side;
 };
 
+// 钳位时离视口边留的缝。**调用方要保证视口比气泡大出两个它**，否则四向都放
+// 不下、只能退回"挑最大的一侧 + 钳位"，气泡就被按到目标上了（见
+// tour_mask_geometry.h：遮罩撑到多大才够）
+constexpr int kBubbleClampMargin = 20;
+
 // anchor 为空 → 居中；否则按四向可用空间挑一侧，再钳进视口。
 //
 // `gap` 是气泡与目标之间留的缝，**由调用方给**：它跟着布局边距走，写死在这里
-// 就会与布局脱钩。另外两个数（判定缝、钳位边距）是这一处自己的口径，见 .cpp
+// 就会与布局脱钩。判定缝是这一处自己的口径，见 .cpp
 BubblePlacement PlaceBubble(const QRect& anchor, const QSize& bubble,
                             const QSize& viewport, int gap);
 

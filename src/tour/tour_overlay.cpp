@@ -14,6 +14,7 @@
 #include "tour_bubble_view.h"
 #include "tour_catalog.h"
 #include "tour_countdown.h"
+#include "tour_mask_geometry.h"
 #include "tour_overlay_mask.h"
 
 namespace {
@@ -196,15 +197,21 @@ void TourOverlay::setHost(QWidget* host, bool inflate) {
   QRect area(host->mapToGlobal(QPoint(0, 0)), host->size());
   if (inflate) {
     area = area.adjusted(-kHostMargin, -kHostMargin, kHostMargin, kHostMargin);
-    // 裁到屏幕可用区：既不会把遮罩伸到屏幕外，也顺带处理了"宿主已占满屏幕"
-    const QScreen* screen = QApplication::screenAt(area.center());
-    if (screen == nullptr) {
-      screen = QApplication::primaryScreen();
-    }
-    if (screen != nullptr) {
-      area = area.intersected(screen->availableGeometry());
-    }
   }
+
+  // 宿主比"最小视口"还小就把遮罩撑大（见 PlaceMask）：气泡的视口就是遮罩的
+  // 尺寸，而登录框那种 460×370 的宿主上四向都放不下气泡，只剩"压着目标"。
+  // 最小视口从气泡自己的最小尺寸推：**两侧各放得下一个气泡 + 一个钳位边距**
+  const QSize min_viewport =
+      bubble_->minimumSize() * 2 +
+      QSize(2 * kBubbleClampMargin, 2 * kBubbleClampMargin);
+  // 裁到屏幕可用区：不会把遮罩伸到屏幕外，也顺带处理"宿主已占满屏幕"
+  const QScreen* screen = QApplication::screenAt(area.center());
+  if (screen == nullptr) {
+    screen = QApplication::primaryScreen();
+  }
+  area = PlaceMask(area, min_viewport,
+                   screen == nullptr ? QRect() : screen->availableGeometry());
 
   setGeometry(area);
   raise();

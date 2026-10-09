@@ -16,6 +16,8 @@ set(TARGET_SRCS
     tour_countdown.h
     tour_homepage.cpp
     tour_homepage.h
+    tour_mask_geometry.cpp
+    tour_mask_geometry.h
     tour_menu.cpp
     tour_menu.h
     tour_overlay.cpp

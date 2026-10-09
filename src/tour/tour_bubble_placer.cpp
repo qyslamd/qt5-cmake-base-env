@@ -8,9 +8,6 @@ namespace {
 // 之间的实际间隙，这里是判定用的保守量
 constexpr int kFitGap = 15;
 
-// 钳位边距：算出来的位置再靠边也要留出这么多
-constexpr int kClampMargin = 20;
-
 // 某一侧的可用空间与"放得下吗"
 struct DirectionInfo {
   int space_width = 0;
@@ -135,10 +132,11 @@ BubblePlacement PlaceBubble(const QRect& anchor, const QSize& bubble,
   const BubbleSide side = PickSide(left, right, top, bottom);
 
   QPoint pos = SideOffset(anchor, bubble, side, gap);
-  pos.setX(qMax(kClampMargin, qMin(pos.x(), viewport.width() - bubble.width() -
-                                                kClampMargin)));
-  pos.setY(
-      qMax(kClampMargin,
-           qMin(pos.y(), viewport.height() - bubble.height() - kClampMargin)));
+  pos.setX(qMax(
+      kBubbleClampMargin,
+      qMin(pos.x(), viewport.width() - bubble.width() - kBubbleClampMargin)));
+  pos.setY(qMax(
+      kBubbleClampMargin,
+      qMin(pos.y(), viewport.height() - bubble.height() - kBubbleClampMargin)));
   return BubblePlacement{pos, side};
 }
