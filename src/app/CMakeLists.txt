@@ -323,7 +323,8 @@ if(WIN32)
     #
     # "装完就能用"全在这个目录**是相对**的：._pth 的条目、两个 .bat 里的路径
     # 都以本目录为根解析（%~dp0 / ..\ ），所以装到哪台机器、哪个目录都成立。
-    # 这是本仓唯一一处"发布件里带测试工具"的地方，由 BUILD_FUNQ 决定要不要
+    # 这是本仓唯一一处"发布件里带测试工具"的地方，由 BUILD_FUNQ 决定要不要。
+    # 被谁带上见下面的依赖接线：打包（make_package）与部署（make_deploy）都会
     if(BUILD_FUNQ)
         set(FUNQ_KIT_DIR "${CMAKE_BINARY_DIR}/bin/funq")
         # 解释器按目标架构挑一份。两份在解压阶段就已就位
@@ -438,6 +439,19 @@ if(WIN32)
         )
         add_dependencies(make_funq_kit ${TARGET_NAME} stage_funq_injector)
 
+        # 部署也把工具目录带上：make_deploy 依赖 make_funq_kit（kit 先落盘，
+        # windeployqt 后跑）。方向不能反——collect_funq_qt_deps 按 bin\ 里实际
+        # 有什么决定补哪些 Qt DLL，kit 若排在 windeployqt 之后就得反过来依赖
+        # make_deploy，打包路径会成环，手动跑 make_funq_kit 还会被迫先做一次
+        # windeployqt。代价是全新 bin\ 上首跑 collect 时主程序的 Qt DLL 还没
+        # 部署，会多拷几份进 qt\——PATH 里主程序目录在前，无害；bin\ 一旦部署
+        # 过，下次 kit 自己收敛（它每次重建 qt\）。附带修掉了原先的隐患：
+        # make_package 此前同时依赖 make_deploy 与 make_funq_kit，两者之间无
+        # 顺序，ninja 并行时 collect 可能与 windeployqt 同时读写 bin\
+        if(TARGET make_deploy)
+            add_dependencies(make_deploy make_funq_kit)
+        endif()
+
         # 随包那份用的端口。与 examples/funq-scripts 里那份是同名 CACHE 变量
         # （同一个默认值）：谁先被处理谁建条目，用户 -D 覆盖时两边一起变。
         # 这里必须自己有默认值——src/app 比 examples 先处理，等不到那边定义
@@ -458,11 +472,12 @@ if(WIN32)
             "${FUNQ_KIT_DIR}/README.txt" @ONLY)
 
         # 两个 .py 也在这里拷一份（不是只有 make_funq_kit 拷）。**别删这两处
-        # 里任何一处**：make_funq_kit 只在打包路径（make_package）里被依赖，
-        # 平时构建不跑——只靠它的话 .bat 是新的、.py 还停在几个月前，而症状
-        # 是脚本按老 objectName 找控件、报"找不到控件"（产品线实测踩过：改名
-        # 那轮之后 tour 脚本一直跑不起来）。configure_file 会把这个源文件记进
-        # 配置依赖，改了它就重新配置，所以平时构建就能跟上
+        # 里任何一处**：make_funq_kit 只在部署与打包路径（make_deploy /
+        # make_package）里被依赖，平时构建不跑——只靠它的话 .bat 是新的、
+        # .py 还停在几个月前，而症状是脚本按老 objectName 找控件、报"找不到
+        # 控件"（产品线实测踩过：改名那轮之后 tour 脚本一直跑不起来）。
+        # configure_file 会把这个源文件记进配置依赖，改了它就重新配置，
+        # 所以平时构建就能跟上
         configure_file(
             "${CMAKE_SOURCE_DIR}/examples/funq-scripts/funq_client_demo.py"
             "${FUNQ_KIT_DIR}/funq_client_demo.py" COPYONLY)
@@ -541,7 +556,9 @@ if(WIN32)
         if(TARGET make_symbols)
             add_dependencies(make_package make_symbols)
         endif()
-        # 随包分发 funq 时，工具目录必须在 ISCC 之前组装好（ISCC 从 bin/ 取件）
+        # 随包分发 funq 时，工具目录必须在 ISCC 之前组装好（ISCC 从 bin/ 取件）。
+        # 通常已经随 make_deploy → make_funq_kit 串起来了，这条显式依赖兜底
+        # WINDEPLOYQT 缺席（make_deploy 不存在）的配置
         if(TARGET make_funq_kit)
             add_dependencies(make_package make_funq_kit)
         endif()

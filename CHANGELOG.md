@@ -497,6 +497,15 @@
 
 ### 修复
 
+- **`-d` 部署后 `bin\funq` 里的工具跑不起来**：套件的脚本与 `.py` 在 configure
+  期就生成到位，但解释器、client/server 包、注入库与 `qt\` 补件只在
+  `make_funq_kit` 里落盘，而它此前只被 `make_package` 依赖——不打包就永远差
+  那几步。现在 `make_deploy` 依赖 `make_funq_kit`（kit 先落盘、windeployqt 后
+  跑），`-d` 之后构建目录里的工具即开即用。方向这样接是刻意的：反接会让打包
+  路径成环；首跑时 `qt\` 可能多拷几份主程序随后也会带上的 Qt DLL，PATH 顺序
+  保证无害，下次自愈。附带修掉一个隐患：原先 `make_package` 同时依赖
+  `make_deploy` 与 `make_funq_kit`，两者之间没有顺序约束，ninja 并行时
+  `collect_funq_qt_deps` 可能与 windeployqt 同时读写 `bin\`
 - **x86 构建里 funq 的 UI 测试会卡到 180 秒超时**：注入是 Python 进程在调
   `CreateRemoteThread + LoadLibrary`，而 Windows 不允许跨位数注入——机器 PATH 上
   那个 Python 是 64 位，注不进 32 位靶子，于是每个用例都 `ERROR`、随后挂到 ctest

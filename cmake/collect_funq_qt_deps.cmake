@@ -13,6 +13,11 @@
 # 判断必须放在**构建期**：bin\ 里的那些 DLL 要 windeployqt 跑完才有，配置期
 # 看到的永远不全。故由 src/app/CMakeLists.txt 的 make_funq_kit 目标以 -P 调用。
 #
+# 与 windeployqt 的先后不作保证（make_deploy 依赖 make_funq_kit，kit 总在
+# windeployqt 之前跑，此时 bin\ 可能还没有部署产物）：这只会让本脚本多拷几份
+# 主程序马上也会带上的 DLL，PATH 里主程序目录在前，无害；bin\ 一旦部署过，
+# 下次再跑 kit 就会收敛到"只补缺的"。每次重建 DEST_DIR 正是为这个自愈留的。
+#
 # 入参（都是绝对路径或列表）：
 #   QT_BIN_DIR       Qt 的 bin 目录
 #   BIN_DIR          主程序所在目录（windeployqt 的产物）
