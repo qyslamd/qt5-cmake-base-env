@@ -20,12 +20,12 @@ class TourController : public QObject {
   void setViewport(QWidget* viewport);
   TourTopic* addTopic(TourTopic* topic);
   void clearTopics();
-  void startAll(bool autoMode = false);
-  void startOne(TourTopic* const topic, bool autoMode = false);
+  void startAll(bool auto_mode = false);
+  void startOne(TourTopic* const topic, bool auto_mode = false);
   void stop();
 
-  bool isRunning() const { return isRunning_; }
-  int currentStepIndex() const { return curStepIndex_; }
+  bool isRunning() const { return is_running_; }
+  int currentStepIndex() const { return cur_step_index_; }
   int totalSteps() const { return catalog_.totalSteps(); }
 
   // 首页构建主题卡片用：当前已注册的主题列表。
@@ -42,7 +42,7 @@ class TourController : public QObject {
   void finished();
   void finishedByUser();
   void stepChanged(int index, int total);
-  void topicChanged(const QString& topicName);
+  void topicChanged(const QString& topic_name);
 
  private slots:
   void onNextClicked();
@@ -57,10 +57,10 @@ class TourController : public QObject {
   // 把当前主题的演示选项套给演示层：实操式 → 遮罩穿透 + 气泡独立；
   // 实操主题忽略自动倒计时（等用户操作优先于自动翻页）
   void applyTopicOptions(TourTopic* const topic);
-  // 自 fromIndex 起向后/向前找第一个可播放（stepCount()>0）的主题下标，无则
+  // 自 from_index 起向后/向前找第一个可播放（stepCount()>0）的主题下标，无则
   // -1。
-  int nextPlayableTopicIndex(int fromIndex) const;
-  int previousPlayableTopicIndex(int fromIndex) const;
+  int nextPlayableTopicIndex(int from_index) const;
+  int previousPlayableTopicIndex(int from_index) const;
 
  private:
   TourCatalog catalog_;
@@ -73,8 +73,8 @@ class TourController : public QObject {
   // 有效模式 auto_mode_ 由它和当前主题的 interactive 现算
   bool requested_auto_mode_ = false;
   bool auto_mode_ = false;  // 当前主题的有效模式
-  bool isRunning_ = false;
-  int curTopicIndex_ = 0;
-  int curStepIndex_ = 0;
+  bool is_running_ = false;
+  int cur_topic_index_ = 0;
+  int cur_step_index_ = 0;
 };
 #endif  // FILE_TOUR_CONTROLLER_H_

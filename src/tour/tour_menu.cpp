@@ -44,6 +44,6 @@ void TourMenu::attachMenu(QMainWindow* window, TourTopic* tour_topic) {
     if (controller_ == nullptr || tour_topic == nullptr) {
       return;
     }
-    controller_->startOne(tour_topic, /*autoMode=*/true);
+    controller_->startOne(tour_topic, /*auto_mode=*/true);
   });
 }

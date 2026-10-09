@@ -96,8 +96,12 @@ CheckOptions:
 
 WarningsAsErrors: ''
 
-# 只报告项目自身代码的问题，Qt 与三方库的头文件不参与
-HeaderFilterRegex: '(src|tests)[/\\]'
+# 只报告项目自身代码的问题，Qt 与三方库的头文件不参与。
+#
+# 原先只写 (src|tests)[/\\]：三方库的路径里也有 src/（3rdparty/SARibbon-2.5.7/
+# src/SARibbonBar/…），于是它们的头文件被一起报进来。加了负向环视排掉
+# 3rdparty —— 实测 LLVM 的正则支持 (?!…)
+HeaderFilterRegex: '^(?!.*3rdparty).*(src|tests)[/\\]'
 
 # 按仓库根目录的 .clang-format 给出修复建议
 FormatStyle: file

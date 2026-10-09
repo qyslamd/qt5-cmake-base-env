@@ -100,7 +100,7 @@ void TourOverlay::initSignals() {
 }
 
 void TourOverlay::updateUi(TourTopic* const topic, TourStep* const step,
-                           bool canPrev, bool canNext) {
+                           bool can_prev, bool can_next) {
   //-------------------------------
   // 气泡
   auto index = topic->steps().indexOf(step) + 1;
@@ -109,7 +109,7 @@ void TourOverlay::updateUi(TourTopic* const topic, TourStep* const step,
                         .arg(index)
                         .arg(topic->stepCount()));
   bubble_->setText(QString("%1.%2").arg(index).arg(step->description()));
-  bubble_->setNavigation(canPrev, canNext);
+  bubble_->setNavigation(can_prev, can_next);
 
   //--------------------------------
   // 高亮区域
@@ -158,11 +158,11 @@ void TourOverlay::updateUi(TourTopic* const topic, TourStep* const step,
   }
 }
 
-void TourOverlay::setIsAutoMode(bool autoMode) {
+void TourOverlay::setIsAutoMode(bool auto_mode) {
   // 纯转发，**但要留着**：控制器只该知道"这一趟是不是自动挡"，不该知道倒计时
   // 是单独一个类（那是演示层的内部结构）。倒计时的复位、停表、显隐都在它自己
   // 那里（见 TourCountdown::setAutoMode）
-  countdown_->setAutoMode(autoMode);
+  countdown_->setAutoMode(auto_mode);
 }
 
 void TourOverlay::updateMouseTransparency() {

@@ -32,10 +32,10 @@ class TourOverlay : public QWidget {
   // 回收；仍挂在遮罩下时删它同样安全
   ~TourOverlay() override;
 
-  void updateUi(TourTopic* const topic, TourStep* const step, bool canPrev,
-                bool canNext);
+  void updateUi(TourTopic* const topic, TourStep* const step, bool can_prev,
+                bool can_next);
   // 自动挡开关。纯转发给倒计时，留着是为了不让控制器知道那个类
-  void setIsAutoMode(bool autoMode);
+  void setIsAutoMode(bool auto_mode);
   // 实操模式：遮罩对鼠标穿透（点击落到下层真实控件），气泡改挂顶层窗口保持
   // 可点。默认关闭 = 讲解式（目标不响应、点空白退出）
   void setInteractive(bool interactive);
