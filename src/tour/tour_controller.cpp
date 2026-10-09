@@ -46,12 +46,9 @@ void TourController::execute() {
   overlay_->show();
   overlay_->setHost(viewport_);
 
-  // 主题级 enterFunc 在 startOne/startAll 直启路径此前从不执行（只有
-  // 跨主题前进/回退才调），上层挂在这上的状态编排会被静默跳过——统一
-  // 收口到 execute()，两条路径行为一致
+  // 主题级 enterFunc 与模式推送**收口在这里**：直启与跨主题前进/回退两条
+  // 路径都得走同一套，不然挂在 enterFunc 上的状态编排会被静默跳过
   TourTopic* topic = catalog_.topics().at(curTopicIndex_);
-  // 模式推送收口在 applyTopicOptions 里，避免像以前那样只有本路径记得推、
-  // 跨主题那两条漏掉
   applyTopicOptions(topic);
   if (topic->enterFunc()) {
     topic->enterFunc()();
@@ -66,20 +63,16 @@ void TourController::applyTopicOptions(TourTopic* const topic) {
   if (topic == nullptr) {
     return;
   }
-  // 实操式主题忽略自动倒计时：等用户动手优先于自动翻页。用"用户请求的自动
-  // 模式"来算，而不是把 auto_mode_ 永久置 false——否则走过一个实操主题之后，
-  // 后面即使全是讲解主题也不会再自动翻了
+  // 实操式主题忽略自动倒计时（等用户动手优先于自动翻页），但**别把请求本身
+  // 抹掉**：用 requested_auto_mode_ 现算，否则走过一个实操主题之后，后面即使
+  // 全是讲解主题也不会再自动翻了
   auto_mode_ = requested_auto_mode_ && !topic->interactive();
 
   overlay_->setInteractive(topic->interactive());
-  // 主题驱动时一定不是被动模式。被动模式属于"外部驱动"那套（不带按钮、停倒计时），
-  // 上一轮留给它的状态不能跟到这一轮来——否则外部驱动跑过一次之后，再走主题播放
-  // 就只剩遮罩和气泡，三个按钮全是隐的
+  // 主题驱动时一定不是被动模式：那是"外部驱动"那套（不带按钮、停倒计时）的
+  // 状态，上一轮留下的不能跟过来，否则主题播放只剩遮罩和气泡
   overlay_->setPassiveMode(false);
-  // 演示层的自动模式必须跟着一起推：refreshStepOverlay() 起不起倒计时看
-  // 的是**演示层自己的** auto_mode_。跨主题前进/回退这两条路径以前只调了本
-  // 函数、没推模式，于是两边分叉——讲解主题不再自动翻页，实操主题反而被自动
-  // 翻页（用户正在动手，5 秒后页面自己跳走）
+  // 演示层的自动模式要跟着一起推：起不起倒计时看的是**演示层自己的**那份
   overlay_->setIsAutoMode(auto_mode_);
 }
 
@@ -236,8 +229,6 @@ void TourController::onPrevClicked() {
     prevTopic->enterFunc()();
   }
   emit topicChanged(prevTopic->name());
-  // 原来这里只刷了几何、不刷内容：回退到上一主题后演示层仍显示旧步骤
-  // 的标题与文案。改走 updateStep()（末步的 enterFunc + 刷新 + 信号）
   updateStep();
 }
 
@@ -294,11 +285,8 @@ void TourController::refreshStepOverlay() {
   TourStep* curStep = curTopic->steps().at(curStepIndex_);
 
   // 两个按钮能不能按，口径必须与 onNextClicked / onPrevClicked 的落点一致：
-  // 它们跳的是**下一个/上一个可播放的主题**（首页会给 stepCount()==0 的占位
-  // 主题建卡，所以 topics 里允许有它）。原先这里拿 topics().count()-1 判"最后
-  // 一条"，是数组末尾而不是最后一个可播放的——末尾是占位主题时，最后一步的
-  // 按钮永远显示"下一步"而不是"完成！"；首端是占位主题时，"上一步"亮着却点
-  // 不动。同一件"还有没有下一站"，只留这两个谓词一个出处
+  // 它们跳的是**下一个 / 上一个可播放的主题**（首页会给 stepCount()==0 的占位
+  // 主题建卡，topics 里允许有它），所以判"还有没有下一站"只能用这两个谓词
   bool canPrev = true;
   bool canNext = true;
   if (run_all_) {

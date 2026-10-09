@@ -5,15 +5,10 @@
 #include <QRect>
 #include <QSize>
 
-// 气泡摆哪儿：**纯几何，与控件无关**。
+// 气泡摆哪儿：**纯几何，与控件无关**，所以能逐分支单测（tests/tour/）。
 //
-// 从 TourOverlay::changeBubblePosition 里抽出来的（原先是 157 行的分支 +
-// 钳位，只能跑起来点一遍才知道对不对）。抽出来的两个理由：
-//   1. 它是"给三个矩形/尺寸出两个数"的计算，不该和绘制、动画、鼠标搅在一起
-//   2. 抽出来就能**逐分支断言**——本仓 tour 的第一批单测（tests/tour/）
-//
-// 坐标一律是**遮罩自己那一套**（左上为原点）：调用方负责把全局矩形映射进来、
-// 再把结果加上气泡原点（见 TourOverlay::bubbleOrigin）
+// 坐标一律是遮罩那一套（左上为原点）：调用方负责把全局矩形映射进来，再把
+// 结果换算到气泡自己的坐标（见 TourBubbleView::followAnchor）
 enum class BubbleSide {
   kLeft,     // 气泡在目标左侧
   kRight,    // 右侧
@@ -29,9 +24,8 @@ struct BubblePlacement {
 
 // anchor 为空 → 居中；否则按四向可用空间挑一侧，再钳进视口。
 //
-// `gap` 是气泡与目标之间留的缝，**由调用方给**：它跟着布局边距走
-// （TourOverlay 传 kLayoutMargin - 15），写死在这里就会与布局脱钩。
-// 另外两个数（canPlace 的判定缝、钳位边距）是这一处自己的口径，见 .cpp
+// `gap` 是气泡与目标之间留的缝，**由调用方给**：它跟着布局边距走，写死在这里
+// 就会与布局脱钩。另外两个数（判定缝、钳位边距）是这一处自己的口径，见 .cpp
 BubblePlacement PlaceBubble(const QRect& anchor, const QSize& bubble,
                             const QSize& viewport, int gap);
 

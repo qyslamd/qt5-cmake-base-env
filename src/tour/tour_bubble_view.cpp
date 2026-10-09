@@ -1,5 +1,6 @@
 #include "tour_bubble_view.h"
 
+#include <QAbstractAnimation>
 #include <QColor>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -11,12 +12,9 @@
 
 #include "tour_colors.h"
 #include "tour_countdown.h"
-#include "tour_overlay_mask.h"
 
-BubbleView::BubbleView(const OverlayMask* mask, const TourCountdown* countdown,
-                       QWidget* overlay)
+TourBubbleView::TourBubbleView(const TourCountdown* countdown, QWidget* overlay)
     : QWidget(overlay),
-      mask_(mask),
       countdown_(countdown),
       overlay_(overlay),
       countdown_label_(new QLabel(this)),
@@ -26,6 +24,8 @@ BubbleView::BubbleView(const OverlayMask* mask, const TourCountdown* countdown,
       prev_btn_(new QPushButton(QStringLiteral("上一步"), this)),
       next_btn_(new QPushButton(QStringLiteral("下一步"), this)),
       anime_(new QPropertyAnimation(this)) {
+  // 这个名字是 funq 用例的寻址锚点（tourOverlay::bubble_self::bubble_text），
+  // 与"气泡必须是遮罩的直接子控件"一样，不能改
   setObjectName(QStringLiteral("bubble_self"));
   initUi();
   initSignals();
@@ -35,7 +35,7 @@ BubbleView::BubbleView(const OverlayMask* mask, const TourCountdown* countdown,
   anime_->setDuration(kAnimeDur);
 }
 
-void BubbleView::initUi() {
+void TourBubbleView::initUi() {
   // 气泡底由自绘（paintBubble）完成，背景保持透明，让遮罩/主窗口内容透出
   setAutoFillBackground(false);
   setAttribute(Qt::WA_TranslucentBackground);
@@ -77,65 +77,63 @@ void BubbleView::initUi() {
   main_layout->addLayout(button_row);
 }
 
-void BubbleView::initSignals() {
-  // 点哪个按钮都先停表（到点自动翻页那一趟也走同一个出口，见
-  // TourOverlay::initSignals）
-  connect(skip_btn_, &QPushButton::clicked, this, &BubbleView::skipClicked);
-  connect(prev_btn_, &QPushButton::clicked, this, &BubbleView::prevClicked);
-  connect(next_btn_, &QPushButton::clicked, this, &BubbleView::nextClicked);
+void TourBubbleView::initSignals() {
+  // 停表在 TourOverlay 那边做：三个按钮与自动挡翻页走同一个出口
+  connect(skip_btn_, &QPushButton::clicked, this, &TourBubbleView::skipClicked);
+  connect(prev_btn_, &QPushButton::clicked, this, &TourBubbleView::prevClicked);
+  connect(next_btn_, &QPushButton::clicked, this, &TourBubbleView::nextClicked);
 
   connect(countdown_, &TourCountdown::changed, this,
-          &BubbleView::syncCountdown);
+          &TourBubbleView::updateCountdownDisplay);
 }
 
-void BubbleView::setTitle(const QString& title) {
+void TourBubbleView::setTitle(const QString& title) {
   if (title_ != title) {
     title_ = title;
     title_label_->setText(title);
   }
 }
 
-void BubbleView::setText(const QString& text) {
+void TourBubbleView::setText(const QString& text) {
   if (text_ != text) {
     text_ = text;
     text_label_->setText(text);
   }
 }
 
-void BubbleView::setNavigation(bool can_prev, bool can_next) {
+void TourBubbleView::setNavigation(bool can_prev, bool can_next) {
   prev_btn_->setEnabled(can_prev);
   next_btn_->setText(can_next ? QStringLiteral("下一步")
                               : QStringLiteral("完成！"));
 }
 
-void BubbleView::setButtonsVisible(bool visible) {
+void TourBubbleView::setButtonsVisible(bool visible) {
   skip_btn_->setVisible(visible);
   prev_btn_->setVisible(visible);
   next_btn_->setVisible(visible);
 }
 
-void BubbleView::setBubbleVisible(bool visible) {
+void TourBubbleView::setBubbleVisible(bool visible) {
   bubble_visible_ = visible;
   syncVisibility();
 }
 
-void BubbleView::syncCountdown() {
+void TourBubbleView::updateCountdownDisplay() {
+  // 倒计时的显示**只有这一处决定**：秒数、显隐、进度条画不画都在这儿落地。
+  // paintCountdown 只读下面这个布尔，不再自己问一遍倒计时
+  countdown_shown_ = countdown_->showing();
   countdown_label_->setText(QString::number(countdown_->remaining()));
-  countdown_label_->setVisible(countdown_->showing());
+  countdown_label_->setVisible(countdown_shown_);
   update();
 }
 
-void BubbleView::syncVisibility() {
-  // 气泡的显隐必须单独同步，两种父级都躲不掉：
-  //   实操模式——气泡挂在 viewport 上，不随遮罩的父子关系显隐
-  //   讲解模式——气泡挂在遮罩上，但遮罩 hide 时显式藏过它，而 Qt 里被显式
-  //             隐藏的子控件不会随父控件 show() 回来（showChildren 会跳过
-  //             isHidden() 的子控件），于是第二遍只剩遮罩、气泡不见了
+void TourBubbleView::syncVisibility() {
+  // 显隐必须单独同步：实操模式下气泡挂在 viewport 上，不随遮罩的显隐走；
+  // 而讲解模式下遮罩 hide 时显式藏过它，**被显式隐藏的子控件不会随父 show()
+  // 回来**（Qt 的 showChildren 会跳过它），第二遍就只剩遮罩了。
   //
-  // raise 不能省：execute() 每次都会把遮罩 setParent 回 viewport（插入即
-  // 最上层），而 TourOverlay::setInteractive 在状态未变时早退、不会重排层级
-  // ——漏了 raise，半透明遮罩就会叠在气泡上（点击穿透所以按钮还能点，但看着
-  // 像被阴影盖住，第二次运行起偶发）
+  // raise 也不能省：遮罩每次 execute() 都会被 setParent 回 viewport（插入即
+  // 最上层），漏了 raise 半透明遮罩就叠在气泡上
   const bool show = overlay_->isVisible() && bubble_visible_;
   setVisible(show);
   if (show) {
@@ -143,7 +141,7 @@ void BubbleView::syncVisibility() {
   }
 }
 
-void BubbleView::detachToTopLevel() {
+void TourBubbleView::detachToTopLevel() {
   setParent(nullptr);
   setWindowFlags(Qt::Tool | Qt::FramelessWindowHint);
   setAttribute(Qt::WA_TranslucentBackground);
@@ -151,35 +149,45 @@ void BubbleView::detachToTopLevel() {
   syncVisibility();
 }
 
-void BubbleView::attachToOverlay() {
+void TourBubbleView::attachToOverlay() {
   setParent(overlay_);
   setWindowFlags(Qt::Widget);
   syncVisibility();
 }
 
-void BubbleView::followAnchor(const QSize& viewport) {
-  // 算法在 tour_bubble_placer（纯几何、有单测）。这里只剩三件事：换算坐标、
-  // 交给动画、记下箭头该朝哪边
+void TourBubbleView::followAnchor(const QRect& anchor, const QSize& viewport) {
+  // 算法在 tour_bubble_placer（纯几何、有单测）；这里换算坐标、交给动画，
+  // 并把"有没有靶"落在 has_anchor_ 上
+  has_anchor_ = !anchor.isNull();
   const BubblePlacement placement =
-      PlaceBubble(mask_->anchor(), size(), viewport, kLayoutMargin - 15);
-  // 气泡挂在遮罩上时是遮罩局部坐标；提成顶层窗口之后是屏幕坐标，得补上遮罩
-  // 自己的屏幕原点
+      PlaceBubble(anchor, size(), viewport, kLayoutMargin - 15);
+  // 挂在遮罩上时是遮罩局部坐标；提成顶层窗口之后是屏幕坐标，得补遮罩原点
   const QPoint origin =
       isWindow() ? overlay_->mapToGlobal(QPoint(0, 0)) : QPoint(0, 0);
   moveTo(origin + placement.top_left, placement.side);
 }
 
-void BubbleView::moveTo(const QPoint& top_left, BubbleSide side) {
+void TourBubbleView::moveTo(const QPoint& top_left, BubbleSide side) {
+  // 居中那种不带方向（没有目标可依托），**不改箭头**
+  const bool arrow_changes =
+      side != BubbleSide::kCentred && side != side_;  // NOLINT
+  // 位置与朝向都没动、也没有在途动画：没什么可搬的。**不早退的话每一步都会起
+  // 一次动画**——updateUi 每步都调到这儿，而多数步骤气泡原位不动
+  if (top_left == pos() && !arrow_changes &&
+      anime_->state() == QAbstractAnimation::Stopped) {
+    return;
+  }
   anime_->setStartValue(pos());
   anime_->setEndValue(top_left);
   anime_->start();
-  // 居中那种不带方向（没有目标可依托），**不改箭头**——与从前一致
-  if (side != BubbleSide::kCentred) {
+  if (arrow_changes) {
     side_ = side;
+    // 位置没动的场合也得重画，否则箭头还指着原来那边（位置变了控件自己会重画）
+    update();
   }
 }
 
-void BubbleView::paintEvent(QPaintEvent* event) {
+void TourBubbleView::paintEvent(QPaintEvent* event) {
   Q_UNUSED(event);
   QPainter p(this);
   p.setRenderHint(QPainter::Antialiasing);
@@ -187,24 +195,23 @@ void BubbleView::paintEvent(QPaintEvent* event) {
   paintCountdown(&p);
 }
 
-void BubbleView::paintBubble(QPainter* painter) {
+void TourBubbleView::paintBubble(QPainter* painter) {
   const int margin = kLayoutMargin - 9;
   const QRectF bubble_rect =
       rect().marginsRemoved(QMargins(margin, margin, margin, margin));
 
   QPainterPath path;
-  path.addRoundedRect(bubble_rect, cornerRadius_, cornerRadius_);
-  // 三角箭头只在有高亮矩形依托时绘制；纯讲解步（气泡居中）没有指向
-  // 对象，就是一个干净的圆角矩形
-  if (!mask_->anchor().isEmpty()) {
+  path.addRoundedRect(bubble_rect, kCornerRadius, kCornerRadius);
+  // 有靶才画箭头；纯讲解步（居中）就是一个干净的圆角矩形
+  if (has_anchor_) {
     path.addPath(arrowPath());
   }
   painter->fillPath(path, QBrush(TourBubbleColor()));
 }
 
-void BubbleView::paintCountdown(QPainter* painter) {
-  // 自动挡与"外部驱动的视觉倒计时"都要画这条进度（见 TourCountdown::showing）
-  if (!countdown_->showing()) {
+void TourBubbleView::paintCountdown(QPainter* painter) {
+  // 画不画由 updateCountdownDisplay 落地（见那里的注释），这里只读它
+  if (!countdown_shown_) {
     return;
   }
 
@@ -215,16 +222,15 @@ void BubbleView::paintCountdown(QPainter* painter) {
   bar_rect.setWidth(bar_rect.width() * (1 - countdown_->elapsed()));
 
   QPainterPath path;
-  path.addRoundedRect(bar_rect, cornerRadius_, cornerRadius_);
-  // 倒计时条用 accent 淡色（两主题统一降低深浅）
+  path.addRoundedRect(bar_rect, kCornerRadius, kCornerRadius);
+  // 倒计时条用 accent 淡色
   QColor bar = TourAccentColor();
   bar.setAlpha(140);
   painter->fillPath(path, QBrush(bar));
 }
 
-QPainterPath BubbleView::arrowPath() const {
-  // 三角箭头：底边贴气泡面向目标一侧的中点（半宽 = margin），尖端顶到
-  // 控件边缘。side_ 记录的是气泡在目标的哪一侧，箭头画在相反一侧
+QPainterPath TourBubbleView::arrowPath() const {
+  // 箭头画在气泡的**反面**：side_ 是气泡在目标的哪一侧，尖端朝目标
   const QRectF area(rect());
   const qreal cx = area.center().x();
   const qreal cy = area.center().y();

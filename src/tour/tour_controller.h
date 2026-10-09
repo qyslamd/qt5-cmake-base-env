@@ -31,12 +31,10 @@ class TourController : public QObject {
   // 首页构建主题卡片用：当前已注册的主题列表。
   const QList<TourTopic*>& topics() const { return catalog_.topics(); }
 
-  // 演示层由控制器持有。桥接层（TourBridge）要拿它响应外部高亮请求，
-  // 所以这里开个口子，而不是让调用方自己 new 一个
+  // 演示层由控制器持有，桥接层要拿它响应外部高亮请求，所以这里开个口子
   TourOverlay* overlay() const { return overlay_; }
 
-  // 目标控件在 enter 回调中异步就绪（如编辑器 QtConcurrent 打开）后，
-  // 重新定位当前步骤的高亮。
+  // 目标控件在 enter 回调里异步就绪之后，重新定位当前步骤的高亮
   void refreshCurrentStepHighlight();
 
  signals:
@@ -70,9 +68,9 @@ class TourController : public QObject {
   TourOverlay* overlay_ = nullptr;
 
   bool run_all_ = false;  // 指示是否运行所有主题
-  // 用户请求的自动模式（startAll/startOne 的参数）。实操式主题会被强制降为
-  // 手动，但"请求"要留着——否则走过一个实操主题后，后续讲解主题再也回不到
-  // 自动。有效模式 auto_mode_ 由它和当前主题的 interactive 现算
+  // 用户请求的自动模式（startAll/startOne 的参数）。实操式主题强制降为手动，
+  // 但**请求要留着**——否则走过一个实操主题后，后续讲解主题回不到自动；
+  // 有效模式 auto_mode_ 由它和当前主题的 interactive 现算
   bool requested_auto_mode_ = false;
   bool auto_mode_ = false;  // 当前主题的有效模式
   bool isRunning_ = false;

@@ -8,7 +8,6 @@
 #include <QFrame>
 #include <QGraphicsDropShadowEffect>
 #include <QHBoxLayout>
-#include <QHideEvent>
 #include <QLabel>
 #include <QLayout>
 #include <QMouseEvent>
@@ -34,8 +33,8 @@ TourCard::TourCard(TourTopic* topic, QWidget* parent)
     : QWidget(parent),
       topic_(topic),
       placeholder_(topic == nullptr || topic->stepCount() == 0) {
-  // 占位态也交给 QSS（[placeholder="true"]），与底色/边框同一处。
-  // 构造期设一次即可，之后不变，所以不需要 unpolish/polish
+  // 占位态也交给 QSS（[placeholder="true"]）。构造期设一次，之后不变，
+  // 所以不需要 unpolish/polish
   setProperty("placeholder", placeholder_);
   initUi();
 }
@@ -82,8 +81,7 @@ void TourCard::setSelected(bool selected) {
     return;
   }
   selected_ = selected;
-  // 选中态由 QSS 的 [selected="true"] 表达。运行中改属性之后必须重新 polish，
-  // 否则样式不重算（见 CLAUDE.md 的控件定位优先级：类型/伪状态 → 动态属性）
+  // 运行中改动态属性之后必须重新 polish，否则样式不重算
   setProperty("selected", selected_);
   style()->unpolish(this);
   style()->polish(this);
@@ -135,12 +133,12 @@ TourHomePage::TourHomePage(TourController* controller, QWidget* parent)
 
 int TourHomePage::exec() {
   // 普通 QWidget 没有 QDialog 的事件循环，这里用局部 QEventLoop 模拟。
-  // closed() 在 hideEvent 中发出，覆盖"外部直接调 hide()"的情况。
+  // 等的是 closeRequested（只有 hideHomePage 发），见它的注释
   show();
   raise();
 
   QEventLoop loop;
-  connect(this, &TourHomePage::closed, &loop, &QEventLoop::quit);
+  connect(this, &TourHomePage::closeRequested, &loop, &QEventLoop::quit);
   loop.exec();
   return 0;
 }
@@ -155,8 +153,7 @@ void TourHomePage::setHeading(const QString& title, const QString& subtitle) {
 }
 
 void TourHomePage::initUi() {
-  // 居中面板：固定尺寸，QSS #tourHomePanel 可覆盖背景（半透明 + 圆角）；
-  // 无 QSS 时用 palette Window 色兜底。阴影由 QGraphicsDropShadowEffect 加。
+  // 居中面板：固定尺寸，背景走 QSS #tourHomePanel，这里给 palette 兜底
   panel_ = new QFrame(this);
   panel_->setObjectName(QStringLiteral("tourHomePanel"));
   panel_->setFixedSize(880, 520);
@@ -165,7 +162,6 @@ void TourHomePage::initUi() {
   pal.setColor(QPalette::Window, QColor("#F0F0F0"));
   panel_->setPalette(pal);
 
-  // 面板阴影：挂一个 QGraphicsDropShadowEffect（比在 QSS 里做更省事）
   auto* shadow = new QGraphicsDropShadowEffect(panel_);
   shadow->setColor(QColor(105, 105, 105, 200));
   shadow->setBlurRadius(9);
@@ -176,7 +172,6 @@ void TourHomePage::initUi() {
   panel_layout->setContentsMargins(28, 20, 28, 20);
   panel_layout->setSpacing(16);
 
-  // 标题行：居中主标题 + 副标题，右上角关闭 ×
   auto* header_layout = new QHBoxLayout;
   header_layout->setContentsMargins(0, 0, 0, 0);
   header_layout->addStretch(1);
@@ -185,8 +180,6 @@ void TourHomePage::initUi() {
   title_box->setSpacing(4);
   title_box->setAlignment(Qt::AlignCenter);
 
-  // 标题默认取宿主的 applicationName()：引导是通用库，不该写死某个产品的
-  // 名字。宿主想显示别的（产品名与程序名不一致）用 setHeading() 改
   const QString app_name = QCoreApplication::applicationName();
   title_label_ = new QLabel(app_name.isEmpty()
                                 ? QStringLiteral("欢迎使用")
@@ -217,13 +210,12 @@ void TourHomePage::initUi() {
 
   panel_layout->addLayout(header_layout);
 
-  // 卡片行：居中，rebuildCards() 按 controller_->topics() 往里填卡。
+  // 卡片行：居中，rebuildCards() 往里填卡
   cards_layout_ = new QHBoxLayout;
   cards_layout_->setSpacing(16);
   cards_layout_->setAlignment(Qt::AlignCenter);
   panel_layout->addLayout(cards_layout_);
 
-  // 底部操作行：自动演示勾选 + 全部演示按钮。
   auto* bottom_layout = new QHBoxLayout;
   bottom_layout->setContentsMargins(0, 0, 0, 0);
   bottom_layout->setSpacing(16);
@@ -243,9 +235,8 @@ void TourHomePage::initUi() {
 }
 
 void TourHomePage::initStyleSheet() {
-  // 样式由 TourStyle 在应用级统一并入（见 tour_style.h）：气泡在实操
-  // 模式下会被 reparent 到 viewport，离开首页的子树，只设在首页上盖不到它。
-  // 这里不再重复设一份，避免同一份 qss 读两遍、也避免两处优先级打架
+  // 样式在应用级统一并入（见 tour_style.h）：气泡会 reparent 到 viewport，
+  // 只设在首页上盖不到它
   TourStyle::ensureApplied();
 }
 
@@ -289,23 +280,23 @@ void TourHomePage::startTopic(TourTopic* topic) {
 }
 
 void TourHomePage::hideHomePage() {
-  // hideEvent 会发 closed()，exec() 的局部事件循环随之退出。
+  // 先发信号再 hide：exec() 的局部事件循环随之退出。**不能在 hideEvent 里发**
+  // ——父窗口隐藏、页面被 reparent、退出应用时子控件被隐藏都会走那条路，
+  // exec() 会在用户根本没选的时刻返回
+  emit closeRequested();
   hide();
 }
 
 void TourHomePage::showEvent(QShowEvent* event) {
-  // 每次显示前重建卡片（topics 可能已变）。
+  // 每次显示前重建卡片（topics 可能已变）
   rebuildCards();
 
-  // 铺满父窗口客户区并置顶。父窗口 resize 时下次 show 会重新计算；
-  // 若需实时跟随，可让父窗口在 resizeEvent 里调用
-  // setGeometry(parentWidget()->rect())。
+  // 铺满父窗口客户区并置顶（父窗口 resize 后下次 show 会重算）
   if (QWidget* p = parentWidget()) {
     setGeometry(p->rect());
   }
   raise();
 
-  // 面板居中
   if (panel_ != nullptr) {
     panel_->move((width() - panel_->width()) / 2,
                  (height() - panel_->height()) / 2);
@@ -315,17 +306,9 @@ void TourHomePage::showEvent(QShowEvent* event) {
   QWidget::showEvent(event);
 }
 
-void TourHomePage::hideEvent(QHideEvent* event) {
-  // 无论是 hideHomePage() 还是外部直接 hide()，都统一从这里发 closed()，
-  // 让 exec() 的局部事件循环退出（等价于原 QDialog 关闭时的行为）。
-  emit closed();
-  QWidget::hideEvent(event);
-}
-
 void TourHomePage::paintEvent(QPaintEvent* event) {
   Q_UNUSED(event);
-  // 自绘遮罩：半透明黑
-  // 不调 QWidget::paintEvent，让子控件各自绘制、不被底色覆盖。
+  // 半透明黑自绘；不调基类，免得底色盖住子控件
   QPainter p(this);
   p.setRenderHint(QPainter::Antialiasing);
   p.fillRect(rect(), QColor(0, 0, 0, 128));

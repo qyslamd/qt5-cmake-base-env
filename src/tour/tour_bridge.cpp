@@ -12,15 +12,10 @@
 
 namespace {
 
-// 路径解析。规则**照 funq 的 ObjectPath**（libFunq/objectpath.cpp）重写：
-//
-//   名字   = objectName；为空时退到类名（所以路径里会有 "QWidget" 这种段）
-//   唯一名 = 同名兄弟里非首个的带 "-<序号>" 后缀（settingsRow-1 就是这么来的）
-//   路径   = 各段用 "::" 拼，解析时逐段下钻
-//
-// 自己写而不是把 funq 的源码拷进来：funq 是 CeCILL v2.1（copyleft），拷进
-// src/tour 会把我们自己的库一起卷进那个许可证。算法本身不受版权保护，
-// 照着重写既干净又短，而且仍然**零 funq 依赖**
+// 路径解析，规则照 funq 的 ObjectPath 重写：名字取 objectName（为空退到类名，
+// 所以路径里会有 "QWidget" 这种段），同名兄弟里非首个带 "-<序号>" 后缀，各段用
+// "::" 拼、逐段下钻。**不拷 funq 的源码**：它是 CeCILL v2.1（copyleft），拷进来
+// 会把这边的库一起卷进那个许可证
 QString RawObjectName(QObject* object) {
   QString name = object->objectName();
   if (name.isEmpty() && object->metaObject() != nullptr) {
@@ -56,35 +51,33 @@ QString NameInPath(QObject* object) {
 }
 
 QObject* FindObjectByPath(const QString& path) {
-  QStringList parts = path.split(QStringLiteral("::"));
+  const QStringList parts = path.split(QStringLiteral("::"));
   if (parts.isEmpty()) {
     return nullptr;
   }
 
-  const QString name = parts.takeLast();
+  // 第一段从应用的所有顶层窗口里找——顶层没有父，只能单独扫一遍
+  QObject* found = nullptr;
+  const QWidgetList tops = QApplication::topLevelWidgets();
+  for (QWidget* widget : tops) {
+    if (widget != nullptr && NameInPath(widget) == parts.at(0)) {
+      found = widget;
+      break;
+    }
+  }
 
-  if (parts.isEmpty()) {
-    // 顶层：从应用的所有顶层窗口里找
-    const QWidgetList tops = QApplication::topLevelWidgets();
-    for (QWidget* widget : tops) {
-      if (widget != nullptr && NameInPath(widget) == name) {
-        return widget;
+  // 其余各段逐级往下（循环即可，不必每层把剩下的段重新拼回字符串）
+  for (int i = 1; found != nullptr && i < parts.size(); ++i) {
+    QObject* next = nullptr;
+    for (QObject* child : found->children()) {
+      if (child != nullptr && NameInPath(child) == parts.at(i)) {
+        next = child;
+        break;
       }
     }
-    return nullptr;
+    found = next;
   }
-
-  QObject* parent = FindObjectByPath(parts.join(QStringLiteral("::")));
-  if (parent == nullptr) {
-    return nullptr;
-  }
-  const QList<QObject*> children = parent->children();
-  for (QObject* child : children) {
-    if (child != nullptr && NameInPath(child) == name) {
-      return child;
-    }
-  }
-  return nullptr;
+  return found;
 }
 
 // 引导只能高亮 QWidget（引擎的目标类型只有 控件 / 矩形 / 图），
@@ -97,9 +90,8 @@ QWidget* ResolveWidget(const QString& path) {
 
 TourBridge::TourBridge(TourOverlay* overlay, QWidget* parent)
     : QWidget(parent), overlay_(overlay) {
-  // funq 靠 objectName 定位到本对象再 call_slot。Tool 标志让它不进任务栏，
-  // 0 尺寸 + 不挡鼠标，用户看不见它——它只是 funq 的落脚点。
-  // show() 不能省：客户端默认等控件 visible 才返回，不 show 会一直超时
+  // show() 不能省：funq 客户端等控件 visible 才返回。0 尺寸 + 不挡鼠标，
+  // 用户看不见它——它只是 funq 的落脚点（objectName 是脚本的寻址锚点）
   setWindowFlags(Qt::Tool | Qt::FramelessWindowHint);
   setObjectName(QStringLiteral("tourBridge"));
   resize(0, 0);
@@ -116,9 +108,8 @@ QVariant TourBridge::showHighlight(const QVariant& params) {
   }
 
   const QVariantMap args = params.toMap();
-  // 多靶（《一步多靶设计》§3.3）：`paths` 是数组，[0] 是锚点、其余是额外靶。
-  // 与单数 `path` 同时给时**按 paths 处理并记一条警告**——两个键混着写多半
-  // 是笔误，静默挑一个会让人查半天
+  // 多靶：`paths` 是数组，[0] 是锚点、其余是额外靶。与单数 `path` 同时给时
+  // 按 paths 处理并记一条警告——混着写多半是笔误，静默挑一个会让人查半天
   QStringList path_list;
   const QVariant paths_value = args.value(QStringLiteral("paths"));
   if (!paths_value.toStringList().isEmpty()) {
@@ -133,8 +124,6 @@ QVariant TourBridge::showHighlight(const QVariant& params) {
   const QString path = path_list.value(0);
   QWidget* target = ResolveWidget(path);
   if (target == nullptr) {
-    // 解析失败要说出来：脚本里写错一个 objectName 是常事，静默没有任何反馈
-    // 会让人以为"桥接根本没通"
     result["ok"] = false;
     result["message"] =
         QStringLiteral("按路径找不到控件（路径要写成 funq 那种完整路径）: %1")
@@ -143,9 +132,8 @@ QVariant TourBridge::showHighlight(const QVariant& params) {
     return result;
   }
 
-  // 不可见的控件不给高亮：它还没被布局过，几何是未初始化的，画出来的框会跑到
-  // 屏幕角落去（菜单栏里的 QMenu 就是典型——从没显示过，报出来的位置是 0,0）。
-  // 宁可报失败，也不要画一个假的框
+  // 不可见的控件几何是未初始化的（从没显示过的 QMenu 报 0,0），框会跑到屏幕
+  // 角落——宁可报失败，也不要画一个假的框
   if (!target->isVisible() || target->size().isEmpty()) {
     result["ok"] = false;
     result["message"] =
@@ -153,9 +141,8 @@ QVariant TourBridge::showHighlight(const QVariant& params) {
     return result;
   }
 
-  // 额外靶：与锚点同一套校验（找得到、可见、尺寸非空），外加**必须与锚点同
-  // 窗口**——不同窗口的控件映到遮罩坐标系之后落在遮罩之外，屏幕上看不见框而
-  // 这里照样回报成功，与"不静默"的口径相反
+  // 额外靶与锚点同一套校验，外加**必须同窗口**：跨窗口的靶会落在遮罩之外，
+  // 屏幕上看不见框而这里照样报成功
   QList<QWidget*> extras;
   const QWidget* anchor_window = target->window();
   for (int i = 1; i < path_list.size(); ++i) {
@@ -192,9 +179,8 @@ QVariant TourBridge::showHighlight(const QVariant& params) {
 
   const QString title = args.value(QStringLiteral("title")).toString();
   const QString text = args.value(QStringLiteral("text")).toString();
-  // 可选：指页签条上的第 N 个页签。**页签不是 QWidget**（QTabBar 的一个 tab
-  // 只是画出来的），按 path 找不到它——用 tabRect() 算出矩形，走按矩形高亮
-  // 那条路。不传这个键就是老行为：指整个控件
+  // `tab` 指页签条第 N 个。**页签不是 QWidget**（只是画出来的），按 path 找
+  // 不到，只能用 tabRect() 算出矩形、走按矩形高亮那条路
   const int tab_index = args.value(QStringLiteral("tab"), -1).toInt();
   if (tab_index >= 0) {
     QTabBar* bar = qobject_cast<QTabBar*>(target);
@@ -220,8 +206,7 @@ QVariant TourBridge::showHighlight(const QVariant& params) {
               .arg(path);
       return result;
     }
-    // tab 只作用于**锚点**（页签不是控件，当不成额外靶）；给 tab 时锚点走矩形
-    // 那条路，额外靶仍是控件、由 showHighlightRect 的 extras 收
+    // tab 只作用于锚点；给了 tab 时额外靶仍是控件，由 extras 收
     QList<QRect> extra_rects;
     for (QWidget* extra : extras) {
       extra_rects.append(
@@ -232,14 +217,12 @@ QVariant TourBridge::showHighlight(const QVariant& params) {
         QRect(bar->mapToGlobal(tab_rect.topLeft()), tab_rect.size()), title,
         text, extra_rects);
   } else {
-    // 额外靶走**控件**这条路，不预先转成矩形：showHighlight 里有
-    // setHost(..., inflate = target == target_window)，整窗高亮靠它才不至于
-    // "整块遮罩被掏空、只剩气泡"（先转矩形会把这一条绕过去）
+    // 不预先转成矩形：整窗高亮要靠 showHighlight 里的 setHost(inflate)，
+    // 先转矩形就把那条绕过去了
     overlay_->showHighlight(target, title, text, extras);
   }
 
-  // 可选：视觉倒计时（秒）。只走显示、**不推进任何东西**——下一步做什么由
-  // 脚本决定，这里只让"马上要切了"看得见
+  // 视觉倒计时（秒）：只显示、**不推进任何东西**，下一步由脚本决定
   const int countdown = args.value(QStringLiteral("countdown"), 0).toInt();
   if (countdown > 0) {
     overlay_->showCountdown(countdown);
@@ -247,9 +230,8 @@ QVariant TourBridge::showHighlight(const QVariant& params) {
 
   result["ok"] = true;
   result["message"] = QStringLiteral("高亮 %1").arg(path);
-  // 把算出来的数字一并回报：高亮/遮罩算在哪儿，出问题时只能靠这个定位。
-  // `rect` 只报**锚点**——框可能有多个，只看这一个分不出"少框了一个"，
-  // 所以另给一个 `count`
+  // 把算出来的数字一并回报：出问题时只能靠这个定位。`rect` 只报锚点，
+  // 框数另给 `count`
   const QRect rect = overlay_->highlightRect();
   const QRect overlay = overlay_->geometry();
   result["count"] = overlay_->highlightCount();

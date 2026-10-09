@@ -15,15 +15,10 @@ class QToolButton;
 class TourController;
 class TourTopic;
 
-// 引导首页主题卡片：图标 + 名称 + 描述。
+// 引导首页的主题卡片：图标 + 名称 + 描述。
 //
-// **卡片的样式只有 QSS 一个出处**（`tour_default.qss` 里的
-// `#tourCard` 那几条）：底色/边框/圆角是规则本体，hover 走 `:hover`
-// 伪状态，选中与占位走动态属性 `selected` / `placeholder`。
-//
-// 这里曾经同时自绘一套底色与边框，注释还写着"QSS 覆盖、无 QSS 时自绘兜底"
-// ——不成立：自绘是无条件的，且画在 QSS 之后，实际是它盖住 QSS。改 QSS 的人
-// 会发现没反应。现在只保留 QSS 表达不了的东西：点击的按下/抬起配对判定
+// 外观**只有 QSS 一个出处**（`tour_default.qss` 里的 `#tourCard` 那几条）：
+// 底色/边框/圆角/选中/占位都在那儿，这里只做 QSS 表达不了的按下-抬起配对
 class TourCard : public QWidget {
   Q_OBJECT
  public:
@@ -54,31 +49,31 @@ class TourCard : public QWidget {
   bool pressed_ = false;
 };
 
-// 引导首页：覆盖在宿主窗口之上的子控件覆盖层，
-// 黑半透明遮罩 + 居中卡片。通过 raise() 置顶，不用 QDialog 的事件循环。
-// - 显示/隐藏：show() / hide()（exec() 保留阻塞式兼容接口）
-// - 父窗口尺寸变化：showEvent 中按 parentWidget()->rect() 同步几何
-// - 遮罩颜色自绘
+// 引导首页：盖在宿主窗口之上的覆盖层（黑半透明遮罩 + 居中卡片），靠 raise()
+// 置顶，不用 QDialog 的事件循环。几何在 showEvent 里按父窗口算；
+// exec() 只是阻塞式兼容接口
 class TourHomePage : public QWidget {
   Q_OBJECT
 
  public:
   explicit TourHomePage(TourController* controller, QWidget* parent = nullptr);
 
-  // 兼容旧 QDialog::exec() 用法：显示并阻塞直到隐藏，返回 0。
+  // 兼容 QDialog::exec() 用法：显示并阻塞到**页面自己关掉**（closeRequested），
+  // 返回 0。等的不是"隐藏"——父窗口一藏、页面被 reparent、退出应用时子控件被
+  // 隐藏都会走 hide 那条路，那时候用户根本没选
   int exec();
 
-  // 首页标题与副标题。**默认取宿主的 applicationName()**——引导是通用库，
-  // 不该写死某个产品的名字（原先写死了某个老 Demo 的叫法，本仓里对不上任何
-  // 东西）。宿主的产品名与程序名不一致时，用这个改
+  // 首页标题与副标题。默认取宿主的 applicationName()——引导是通用库，不该写死
+  // 产品名；产品名与程序名不一致时用这个改
   void setHeading(const QString& title, const QString& subtitle);
 
  signals:
-  void closed();
+  // 页面要关了：**只有 hideHomePage() 发**（点卡片 / 全部 / 关闭都经过它）。
+  // exec() 的局部事件循环等的是它
+  void closeRequested();
 
  protected:
   void showEvent(QShowEvent* event) override;
-  void hideEvent(QHideEvent* event) override;
   void paintEvent(QPaintEvent* event) override;
 
  private:

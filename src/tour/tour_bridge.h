@@ -7,41 +7,23 @@
 
 class TourOverlay;
 
-// 外部驱动的桥接层：让测试工具从**进程外**高亮界面上的控件——脚本走到哪一步，
-// 屏幕上就指到哪一步。
-//
-// 这是**可选的适配层**：核心引擎（Controller / Overlay）不依赖它，宿主也
-// 可以不用。这里的实现以 funq 为例，三条形状上的要求都来自它；换用别的驱动工具
-// 时照这个类的样子重写一份即可：
-//
-//   为什么是**可见的 QWidget** 而不是普通 QObject
-//     funq 在服务端对目标做 qobject_cast<QWidget*>，纯 QObject 会被判成
-//     NotAWidget；客户端还会等控件 visible。本类没有任何界面，是 0 尺寸、
-//     不挡鼠标的一块占位控件
-//
-//   为什么是**独立顶层窗口**
-//     脚本的第一步常常跑在宿主主窗口还没创建的时候（比如登录对话框上），
-//     挂在主窗口下的话那几步没法高亮
-//
-//   为什么槽签名是"单个 QVariant 进、QVariant 出"
-//     funq 固定按 QMetaObject::invokeMethod(obj, name, DirectConnection,
-//     Q_RETURN_ARG(QVariant), Q_ARG(QVariant)) 调；拆成多个形参匹配不上，
-//     直接返回 NoMethodInvoked
-//
-// 参数用 map：{"path":…, "title":…, "text":…}，可选 {"paths": […], "tab": N,
-// "countdown": N}。`paths` 是**一步多靶**（《一步多靶设计》）：[0] 是锚点
-// （气泡挂它旁边），其余是要一起框住的额外靶，与 `path` 同时给时按 `paths`
-// 处理； `tab` 只作用于锚点（页签不是控件，当不成额外靶）。 返回 {"ok": bool,
-// "message": str, "rect": str, "count": int, "overlay": str, "host":
-// str}，调用方可据此判断，不会静默。`rect` 只报锚点，框的个数看 `count`。
+// 外部驱动的桥接层（以 funq 为例）：脚本从进程外高亮界面上的控件。可选的
+// 适配层，核心引擎（Controller / Overlay）不依赖它。
+// 三条形状是 funq 的硬要求，改了这个类就调不动了：**可见的 QWidget**（它
+// qobject_cast 目标并等 visible）、**独立顶层窗口**（脚本常在主窗口还没建起来
+// 时就要高亮）、**槽一个 QVariant 进一个出**（它按这个签名 invokeMethod）
 class TourBridge : public QWidget {
   Q_OBJECT
 
  public:
-  // overlay 由控制器持有，本类只引用它：桥接要做的只是"套被动模式 +
-  // 指一个控件"，不碰主题/步骤那套推进逻辑
+  // overlay 由控制器持有，本类只引用它：桥接只做"套被动模式 + 指一个控件"
   explicit TourBridge(TourOverlay* overlay, QWidget* parent = nullptr);
 
+  // 槽名、入参键名、返回值的键名都是脚本按名字读的对外契约，改名即失效。
+  // 入参 {"path", "title", "text", ["paths"], ["tab"], ["countdown"]}：
+  // `paths` 是一步多靶（[0] 锚点，其余一起框住），与 `path` 同给时按 paths
+  // 处理；`tab` 只作用于锚点（页签不是 QWidget）。返回 {"ok", "message",
+  // "rect", "count", "overlay", "host"}，`rect` 只报锚点，框数看 `count`
   Q_INVOKABLE QVariant showHighlight(const QVariant& params);
   Q_INVOKABLE QVariant hideHighlight(const QVariant& params);
 
