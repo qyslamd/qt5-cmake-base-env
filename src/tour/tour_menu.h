@@ -18,8 +18,7 @@ class TourMenu : public QObject {
   Q_OBJECT
 
  public:
-  explicit TourMenu(TourController* controller,
-                        QObject* parent = nullptr);
+  explicit TourMenu(TourController* controller, QObject* parent = nullptr);
 
   // tour_topic：「模板导览」那一条直接播的主题，**由宿主显式传入**。
   // 原先这里取 topics().first()——菜单文字与"第几条"是两回事，谁先注册谁就

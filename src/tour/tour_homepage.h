@@ -63,8 +63,7 @@ class TourHomePage : public QWidget {
   Q_OBJECT
 
  public:
-  explicit TourHomePage(TourController* controller,
-                            QWidget* parent = nullptr);
+  explicit TourHomePage(TourController* controller, QWidget* parent = nullptr);
 
   // 兼容旧 QDialog::exec() 用法：显示并阻塞直到隐藏，返回 0。
   int exec();

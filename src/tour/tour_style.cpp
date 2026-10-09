@@ -27,7 +27,7 @@ QString ReadStyleSheetText() {
 // 域——放进命名空间会去找一个不存在的 ns::qInitResources_tour_res
 static void InitTourResources() { Q_INIT_RESOURCE(tour_res); }
 
-void TourStyle::EnsureApplied() {
+void TourStyle::ensureApplied() {
   static bool applied = false;
   if (applied) {
     return;

@@ -1,13 +1,13 @@
 #include "tour_menu.h"
 
+#include <tour_controller.h>
+#include <tour_homepage.h>
+
 #include <QAction>
 #include <QMainWindow>
 #include <QMenu>
 #include <QMenuBar>
 #include <QString>
-
-#include <tour_controller.h>
-#include <tour_homepage.h>
 
 TourMenu::TourMenu(TourController* controller, QObject* parent)
     : QObject(parent), controller_(controller) {}
@@ -41,7 +41,7 @@ void TourMenu::attachMenu(QMainWindow* window, TourTopic* tour_topic) {
   // 之后菜单还挂着旧名字——名义与内容对不上，正是这套东西要避免的那类错位
   QAction* tour_action = menu->addAction(
       tour_topic != nullptr ? tour_topic->name() : QStringLiteral("导览"));
-  tour_action->setObjectName(QStringLiteral("actionTemplateTour"));
+  tour_action->setObjectName(QStringLiteral("actionTour"));
   tour_action->setEnabled(tour_topic != nullptr);
   connect(tour_action, &QAction::triggered, this, [this, tour_topic]() {
     if (controller_ == nullptr || tour_topic == nullptr) {

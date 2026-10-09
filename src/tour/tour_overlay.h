@@ -1,32 +1,31 @@
 #ifndef FILE_TOUR_OVERLAY_H_
 #define FILE_TOUR_OVERLAY_H_
 
-#include <QColor>
-#include <QPixmap>
+#include <QList>
 #include <QPointer>
+#include <QRect>
 #include <QWidget>
 
-#include "tour_bubble_placer.h"
-
-class QEvent;
-class QLabel;
 class QMouseEvent;
 class QPaintEvent;
 class QPainter;
-class QPropertyAnimation;
-class QPushButton;
-class QTimer;
-class QVariantAnimation;
 
- 
-
+class BubbleView;
+class OverlayMask;
+class TourCountdown;
 class TourTopic;
 class TourStep;
 
-// 演示层：覆盖整个 viewport 的半透明遮罩 + 目标高亮 + 气泡导航。
-// 自绘层（遮罩/气泡底/箭头/高亮框）的颜色由 maskColor/bubbleColor/accentColor
-// 三个函数收口——目前是写死的常量，要做主题适配改这三处即可；
-// 气泡内部子控件（title/text/countdown/skip/prev/next）只设 objectName，由 QSS 覆盖。
+// 演示层的协调者：覆盖整个 viewport 的半透明遮罩 + 目标高亮 + 气泡导航。
+//
+// 三件事已各自成类：遮罩（OverlayMask）、气泡（BubbleView）、倒计时
+// （TourCountdown）。本体只剩"把三者摆到一起"：
+//   - 模式：讲解式（点空白退出）/ 实操式（遮罩穿透、气泡提顶层）/ 被动式
+//     （只显示、不交互，由外部驱动）
+//   - 步骤：updateUi 把主题/步骤翻成标题、锚点、按钮态
+//   - 外部驱动的高亮：showHighlight* 指一个控件或一块矩形，说一句话
+//   - 宿主窗口的跟随与层级（setHost）
+// 自绘层的颜色也不在这一类里，见 tour_colors.h
 class TourOverlay : public QWidget {
   Q_OBJECT
 
@@ -38,14 +37,12 @@ class TourOverlay : public QWidget {
 
  public:
   explicit TourOverlay(QWidget* parent = nullptr);
-  // 实操模式下气泡被提成了独立顶层窗口（见 setInteractive 里的
-  // setParent(nullptr)），**脱离了 Qt 的父子所有权**——不在这里显式回收，
-  // 析构时它就漏了，而且那个窗口会一直留在屏幕上。仍挂在遮罩下时删它同样安全
+  // 气泡在实操模式下会提成独立顶层窗口（见 setInteractive 那条 reparent），
+  // **脱离了 Qt 的父子所有权**——不在这里显式回收，析构时它就漏了，而且那个
+  // 窗口会一直留在屏幕上。仍挂在遮罩下时删它同样安全
   ~TourOverlay() override;
 
-  void updateUi(TourTopic* const topic,
-                TourStep* const step,
-                bool canPrev,
+  void updateUi(TourTopic* const topic, TourStep* const step, bool canPrev,
                 bool canNext);
   void setIsAutoMode(bool autoMode);
   // 实操模式：遮罩对鼠标穿透（点击落到下层真实控件，页签/滚动条均可操作，
@@ -70,15 +67,15 @@ class TourOverlay : public QWidget {
   // 时要传它：那种情况下高亮框会等于整块遮罩，而遮罩是"整块挖掉高亮区"画的，
   // 阴影会被整块掏空，屏幕上只剩气泡。扩出去的部分按屏幕可用区裁掉——宿主
   // 已经占满屏幕时自然就扩不动了，不必单独判全屏
-  void SetHost(QWidget* host, bool inflate = false);
+  void setHost(QWidget* host, bool inflate = false);
 
   // 外部驱动的高亮：不经主题/步骤，直接指一个控件、说一句话。
   // 桥接层配合 setPassiveMode(true) 使用。
   //
-  // extras 是**锚点之外还要一起框住**的控件（《一步多靶设计》）：给了就一起挖孔，
-  // 气泡仍挂在锚点旁。**按参数无条件赋值**——没给就是空表，上一步的框要跟着消失
-  void showHighlight(QWidget* target, const QString& title,
-                     const QString& text,
+  // extras 是**锚点之外还要一起框住**的控件（《一步多靶设计》）：给了就一起挖
+  // 孔，气泡仍挂在锚点旁。**按参数无条件赋值**——没给就是空表，上一步的框要
+  // 跟着消失
+  void showHighlight(QWidget* target, const QString& title, const QString& text,
                      const QList<QWidget*>& extras = QList<QWidget*>());
   // 同上，但指一块**全局坐标的矩形**而不是控件。
   //
@@ -92,12 +89,12 @@ class TourOverlay : public QWidget {
   //
   // **不推进任何东西**（不 emit nextClicked）：外部驱动那套里下一步做什么由
   // 脚本决定，这里只让"马上要切页了"这件事看得见
-  void ShowCountdown(int seconds);
+  void showCountdown(int seconds);
   void clearHighlight();
 
   // 最近一次高亮的矩形（遮罩坐标系）。桥接层回报给脚本侧核对：高亮和遮罩
   // 到底算在了哪儿，是"看不见"这类问题唯一能拿到的数字
-  QRect highlightRect() const { return highlight_.anchor; }
+  QRect highlightRect() const;
 
   // 本次高亮**一共框了几处**（含锚点）。给 funq 观测用：单靶恒为 1，
   // 多靶是几就是几——"框了三个"这件事只有眼睛看得见，这个数字是它唯一的出口。
@@ -105,10 +102,6 @@ class TourOverlay : public QWidget {
   int highlightCount() const;
 
  protected:
-  void setTitle(const QString& title);
-  void setText(const QString& text);
-  // 气泡可能 reparent 在 viewport 上（实操模式）：显隐随之同步，
-  // 否则 stop() 只藏了遮罩、气泡残留，下一轮 show 后气泡先于遮罩出现
   void showEvent(QShowEvent* event) override;
   void hideEvent(QHideEvent* event) override;
 
@@ -118,136 +111,43 @@ class TourOverlay : public QWidget {
   void skipClicked();
 
  protected:
-  bool eventFilter(QObject* obj, QEvent* event) override;
   void paintEvent(QPaintEvent* event) override;
   void mousePressEvent(QMouseEvent* event) override;
 
  private:
   void initUi();
-  void initOthers();
   void initSignals();
 
-  // 在 bubble 上绘制倒计时进度
-  void drawCountDownOnBubble(QPainter* painter);
-  void drawBubble(QPainter* painter);
-  // 气泡面向目标一侧的三角箭头路径（drawBubble 用；无依托步不调用）
-  QPainterPath ArrowPath() const;
-  void drawHighlight(QPainter* painter);
-
-  // 摆气泡：算法在 tour_bubble_placer（纯几何、可单测），这里只负责把结果
-  // 交给动画去走
+  // 摆气泡：算法在 tour_bubble_placer（纯几何、可单测），坐标原点在气泡自己
+  // 那儿换算（它才知道自己挂在遮罩上还是挂了顶层窗口）
   void changeBubblePosition();
-  // 气泡在目标的哪一侧（箭头画在相反一侧，见 ArrowPath）
-  BubbleSide position_ = BubbleSide::kLeft;
-
-  // 自绘层颜色：集中在这三个函数里，便于统一替换成主题色
-  QColor maskColor() const;
-  QColor bubbleColor() const;
-  QColor accentColor() const;
-
- private:
-  // bubble members
-  QWidget* bubble_widget_;
-  QLabel* countdown_label_;
-  QLabel* title_label_;
-  QLabel* text_label_;
-  QPushButton* skip_btn_;
-  QPushButton* prev_btn_;
-  QPushButton* next_btn_;
-
-  QString title_;
-  QString text_;
-  const int kLayoutMargin = 26;
-  int cornerRadius_ = 12;
-
-  // overlay members
-  // 当前这一步要高亮的框：**一处真相**。原先分成"锚点矩形 + 额外靶表"两份，
-  // 再叠一份动画副本，靠约定同步——于是有幽灵框（多靶那条路忘了同步副本）、
-  // 有"清完之后 extra 必然为空"这种恒真条件，还要在注释里反复提醒"别拿派生
-  // 状态当判据"（那几条注释现在可以删了）
-  struct Highlight {
-    // 锚点：气泡与三角箭头挂在它旁边。**可以为空**（空目标步是纯讲解），
-    // 但位置是定的——它是第一项
-    QRect anchor;
-    // 其余要一起框住的靶（空矩形不进来，见 updateUi 的收集循环）
-    QList<QRect> extras;
-
-    // 只留真有人用的两个：`Count()` 给 highlightCount()，`Clear()` 给
-    // clearHighlight()。**不预先加 IsEmpty()** ——"顺手多写一个以后可能有用"
-    // 的成员正是这一步要清掉的那类东西
-    int Count() const { return (anchor.isNull() ? 0 : 1) + extras.size(); }
-    void Clear() {
-      anchor = QRect();
-      extras.clear();
-    }
-  };
-  Highlight highlight_;
-  // 动画**此刻正在显示**的锚点框（anime_highlight_ 逐帧写它）。它不是第二份
-  // 真相：动画停着时它等于 highlight_.anchor，多靶那条不走动画的路由
-  // updateUi 自己对齐一次
-  QRect anim_anchor_rect_;
-  QPixmap pixmap_;
-  int margin_ = 10;
-  int borderWidth_ = 3;
-  // 遮罩比宿主窗口外扩的像素数，见 SetHost
-  const int kHostMargin = 24;
-
-  // 两个动画。**没有"关掉动画"的开关**：原先有个 `use_anime_ = true` 的成员，
-  // 没有 setter、恒真，读它的四个分支全是死代码（还会让人以为有开关去找）——
-  // 已拉平
-  const int kAnimeDur = 300;
-  QVariantAnimation* anime_highlight_;
-  QPropertyAnimation* anime_bubble_;
-
-  // 控件 → 遮罩坐标系的高亮矩形。updateUi 的 QWidget* 分支与外部驱动的
-  // 高亮（showHighlight）共用同一套算法，避免两处算出不同的框
-  void ApplyWidgetHighlight(QWidget* target);
 
   // 两个 showHighlight* 的收尾：摆气泡、刷出来、显示并置顶。
-  // 矩形已经算好放在 highlight_.anchor 里了
-  void FinishShowHighlight(const QString& title, const QString& text);
+  // 矩形已经算好交给遮罩了
+  void finishShowHighlight(const QString& title, const QString& text);
 
   // 遮罩要不要吞鼠标，由**两个标志共同决定**（被动模式 / 实操模式），只在
   // 这一个出口写 WA_TransparentForMouseEvents。
   //
   // 原先 setInteractive 与 setPassiveMode 各写一句同一个属性，而控制器里是
-  // 连着调的（ApplyTopicOptions：先 setInteractive(topic->interactive())，紧跟
+  // 连着调的（applyTopicOptions：先 setInteractive(topic->interactive())，紧跟
   // setPassiveMode(false)），后者无条件把前者刚设的 true 盖回 false——实操
   // 主题的"遮罩穿透、边看边动手"因此从来没生效过，点被高亮的控件点不动、
   // 点遮罩空白反而退出。同一份状态两个写者，是模式状态那类缺陷的同一形态
-  void UpdateMouseTransparency();
+  void updateMouseTransparency();
 
-  // 气泡 move() 的坐标原点：气泡挂在遮罩上时是遮罩局部坐标，改挂顶层窗口
-  // 之后是屏幕坐标，两处定位都要带上这个偏移
-  QPoint BubbleOrigin() const;
-
-  // 自动执行用的
-  bool auto_mode_ = false;
-  // 实操模式（见 setInteractive）：遮罩子树穿透，气泡挂在 viewport 上
-  bool interactive_ = false;
-  QTimer* count_down_timer_;
-  // 倒计时秒数、tick 间隔、以及由此推出的总 tick 数。三者同源，改时长只需改
-  // kCountDownSeconds
-  const int kCountDownSeconds = 5;
-  const int kCountDownTickMs = 30;
-  const int kCountDownMaxTicks = kCountDownSeconds * 1000 / kCountDownTickMs;
-  // 本次倒计时"已过去"的比例：0.0 = 刚开始（条子满、秒数最大）。起表时必须
-  // 复位成 0.0——它是已过去不是剩余，给 1.0 会让进度条第一帧是空的
-  qreal time_percent_ = 0.0;
-  // 本次自动倒计时已走的 tick 数；每次开始/停止都复位，避免续接上次残留值。
-  int count_down_tick_ = 0;
-  // 本次倒计时的总 tick 数。默认是自动挡那 5 秒；ShowCountdown 按传入秒数改
-  int count_down_max_ticks_ = kCountDownMaxTicks;
-  // 本次倒计时是不是"只显示、不推进"（外部驱动的视觉倒计时）。
-  // 为真时走到头只把显示收掉，不 emit nextClicked
-  bool countdown_silent_ = false;
+  OverlayMask* mask_;
+  TourCountdown* countdown_;
+  BubbleView* bubble_;
 
   // 遮罩跟随的宿主窗口。不设 Qt 父子，所以用 QPointer 防悬空
   QPointer<QWidget> host_;
-  // 被动模式（外部驱动）与气泡开关，见对应 setter
+  // 被动模式（外部驱动）见对应 setter
   bool passive_mode_ = false;
-  bool bubble_visible_ = true;
+  // 实操模式（见 setInteractive）：遮罩子树穿透，气泡挂在 viewport 上
+  bool interactive_ = false;
+  // 遮罩比宿主窗口外扩的像素数，见 setHost
+  const int kHostMargin = 24;
 };
 
- 
 #endif  // FILE_TOUR_OVERLAY_H_

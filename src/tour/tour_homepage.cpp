@@ -23,8 +23,8 @@
 #include <QVBoxLayout>
 
 #include "tour_catalog.h"
-#include "tour_style.h"
 #include "tour_controller.h"
+#include "tour_style.h"
 
 // ---------------------------------------------------------------------------
 // TourCard
@@ -60,7 +60,8 @@ void TourCard::initUi() {
   }
   layout->addWidget(icon_label_);
 
-  title_label_ = new QLabel(topic_ != nullptr ? topic_->name() : QString(), this);
+  title_label_ =
+      new QLabel(topic_ != nullptr ? topic_->name() : QString(), this);
   title_label_->setObjectName(QStringLiteral("tourCardTitle"));
   title_label_->setAlignment(Qt::AlignCenter);
   title_label_->setWordWrap(true);
@@ -114,8 +115,7 @@ void TourCard::mouseReleaseEvent(QMouseEvent* event) {
 // TourHomePage
 // ---------------------------------------------------------------------------
 
-TourHomePage::TourHomePage(TourController* controller,
-                                   QWidget* parent)
+TourHomePage::TourHomePage(TourController* controller, QWidget* parent)
     : QWidget(parent), controller_(controller) {
   // 覆盖层统一挂到顶层窗口：避免被侧边栏等中间父对象的边界裁剪，
   // 同时保证遮罩能盖住整个宿主窗口
@@ -145,8 +145,7 @@ int TourHomePage::exec() {
   return 0;
 }
 
-void TourHomePage::setHeading(const QString& title,
-                                  const QString& subtitle) {
+void TourHomePage::setHeading(const QString& title, const QString& subtitle) {
   if (title_label_ != nullptr) {
     title_label_->setText(title);
   }
@@ -189,10 +188,10 @@ void TourHomePage::initUi() {
   // 标题默认取宿主的 applicationName()：引导是通用库，不该写死某个产品的
   // 名字。宿主想显示别的（产品名与程序名不一致）用 setHeading() 改
   const QString app_name = QCoreApplication::applicationName();
-  title_label_ = new QLabel(
-      app_name.isEmpty() ? QStringLiteral("欢迎使用")
-                         : QStringLiteral("欢迎使用 %1").arg(app_name),
-      panel_);
+  title_label_ = new QLabel(app_name.isEmpty()
+                                ? QStringLiteral("欢迎使用")
+                                : QStringLiteral("欢迎使用 %1").arg(app_name),
+                            panel_);
   title_label_->setObjectName(QStringLiteral("tourHomeTitle"));
   title_label_->setAlignment(Qt::AlignCenter);
   QFont title_font = title_label_->font();
@@ -247,12 +246,11 @@ void TourHomePage::initStyleSheet() {
   // 样式由 TourStyle 在应用级统一并入（见 tour_style.h）：气泡在实操
   // 模式下会被 reparent 到 viewport，离开首页的子树，只设在首页上盖不到它。
   // 这里不再重复设一份，避免同一份 qss 读两遍、也避免两处优先级打架
-  TourStyle::EnsureApplied();
+  TourStyle::ensureApplied();
 }
 
 void TourHomePage::initSignals() {
-  connect(close_btn_, &QToolButton::clicked, this,
-          &TourHomePage::hideHomePage);
+  connect(close_btn_, &QToolButton::clicked, this, &TourHomePage::hideHomePage);
   connect(all_btn_, &QPushButton::clicked, this, [this] {
     hideHomePage();
     if (controller_ != nullptr) {

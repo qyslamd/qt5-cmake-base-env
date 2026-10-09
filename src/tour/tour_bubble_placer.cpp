@@ -78,9 +78,8 @@ BubbleSide PickSide(const DirectionInfo& left, const DirectionInfo& right,
   if (bottom.can_place) {
     return BubbleSide::kBottom;
   }
-  const int max_space =
-      qMax(qMax(left.space_width, right.space_width),
-           qMax(top.space_height, bottom.space_height));
+  const int max_space = qMax(qMax(left.space_width, right.space_width),
+                             qMax(top.space_height, bottom.space_height));
   if (max_space == left.space_width) {
     return BubbleSide::kLeft;
   }
@@ -120,10 +119,9 @@ BubblePlacement PlaceBubble(const QRect& anchor, const QSize& bubble,
                             const QSize& viewport, int gap) {
   if (anchor.isEmpty()) {
     // 没有目标可依托（纯讲解步）：直接居中——走下面的钳位会被按到左上角
-    return BubblePlacement{
-        QPoint((viewport.width() - bubble.width()) / 2,
-               (viewport.height() - bubble.height()) / 2),
-        BubbleSide::kCentred};
+    return BubblePlacement{QPoint((viewport.width() - bubble.width()) / 2,
+                                  (viewport.height() - bubble.height()) / 2),
+                           BubbleSide::kCentred};
   }
 
   const DirectionInfo left =
@@ -137,10 +135,10 @@ BubblePlacement PlaceBubble(const QRect& anchor, const QSize& bubble,
   const BubbleSide side = PickSide(left, right, top, bottom);
 
   QPoint pos = SideOffset(anchor, bubble, side, gap);
-  pos.setX(qMax(kClampMargin,
-                qMin(pos.x(), viewport.width() - bubble.width() - kClampMargin)));
-  pos.setY(qMax(
-      kClampMargin,
-      qMin(pos.y(), viewport.height() - bubble.height() - kClampMargin)));
+  pos.setX(qMax(kClampMargin, qMin(pos.x(), viewport.width() - bubble.width() -
+                                                kClampMargin)));
+  pos.setY(
+      qMax(kClampMargin,
+           qMin(pos.y(), viewport.height() - bubble.height() - kClampMargin)));
   return BubblePlacement{pos, side};
 }

@@ -13,7 +13,7 @@
 class TourStyle {
  public:
   // 首次调用时把引导样式追加进应用样式表，可重复调用
-  static void EnsureApplied();
+  static void ensureApplied();
 };
 
 #endif  // FILE_TOUR_STYLE_H_

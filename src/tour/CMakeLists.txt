@@ -5,16 +5,23 @@ set(TARGET_SRCS
     tour_bridge.h
     tour_bubble_placer.cpp
     tour_bubble_placer.h
+    tour_bubble_view.cpp
+    tour_bubble_view.h
     tour_catalog.cpp
     tour_catalog.h
+    tour_colors.h
     tour_controller.cpp
     tour_controller.h
+    tour_countdown.cpp
+    tour_countdown.h
     tour_homepage.cpp
     tour_homepage.h
     tour_menu.cpp
     tour_menu.h
     tour_overlay.cpp
     tour_overlay.h
+    tour_overlay_mask.cpp
+    tour_overlay_mask.h
     tour_style.cpp
     tour_style.h
 )

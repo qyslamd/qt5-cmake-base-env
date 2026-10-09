@@ -10,7 +10,7 @@ class TourOverlay;
 // 外部驱动的桥接层：让测试工具从**进程外**高亮界面上的控件——脚本走到哪一步，
 // 屏幕上就指到哪一步。
 //
-// 这是**可选的适配层**：核心引擎（Controller / Presentation）不依赖它，宿主也
+// 这是**可选的适配层**：核心引擎（Controller / Overlay）不依赖它，宿主也
 // 可以不用。这里的实现以 funq 为例，三条形状上的要求都来自它；换用别的驱动工具
 // 时照这个类的样子重写一份即可：
 //
@@ -30,18 +30,17 @@ class TourOverlay;
 //
 // 参数用 map：{"path":…, "title":…, "text":…}，可选 {"paths": […], "tab": N,
 // "countdown": N}。`paths` 是**一步多靶**（《一步多靶设计》）：[0] 是锚点
-// （气泡挂它旁边），其余是要一起框住的额外靶，与 `path` 同时给时按 `paths` 处理；
-// `tab` 只作用于锚点（页签不是控件，当不成额外靶）。
-// 返回 {"ok": bool, "message": str, "rect": str, "count": int, "overlay": str,
-// "host": str}，调用方可据此判断，不会静默。`rect` 只报锚点，框的个数看 `count`。
+// （气泡挂它旁边），其余是要一起框住的额外靶，与 `path` 同时给时按 `paths`
+// 处理； `tab` 只作用于锚点（页签不是控件，当不成额外靶）。 返回 {"ok": bool,
+// "message": str, "rect": str, "count": int, "overlay": str, "host":
+// str}，调用方可据此判断，不会静默。`rect` 只报锚点，框的个数看 `count`。
 class TourBridge : public QWidget {
   Q_OBJECT
 
  public:
   // overlay 由控制器持有，本类只引用它：桥接要做的只是"套被动模式 +
   // 指一个控件"，不碰主题/步骤那套推进逻辑
-  explicit TourBridge(TourOverlay* overlay,
-                          QWidget* parent = nullptr);
+  explicit TourBridge(TourOverlay* overlay, QWidget* parent = nullptr);
 
   Q_INVOKABLE QVariant showHighlight(const QVariant& params);
   Q_INVOKABLE QVariant hideHighlight(const QVariant& params);

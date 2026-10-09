@@ -2,10 +2,7 @@
 
 #include <QtDebug>
 
-
-TourTopic::~TourTopic() {
-  clear();
-}
+TourTopic::~TourTopic() { clear(); }
 
 void TourTopic::addStep(TourStep* step) {
   if (step == nullptr) {
@@ -30,9 +27,7 @@ void TourTopic::clear() {
 
 TourCatalog::TourCatalog() = default;
 
-TourCatalog::~TourCatalog() {
-  clear();
-}
+TourCatalog::~TourCatalog() { clear(); }
 
 TourTopic* TourCatalog::addTopic(TourTopic* topic) {
   if (topic == nullptr) {
@@ -65,5 +60,3 @@ int TourCatalog::totalSteps() const {
   }
   return total;
 }
-
- 

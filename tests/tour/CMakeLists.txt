@@ -13,3 +13,15 @@ add_unit_test(
     QT_MODULES Core Gui Widgets
     LABELS TOUR
 )
+
+# 倒计时的判据（TourCountdown）：那条"静默趟只显示、不推进"的契约。它是
+# QObject + QTimer，不碰控件，所以一条 1 秒的静默趟就能把两条边都走到。
+# 要自己起 QCoreApplication（走事件循环），所以是 NO_GTEST_MAIN
+add_unit_test(
+    NAME test_tour_countdown
+    SOURCES countdown_test.cpp
+    LIBS ${APP_TARGET_PREFIX}_tour
+    QT_MODULES Core
+    LABELS TOUR
+    NO_GTEST_MAIN
+)

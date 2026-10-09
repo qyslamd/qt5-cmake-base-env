@@ -58,9 +58,9 @@ class TourStep {
         onEnter(nullptr),
         onExit(nullptr) {}
 
-  // getter 一律返回 const 引用。StepContent 是 variant（可能装着 QPixmap）、Func 是
-  // std::function（按值拷可能堆分配），而调用点普遍长成
-  // `if (x->enterFunc()) { x->enterFunc()(); }`——按值返回时，一次调用就拷两遍
+  // getter 一律返回 const 引用。StepContent 是 variant（可能装着
+  // QPixmap）、Func 是 std::function（按值拷可能堆分配），而调用点普遍长成 `if
+  // (x->enterFunc()) { x->enterFunc()(); }`——按值返回时，一次调用就拷两遍
   inline const QString& title() const { return title_; }
   inline void setTitle(const QString& title) { title_ = title; }
 
@@ -105,7 +105,7 @@ class TourStep {
   }
 };
 
-// 一条引导主题（Flow）：图标 + 名称/描述 + 一组 Step + 主题级进入/退出回调。
+// 一条引导主题（Topic）：图标 + 名称/描述 + 一组 Step + 主题级进入/退出回调。
 // 纯类，无 Q_OBJECT。
 class TourTopic {
  private:
@@ -140,7 +140,8 @@ class TourTopic {
   inline const QString& description() const { return description_; }
   inline void setDescription(const QString& desc) { description_ = desc; }
 
-  // QPixmap 隐式共享，按值返回不至于深拷，但仍是一次原子引用计数；返回引用是零成本
+  // QPixmap
+  // 隐式共享，按值返回不至于深拷，但仍是一次原子引用计数；返回引用是零成本
   inline const QPixmap& icon() const { return icon_; }
   inline void setIcon(const QPixmap& icon) { icon_ = icon; }
 
@@ -168,7 +169,7 @@ class TourTopic {
   }
 };
 
-// 引导配置：持有全部 Flow。纯类，无 Q_OBJECT。
+// 引导目录：持有全部主题。纯类，无 Q_OBJECT。
 class TourCatalog {
  public:
   TourCatalog();

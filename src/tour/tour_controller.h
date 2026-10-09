@@ -8,7 +8,7 @@
 
 class TourOverlay;
 
-// 引导流程控制器：持有全部 Flow/Step 配置，驱动演示层（遮罩 + 高亮 + 气泡）
+// 引导流程控制器：持有全部主题/步骤，驱动演示层（遮罩 + 高亮 + 气泡）
 // 前进/后退/跳过，并把状态通过信号暴露给宿主。
 class TourController : public QObject {
   Q_OBJECT
@@ -19,7 +19,7 @@ class TourController : public QObject {
 
   void setViewport(QWidget* viewport);
   TourTopic* addTopic(TourTopic* topic);
-  void clearFlows();
+  void clearTopics();
   void startAll(bool autoMode = false);
   void startOne(TourTopic* const topic, bool autoMode = false);
   void stop();
@@ -28,7 +28,7 @@ class TourController : public QObject {
   int currentStepIndex() const { return curStepIndex_; }
   int totalSteps() const { return catalog_.totalSteps(); }
 
-  // 首页构建主题卡片用：当前已注册的 Flow 列表。
+  // 首页构建主题卡片用：当前已注册的主题列表。
   const QList<TourTopic*>& topics() const { return catalog_.topics(); }
 
   // 演示层由控制器持有。桥接层（TourBridge）要拿它响应外部高亮请求，
@@ -44,7 +44,7 @@ class TourController : public QObject {
   void finished();
   void finishedByUser();
   void stepChanged(int index, int total);
-  void topicChanged(const QString& flowName);
+  void topicChanged(const QString& topicName);
 
  private slots:
   void onNextClicked();
@@ -58,8 +58,8 @@ class TourController : public QObject {
   void refreshStepOverlay();
   // 把当前主题的演示选项套给演示层：实操式 → 遮罩穿透 + 气泡独立；
   // 实操主题忽略自动倒计时（等用户操作优先于自动翻页）
-  void ApplyTopicOptions(TourTopic* const topic);
-  // 自 fromIndex 起向后/向前找第一个可播放（stepCount()>0）的 Flow 下标，无则
+  void applyTopicOptions(TourTopic* const topic);
+  // 自 fromIndex 起向后/向前找第一个可播放（stepCount()>0）的主题下标，无则
   // -1。
   int nextPlayableTopicIndex(int fromIndex) const;
   int previousPlayableTopicIndex(int fromIndex) const;
@@ -69,7 +69,7 @@ class TourController : public QObject {
   QWidget* viewport_ = nullptr;
   TourOverlay* overlay_ = nullptr;
 
-  bool run_all_ = false;  // 指示是否运行所有的 Flow
+  bool run_all_ = false;  // 指示是否运行所有主题
   // 用户请求的自动模式（startAll/startOne 的参数）。实操式主题会被强制降为
   // 手动，但"请求"要留着——否则走过一个实操主题后，后续讲解主题再也回不到
   // 自动。有效模式 auto_mode_ 由它和当前主题的 interactive 现算

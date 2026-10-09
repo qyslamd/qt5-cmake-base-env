@@ -13,7 +13,7 @@
 //   2. 抽出来就能**逐分支断言**——本仓 tour 的第一批单测（tests/tour/）
 //
 // 坐标一律是**遮罩自己那一套**（左上为原点）：调用方负责把全局矩形映射进来、
-// 再把结果加上气泡原点（见 TourOverlay::BubbleOrigin）
+// 再把结果加上气泡原点（见 TourOverlay::bubbleOrigin）
 enum class BubbleSide {
   kLeft,     // 气泡在目标左侧
   kRight,    // 右侧
@@ -23,7 +23,7 @@ enum class BubbleSide {
 };
 
 struct BubblePlacement {
-  QPoint top_left;    // 气泡左上角（遮罩坐标系）
+  QPoint top_left;  // 气泡左上角（遮罩坐标系）
   BubbleSide side;
 };
 

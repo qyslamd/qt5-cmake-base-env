@@ -1,5 +1,7 @@
 #include "tour_bridge.h"
 
+#include <tour_overlay.h>
+
 #include <QApplication>
 #include <QList>
 #include <QString>
@@ -7,8 +9,6 @@
 #include <QTabBar>
 #include <QWidget>
 #include <QtDebug>
-
-#include <tour_overlay.h>
 
 namespace {
 
@@ -95,8 +95,7 @@ QWidget* ResolveWidget(const QString& path) {
 
 }  // namespace
 
-TourBridge::TourBridge(TourOverlay* overlay,
-                               QWidget* parent)
+TourBridge::TourBridge(TourOverlay* overlay, QWidget* parent)
     : QWidget(parent), overlay_(overlay) {
   // funq 靠 objectName 定位到本对象再 call_slot。Tool 标志让它不进任务栏，
   // 0 尺寸 + 不挡鼠标，用户看不见它——它只是 funq 的落脚点。
@@ -164,19 +163,17 @@ QVariant TourBridge::showHighlight(const QVariant& params) {
     QWidget* extra = ResolveWidget(extra_path);
     if (extra == nullptr) {
       result["ok"] = false;
-      result["message"] =
-          QStringLiteral("第 %1 个额外靶按路径找不到控件: %2")
-              .arg(i)
-              .arg(extra_path);
+      result["message"] = QStringLiteral("第 %1 个额外靶按路径找不到控件: %2")
+                              .arg(i)
+                              .arg(extra_path);
       qWarning() << "引导桥接：额外靶找不到控件" << extra_path;
       return result;
     }
     if (!extra->isVisible() || extra->size().isEmpty()) {
       result["ok"] = false;
-      result["message"] =
-          QStringLiteral("第 %1 个额外靶不可见或尺寸为空: %2")
-              .arg(i)
-              .arg(extra_path);
+      result["message"] = QStringLiteral("第 %1 个额外靶不可见或尺寸为空: %2")
+                              .arg(i)
+                              .arg(extra_path);
       return result;
     }
     if (extra->window() != anchor_window) {
@@ -236,7 +233,7 @@ QVariant TourBridge::showHighlight(const QVariant& params) {
         text, extra_rects);
   } else {
     // 额外靶走**控件**这条路，不预先转成矩形：showHighlight 里有
-    // SetHost(..., inflate = target == target_window)，整窗高亮靠它才不至于
+    // setHost(..., inflate = target == target_window)，整窗高亮靠它才不至于
     // "整块遮罩被掏空、只剩气泡"（先转矩形会把这一条绕过去）
     overlay_->showHighlight(target, title, text, extras);
   }
@@ -245,7 +242,7 @@ QVariant TourBridge::showHighlight(const QVariant& params) {
   // 脚本决定，这里只让"马上要切了"看得见
   const int countdown = args.value(QStringLiteral("countdown"), 0).toInt();
   if (countdown > 0) {
-    overlay_->ShowCountdown(countdown);
+    overlay_->showCountdown(countdown);
   }
 
   result["ok"] = true;
@@ -266,16 +263,17 @@ QVariant TourBridge::showHighlight(const QVariant& params) {
                           .arg(overlay.y())
                           .arg(overlay.width())
                           .arg(overlay.height());
-  result["host"] = target->window() == nullptr
-                       ? QStringLiteral("(无)")
-                       : QStringLiteral("%1 %2,%3 %4x%5")
-                             .arg(target->window()->objectName().isEmpty()
-                                      ? target->window()->metaObject()->className()
-                                      : target->window()->objectName())
-                             .arg(target->window()->mapToGlobal(QPoint(0, 0)).x())
-                             .arg(target->window()->mapToGlobal(QPoint(0, 0)).y())
-                             .arg(target->window()->width())
-                             .arg(target->window()->height());
+  result["host"] =
+      target->window() == nullptr
+          ? QStringLiteral("(无)")
+          : QStringLiteral("%1 %2,%3 %4x%5")
+                .arg(target->window()->objectName().isEmpty()
+                         ? target->window()->metaObject()->className()
+                         : target->window()->objectName())
+                .arg(target->window()->mapToGlobal(QPoint(0, 0)).x())
+                .arg(target->window()->mapToGlobal(QPoint(0, 0)).y())
+                .arg(target->window()->width())
+                .arg(target->window()->height());
   return result;
 }
 

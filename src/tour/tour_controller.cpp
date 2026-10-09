@@ -5,8 +5,6 @@
 #include "tour_overlay.h"
 #include "tour_style.h"
 
- 
-
 TourController::TourController(QObject* parent)
     : QObject(parent),
       overlay_(new TourOverlay(nullptr)),
@@ -15,7 +13,7 @@ TourController::TourController(QObject* parent)
       curStepIndex_(0) {
   // 库自己把样式并入应用样式表（顺带完成静态库资源的初始化），宿主不必管。
   // 控制器是引导的入口，放这里能保证任何引导界面出来之前样式已就位
-  TourStyle::EnsureApplied();
+  TourStyle::ensureApplied();
 
   connect(overlay_, &TourOverlay::nextClicked, this,
           &TourController::onNextClicked);
@@ -33,32 +31,28 @@ TourController::~TourController() {
   catalog_.clear();
 }
 
-void TourController::setViewport(QWidget* viewport) {
-  viewport_ = viewport;
-}
+void TourController::setViewport(QWidget* viewport) { viewport_ = viewport; }
 
 TourTopic* TourController::addTopic(TourTopic* topic) {
   return catalog_.addTopic(topic);
 }
 
-void TourController::clearFlows() {
-  catalog_.clear();
-}
+void TourController::clearTopics() { catalog_.clear(); }
 
 void TourController::execute() {
   isRunning_ = true;
 
-  // 先 show 再摆位：SetHost 内部要 raise()，对已映射的窗口才有效
+  // 先 show 再摆位：setHost 内部要 raise()，对已映射的窗口才有效
   overlay_->show();
-  overlay_->SetHost(viewport_);
+  overlay_->setHost(viewport_);
 
   // 主题级 enterFunc 在 startOne/startAll 直启路径此前从不执行（只有
   // 跨主题前进/回退才调），上层挂在这上的状态编排会被静默跳过——统一
   // 收口到 execute()，两条路径行为一致
   TourTopic* topic = catalog_.topics().at(curTopicIndex_);
-  // 模式推送收口在 ApplyTopicOptions 里，避免像以前那样只有本路径记得推、
+  // 模式推送收口在 applyTopicOptions 里，避免像以前那样只有本路径记得推、
   // 跨主题那两条漏掉
-  ApplyTopicOptions(topic);
+  applyTopicOptions(topic);
   if (topic->enterFunc()) {
     topic->enterFunc()();
   }
@@ -68,7 +62,7 @@ void TourController::execute() {
   emit started();
 }
 
-void TourController::ApplyTopicOptions(TourTopic* const topic) {
+void TourController::applyTopicOptions(TourTopic* const topic) {
   if (topic == nullptr) {
     return;
   }
@@ -141,13 +135,13 @@ void TourController::startOne(TourTopic* const topic, bool autoMode) {
 
 void TourController::updateOverlayGeometry() {
   // 几何由演示层自己按宿主算（它不设 Qt 父子，坐标是屏幕坐标系）
-  overlay_->SetHost(viewport_);
+  overlay_->setHost(viewport_);
 }
 
 void TourController::stop() {
   isRunning_ = false;
 
-  // 本来就没有 Qt 父子关系（见 TourOverlay::SetHost），隐藏即可
+  // 本来就没有 Qt 父子关系（见 TourOverlay::setHost），隐藏即可
   overlay_->hide();
 }
 
@@ -179,7 +173,7 @@ void TourController::onNextClicked() {
   }
 
   // ------------------------
-  // 一个 Flow 结束
+  // 一个主题结束
   // 先执行 退出函数
   if (curTopic->exitFunc()) {
     curTopic->exitFunc()();
@@ -202,7 +196,7 @@ void TourController::onNextClicked() {
   curTopicIndex_ = nextIndex;
   curStepIndex_ = 0;
   TourTopic* nextTopic = catalog_.topics().at(curTopicIndex_);
-  ApplyTopicOptions(nextTopic);
+  applyTopicOptions(nextTopic);
   if (nextTopic->enterFunc()) {
     nextTopic->enterFunc()();
   }
@@ -237,7 +231,7 @@ void TourController::onPrevClicked() {
   curTopicIndex_ = prevIndex;
   TourTopic* prevTopic = catalog_.topics().at(curTopicIndex_);
   curStepIndex_ = prevTopic->stepCount() - 1;
-  ApplyTopicOptions(prevTopic);
+  applyTopicOptions(prevTopic);
   if (prevTopic->enterFunc()) {
     prevTopic->enterFunc()();
   }
@@ -281,9 +275,7 @@ void TourController::updateStep() {
   emit stepChanged(globalIndex, catalog_.totalSteps());
 }
 
-void TourController::refreshCurrentStepHighlight() {
-  refreshStepOverlay();
-}
+void TourController::refreshCurrentStepHighlight() { refreshStepOverlay(); }
 
 // 刷新当前步骤的演示层（高亮/气泡/按钮态）。从 updateStep 抽出，
 // 便于 enter 回调中目标控件异步就绪后重新定位。
@@ -310,14 +302,14 @@ void TourController::refreshStepOverlay() {
   bool canPrev = true;
   bool canNext = true;
   if (run_all_) {
-    const bool has_prev_flow =
+    const bool has_prev_topic =
         previousPlayableTopicIndex(curTopicIndex_ - 1) >= 0;
-    if (curStepIndex_ == 0 && !has_prev_flow) {
+    if (curStepIndex_ == 0 && !has_prev_topic) {
       canPrev = false;
     }
 
-    const bool has_next_flow = nextPlayableTopicIndex(curTopicIndex_ + 1) >= 0;
-    if (curStepIndex_ == curTopic->stepCount() - 1 && !has_next_flow) {
+    const bool has_next_topic = nextPlayableTopicIndex(curTopicIndex_ + 1) >= 0;
+    if (curStepIndex_ == curTopic->stepCount() - 1 && !has_next_topic) {
       canNext = false;
     }
   } else {
@@ -332,7 +324,7 @@ void TourController::refreshStepOverlay() {
   overlay_->updateUi(curTopic, curStep, canPrev, canNext);
 }
 
-// 自 fromIndex 起向后找第一个可播放（stepCount()>0）的 Flow 下标，无则 -1。
+// 自 fromIndex 起向后找第一个可播放（stepCount()>0）的主题下标，无则 -1。
 int TourController::nextPlayableTopicIndex(int fromIndex) const {
   for (int i = fromIndex; i < catalog_.topics().size(); ++i) {
     if (catalog_.topics().at(i)->stepCount() > 0) {
@@ -342,7 +334,7 @@ int TourController::nextPlayableTopicIndex(int fromIndex) const {
   return -1;
 }
 
-// 自 fromIndex 起向前找第一个可播放（stepCount()>0）的 Flow 下标，无则 -1。
+// 自 fromIndex 起向前找第一个可播放（stepCount()>0）的主题下标，无则 -1。
 int TourController::previousPlayableTopicIndex(int fromIndex) const {
   for (int i = fromIndex; i >= 0; --i) {
     if (catalog_.topics().at(i)->stepCount() > 0) {
@@ -351,5 +343,3 @@ int TourController::previousPlayableTopicIndex(int fromIndex) const {
   }
   return -1;
 }
-
- 

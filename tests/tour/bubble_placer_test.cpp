@@ -32,8 +32,7 @@ const QSize kViewport(kViewportW, kViewportH);
 // 空锚点（纯讲解步）→ 视口居中。
 // 居中 = ((1000-200)/2, (800-100)/2) = (400, 350)；这一支**不带方向**
 TEST(BubblePlacerTest, EmptyAnchorIsCentred) {
-  const BubblePlacement placed =
-      PlaceBubble(QRect(), kBubble, kViewport, kGap);
+  const BubblePlacement placed = PlaceBubble(QRect(), kBubble, kViewport, kGap);
   EXPECT_EQ(QPoint(400, 350), placed.top_left);
   EXPECT_EQ(BubbleSide::kCentred, placed.side);
 }
