@@ -11,6 +11,8 @@
 #include <string>
 #include <vector>
 
+#include "halftone_common.h"
+
 class BigText {
  public:
   static constexpr int kWidth = 66;
@@ -27,7 +29,7 @@ class BigText {
 
  private:
   // ---- 调色板 ----------------------------------------------------------
-  std::array<std::array<float, 3>, kPaletteN> palette_;
+  HalftonePalette palette_;
 
   // ---- 静态网格 --------------------------------------------------------
   // 0 空 / 1 阴影 / 2 字形墨

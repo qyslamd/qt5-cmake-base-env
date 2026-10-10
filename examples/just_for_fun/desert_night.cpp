@@ -20,16 +20,6 @@ static constexpr int kAcacia = 150;
 static const float kLD[3] = {-0.8031f, 0.3212f, 0.5019f};  // 小镇暖光，前左低处
 static const float kGD[3] = {0.6837f, 0.5697f, 0.4558f};   // 银河冷填充，右上
 
-static const float kCoverD[4] = {0.0f, 0.3f, 0.6f, 1.0f};
-static const float kBayerD[16] = {
-    0.0f / 16 - 0.47f,  8.0f / 16 - 0.47f,  2.0f / 16 - 0.47f,
-    10.0f / 16 - 0.47f, 12.0f / 16 - 0.47f, 4.0f / 16 - 0.47f,
-    14.0f / 16 - 0.47f, 6.0f / 16 - 0.47f,  3.0f / 16 - 0.47f,
-    11.0f / 16 - 0.47f, 1.0f / 16 - 0.47f,  9.0f / 16 - 0.47f,
-    15.0f / 16 - 0.47f, 7.0f / 16 - 0.47f,  13.0f / 16 - 0.47f,
-    5.0f / 16 - 0.47f,
-};
-
 static const char* const kPaletteHex[DesertNight::kPaletteN] = {
     "#0a1024", "#101830", "#16213f", "#1e2b50", "#283864", "#34477a", "#45598f",
     "#5a6fa6", "#7488bd", "#93a5d2", "#b6c3e4", "#d8e0f2", "#f4f6fb", "#fff3dc",
@@ -42,53 +32,11 @@ static const char* const kPaletteHex[DesertNight::kPaletteN] = {
 
 enum MatD { kSkyD = 0, kSandD = 1, kTreeD = 2 };
 
-// ============================== 工具函数 ===================================
-static inline uint32_t Imul32(uint32_t a, uint32_t b) {
-  return static_cast<uint32_t>(
-      (static_cast<uint64_t>(a) * static_cast<uint64_t>(b)));
-}
-static inline float Hashf(int x, int y) {
-  uint32_t h = Imul32(static_cast<uint32_t>(x), 374761393u) +
-               Imul32(static_cast<uint32_t>(y), 668265263u);
-  h = Imul32(h ^ (h >> 13), 1274126177u);
-  h = h ^ (h >> 16);
-  return static_cast<float>((h / 4294967296.0));
-}
-static inline float Noisef(float x, float y, int period) {
-  float xi = std::floor(x), yi = std::floor(y);
-  float fx = x - xi, fy = y - yi;
-  float u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
-  int x0 = static_cast<int>(xi), x1 = x0 + 1;
-  if (period) {
-    x0 = ((x0 % period) + period) % period;
-    x1 = (x0 + 1) % period;
-  }
-  int y0 = static_cast<int>(yi), y1 = y0 + 1;
-  float a = Hashf(x0, y0), b = Hashf(x1, y0), c = Hashf(x0, y1),
-        d = Hashf(x1, y1);
-  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
-}
-static inline float Fbmf(float x, float y, int oct, int period) {
-  float s = 0, n = 0, amp = 0.5f, f = 1;
-  for (int i = 0; i < oct; ++i) {
-    s += amp * Noisef(x * f + i * 31.7f, y * f, static_cast<int>((period * f)));
-    n += amp;
-    amp *= 0.5f;
-    f *= 2;
-  }
-  return s / n;
-}
-static inline float Clampf(float v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
-static inline float Smoothf(float a, float b, float v) {
-  float k = Clampf((v - a) / (b - a));
-  return k * k * (3 - 2 * k);
-}
-static inline float Mixf(float a, float b, float k) { return a + (b - a) * k; }
-
 // ============================== 沙丘场 =====================================
 // 波状相位：波谷 0，迎风面缓升到 0.72 处的脊，背风面陡降
 static inline float PhaseD(float x, float z) {
-  float p = x * 0.9f + z * 0.42f + 26.f * Fbmf(x * 0.014f, z * 0.014f, 3, 0);
+  float p =
+      x * 0.9f + z * 0.42f + 26.f * Fbmf(x * 0.014f, z * 0.014f, 3, 0, 31.7f);
   float q = p / 19.f;
   return q - std::floor(q);
 }
@@ -168,13 +116,7 @@ DesertNight::DesertNight() { Init(); }
 
 // ============================== 静态构建 ===================================
 void DesertNight::Init() {
-  for (int i = 0; i < kPaletteN; ++i) {
-    QColor c(kPaletteHex[i]);
-    palette_[i][0] = c.redF();
-    palette_[i][1] = c.greenF();
-    palette_[i][2] = c.blueF();
-  }
-  lut_.assign(32768, 255);
+  palette_.Init(kPaletteHex, kPaletteN);
 
   const int N = kWidth * kHeight;
   mat_.assign(N, kSkyD);
@@ -478,7 +420,7 @@ void DesertNight::Init() {
   for (int r = 0; r < kHeight; ++r) {
     for (int x = 0; x < kWidth; ++x) {
       const int k = r * kWidth + x;
-      const float bay = kBayerD[(r & 3) * 4 + (x & 3)];
+      const float bay = kHalftoneBayer[(r & 3) * 4 + (x & 3)];
       if (mat_[k] == kSkyD) {
         const float inb = Clampf(band_[k]);
         const float soft = std::max(inb, Clampf(air_[k] / 0.2f));
@@ -528,28 +470,6 @@ void DesertNight::Init() {
       stars_.push_back(st);
     }
   }
-}
-
-// ---------- 色板近邻 -------------------------------------------------------
-int DesertNight::NearestColor(float r, float g, float b) {
-  int ri = std::min(31, static_cast<int>((r * 31.99f)));
-  int gi = std::min(31, static_cast<int>((g * 31.99f)));
-  int bi = std::min(31, static_cast<int>((b * 31.99f)));
-  int key = (ri << 10) | (gi << 5) | bi;
-  if (lut_[key] != 255)
-    return lut_[key];
-  int best = 0;
-  float bd = 1e9f;
-  for (int i = 0; i < kPaletteN; ++i) {
-    float dr = palette_[i][0] - r, dg = palette_[i][1] - g,
-          db = palette_[i][2] - b;
-    float d = 0.3f * dr * dr + 0.5f * dg * dg + 0.2f * db * db;
-    if (d < bd) {
-      bd = d;
-      best = i;
-    }
-  }
-  return lut_[key] = static_cast<uint8_t>(best);
 }
 
 // ---------- 每帧 -----------------------------------------------------------
@@ -671,10 +591,11 @@ void DesertNight::Update(double t) {
           0, std::min(3, static_cast<int>(std::round(level * 3.f + dith_[k]))));
       step_[k] = static_cast<uint8_t>(step);
       if (step) {
-        const float want = std::min(1.f, (level + 0.06f) / kCoverD[step]);
+        const float want =
+            std::min(1.f, (level + 0.06f) / kHalftoneCover[step]);
         const float s = (0.3f + 0.7f * want) / peak;
         color_[k] = static_cast<uint8_t>(
-            NearestColor(Clampf(cr * s), Clampf(cg * s), Clampf(cbl * s)));
+            palette_.Nearest(Clampf(cr * s), Clampf(cg * s), Clampf(cbl * s)));
       } else {
         color_[k] = 0;
       }

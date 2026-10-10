@@ -10,6 +10,8 @@
 #include <cstdint>
 #include <vector>
 
+#include "halftone_common.h"
+
 class OceanSunset {
  public:
   static constexpr int kWidth = 200;
@@ -26,9 +28,7 @@ class OceanSunset {
 
  private:
   // ---- 调色板 ----------------------------------------------------------
-  std::array<std::array<float, 3>, kPaletteN> palette_;
-  std::vector<uint8_t> lut_;
-  int NearestColor(float r, float g, float b);
+  HalftonePalette palette_;
 
   // ---- 静态尺寸 --------------------------------------------------------
   static constexpr int kHorizon = 56;

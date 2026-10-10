@@ -11,6 +11,8 @@
 #include <utility>
 #include <vector>
 
+#include "halftone_common.h"
+
 class MarineDrive {
  public:
   static constexpr int kWidth = 200;
@@ -35,8 +37,7 @@ class MarineDrive {
   std::vector<float> cover_, clit_, clear_;
 
   // ---- 调色板 ----------------------------------------------------------
-  std::array<std::array<float, 3>, kPaletteN> palette_;
-  std::vector<uint8_t> lut_;
+  HalftonePalette palette_;
 
   // ---- 弧长参数化 ------------------------------------------------------
   static constexpr float kStepU = 0.25f;
@@ -90,7 +91,6 @@ class MarineDrive {
   std::vector<uint8_t> step_, color_;
 
   void Init();
-  int NearestColor(float r, float g, float b);
   void PaintCell(int k, float cr, float cg, float cb, float base_level);
 };
 

@@ -10,6 +10,8 @@
 #include <cstdint>
 #include <vector>
 
+#include "halftone_common.h"
+
 class DesertNight {
  public:
   static constexpr int kWidth = 200;
@@ -26,9 +28,7 @@ class DesertNight {
 
  private:
   // ---- 调色板 ----------------------------------------------------------
-  std::array<std::array<float, 3>, kPaletteN> palette_;
-  std::vector<uint8_t> lut_;
-  int NearestColor(float r, float g, float b);
+  HalftonePalette palette_;
 
   // ---- 静态缓冲（一次性） ---------------------------------------------
   std::vector<uint8_t> mat_;  // 0 天空 / 1 沙丘 / 2 树

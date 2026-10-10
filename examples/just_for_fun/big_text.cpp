@@ -91,12 +91,7 @@ BigText::BigText(const std::string& text) { Init(text); }
 
 // ============================== 静态构建 ===================================
 void BigText::Init(const std::string& text) {
-  for (int i = 0; i < kPaletteN; ++i) {
-    QColor c(kPaletteHex[i]);
-    palette_[i][0] = c.redF();
-    palette_[i][1] = c.greenF();
-    palette_[i][2] = c.blueF();
-  }
+  palette_.Init(kPaletteHex, kPaletteN);
 
   const int N = kWidth * kHeight;
   kind_.assign(N, 0);
