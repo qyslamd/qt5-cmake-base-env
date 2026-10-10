@@ -148,6 +148,11 @@ QSplitterHandle 只能通过 `QSplitter::handle` 表达。
 **未做人眼确认**：功能区（画廊、滚动条）、登录框勾选框、主按钮是最可能露馅的
 三处。底座层靠 `examples/style_demo`（按控件族分六页）眼验。
 
+> **2026-10-10 后记**：底座层模块（`src/style/`，`demo_style`）与
+> `examples/style_demo` 已整体迁往 qt-libui 仓库（`ApplyStyleSheet` 与 base 层
+> QSS 随 `qt-libui::libui` 交付）；本仓 app 改为就地读项目层样式表。上文按
+> 迁移前的结构记述，仅作历史参考。
+
 ## tour 接入 funq（2026-09-22，原同名文档）
 
 把引导的演示层当 funq 的**可视化层**：脚本每动一个控件，屏幕上就有高亮框指到它。

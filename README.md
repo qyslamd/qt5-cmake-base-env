@@ -8,8 +8,7 @@
 
 - **定制面收敛**：新建项目只需改顶层 `CMakeLists.txt` 的「项目定制区」
   （5 个变量），其余文件无需改动
-- **分层模块**：`style`（底座层样式）/ `core`（无 UI 依赖）/ `app`（界面骨架），
-  依赖方向单向
+- **分层模块**：`core`（无 UI 依赖）/ `app`（界面骨架），依赖方向单向
 - **版本号由 git 派生**：tag 提供主版本号，提交数提供 build 号，exe 版本
   资源中记录提交 hash，同一提交在任何机器上构建结果一致
 - **一键构建部署打包**：一条命令完成编译 → 归档符号 → windeployqt →
@@ -82,12 +81,11 @@ configure 时自动解压，无需另行下载。仓库不含 git submodule，�
 ```text
 src/
 ├── core/   无 UI 依赖：配置 / 日志 / 崩溃捕获 / 认证 / 单实例
-├── style/  底座层样式表（QSS）与加载入口：链上即得一套通用的控件外观
 └── app/    界面骨架、资源与项目层样式（通用控件在 widgets/）
 cmake/      构建脚本模块（版本、运行脚本、测试宏、符号归档、打包）
 scripts/    构建与打包入口脚本
 tests/      单元测试
-examples/   style_demo（样式表样例）、tour_demo、funq 手动分离运行示例
+examples/   tour_demo、funq 手动分离运行示例
 docs/       文档
 config/     随构建拷贝到输出目录的配置样例
 ```

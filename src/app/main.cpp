@@ -31,7 +31,6 @@
 #include <tour_bridge.h>
 #include <tour_controller.h>
 #include <tour_menu.h>
-#include <style.h>
 
 #include <cstdio>
 #include <memory>
@@ -40,6 +39,8 @@
 #include <QApplication>
 #include <QByteArray>
 #include <QDialog>
+#include <QFile>
+#include <QFont>
 #include <QIcon>
 #include <QLibraryInfo>
 #include <QSize>
@@ -339,9 +340,20 @@ int main(int argc, char* argv[]) {
   // 这几步刻意不抽成函数：crash_handler 一旦离开作用域就会析构、顺带撤掉
   // 崩溃捕获，抽出去反而埋雷
   {
-    // 全局样式：底座层由 demo_style 提供（顺序与拼接在那边），项目层是本仓
-    // 业务控件的 objectName 规则，跟在底座层之后加载。顺带设了全局字体
-    ApplyStyleSheet(app, {QStringLiteral(":/resources/styles/default.qss")});
+    // 全局样式：读本仓的项目层样式表。原先的底座层（base/*.qss）由
+    // demo_style 提供，该库已迁往 qt-libui 仓库，本仓只保留 objectName
+    // 规则这一层；读不到就带告警裸奔。全局字体原先也由那边顺带设置
+    {
+      QFile sheet(QStringLiteral(":/resources/styles/default.qss"));
+      if (sheet.open(QIODevice::ReadOnly)) {
+        app.setStyleSheet(QString::fromUtf8(sheet.readAll()));
+      } else {
+        qWarning("样式表读取失败，将无样式：:/resources/styles/default.qss");
+      }
+      QFont app_font = app.font();
+      app_font.setFamily(QStringLiteral("Microsoft YaHei"));
+      app.setFont(app_font);
+    }
 
     ConfigManager::instance();
 

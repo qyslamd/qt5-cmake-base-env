@@ -495,6 +495,18 @@
   只改目录、include 路径与 `tests/log_wrapper`（21 处引用）
 
 
+### 移除
+
+- **底座层样式模块整体迁出**：`src/style/`（`demo_style`：`ApplyStyleSheet`
+  + base 层 QSS + 箭头图标）与随附的 `examples/style_demo` 迁往 qt-libui
+  仓库，随 `qt-libui::libui` 交付；演示用 `examples/just_for_fun` 一并迁入
+  该仓 `examples/`。本仓 app 改为就地读项目层样式表 `default.qss`（底座层
+  不再叠加，通用控件回原生外观，全局字体在 main.cpp 里继续设置）；
+  `fft_demo` 顺手摘掉只链接未使用的 `demo_style` 依赖。分层规则文档
+  （CLAUDE.md、README、模板使用指南）同步改为「项目层在本仓、底座层在
+  qt-libui」的口径
+
+
 ### 修复
 
 - **`-d` 部署后 `bin\funq` 里的工具跑不起来**：套件的脚本与 `.py` 在 configure
