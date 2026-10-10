@@ -25,6 +25,8 @@
 #include <QOpenGLShaderProgram>
 #include <QOpenGLWidget>
 #include <QTimer>
+#include <QVector2D>
+#include <QVector3D>
 
 template <typename Scene>
 class AsciiGLView : public QOpenGLWidget, protected QOpenGLFunctions {
@@ -86,9 +88,40 @@ void main() {
     static const char* kFragSrc = R"(
 #version 120
 uniform sampler2D uTex;
+uniform vec3 uBg;      // 背景色
+uniform vec2 uCells;   // (kWidth, kHeight)
 varying vec2 vUV;
+
 void main() {
-    gl_FragColor = texture2D(uTex, vUV);
+    vec4 tex = texture2D(uTex, vUV);
+
+    // 还原 step：0/1/2/3
+    int s = int(tex.a * 3.0 + 0.5);
+
+    if (s == 0) {
+        gl_FragColor = vec4(uBg, 1.0);
+        return;
+    }
+
+    // cell 内归一化坐标 [-0.5, 0.5]
+    vec2 cell = vUV * uCells;
+    vec2 f = fract(cell) - vec2(0.5);
+
+    // 直径与 QPainter 的 kDiam 一致：0%, 30%, 58%, 90%
+    float diam = 0.0;
+    if (s == 1) diam = 0.30;
+    else if (s == 2) diam = 0.58;
+    else if (s == 3) diam = 0.90;
+    float r = diam * 0.5;
+
+    float dist = length(f);
+
+    // 抗锯齿：约 1 屏幕像素对应的 cell 单位
+    float aa = fwidth(cell.x) * 1.2;
+    float mask = 1.0 - smoothstep(r - aa, r + aa, dist);
+
+    vec3 col = mix(uBg, tex.rgb, mask);
+    gl_FragColor = vec4(col, 1.0);
 }
 )";
 
@@ -133,8 +166,29 @@ void main() {
     gl_ready_ = true;
     timer_.start();
   }
+  void resizeGL(int w, int h) override {
+    // 保持 200:100 = 2:1 的纵横比，居中留黑
+    const qreal logicalAR = qreal(Scene::kWidth) / Scene::kHeight;  // 2.0
+    const qreal windowAR = qreal(w) / h;
 
-  void resizeGL(int w, int h) override { glViewport(0, 0, w, h); }
+    int vpW, vpH, vpX, vpY;
+    if (windowAR > logicalAR) {
+      // 窗口太宽：左右留黑
+      vpH = h;
+      vpW = int(h * logicalAR);
+      vpX = (w - vpW) / 2;
+      vpY = 0;
+    } else {
+      // 窗口太高：上下留黑
+      vpW = w;
+      vpH = int(w / logicalAR);
+      vpX = 0;
+      vpY = (h - vpH) / 2;
+    }
+
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glViewport(vpX, vpY, vpW, vpH);
+  }
 
   void paintGL() override {
     if (!gl_ready_) {
@@ -152,6 +206,11 @@ void main() {
     // 绘制
     program_.bind();
     program_.setUniformValue("uTex", 0);
+    program_.setUniformValue("uBg", float(qRed(bg_)) / 255.0f,
+                             float(qGreen(bg_)) / 255.0f,
+                             float(qBlue(bg_)) / 255.0f);
+    program_.setUniformValue("uCells", float(Scene::kWidth),
+                             float(Scene::kHeight));
 
     vbo_.bind();
     program_.enableAttributeArray(0);
@@ -193,7 +252,6 @@ void main() {
   void RebuildCpuImage() {
     const auto& step = scene_.stepBuf();
     const auto& color = scene_.colorBuf();
-    const int r0 = qRed(bg_), g0 = qGreen(bg_), b0 = qBlue(bg_);
 
     for (int r = 0; r < Scene::kHeight; ++r) {
       uchar* line = cpu_image_.scanLine(r);
@@ -203,16 +261,16 @@ void main() {
         const int s = step[k];
         uchar* px = line + x * 4;
         if (s == 0) {
-          px[0] = uchar(r0);
-          px[1] = uchar(g0);
-          px[2] = uchar(b0);
+          // 背景：rgb 随便填，shader 会用 uBg
+          px[0] = px[1] = px[2] = 0;
+          px[3] = 0;
         } else {
           const QRgb c = palette_[color[k]];
           px[0] = uchar(qRed(c));
           px[1] = uchar(qGreen(c));
           px[2] = uchar(qBlue(c));
+          px[3] = uchar(s * 85);  // 1→85, 2→170, 3→255
         }
-        px[3] = 255;
       }
     }
   }

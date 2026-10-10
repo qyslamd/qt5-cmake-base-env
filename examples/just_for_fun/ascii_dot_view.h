@@ -50,10 +50,17 @@ class AsciiDotView : public QWidget {
     p.setRenderHint(QPainter::SmoothPixmapTransform, true);
     p.setRenderHint(QPainter::Antialiasing, true);
 
-    // 把逻辑坐标（Scene::kWidth*kCell × Scene::kHeight*kCell）映射到窗口
-    const qreal sx = qreal(width()) / (Scene::kWidth * kCell);
-    const qreal sy = qreal(height()) / (Scene::kHeight * kCell);
-    p.scale(sx, sy);
+    // 逻辑尺寸 = 200*16 × 100*16 = 3200 × 1600，宽高比 2:1
+    const qreal logicalW = Scene::kWidth * kCell;
+    const qreal logicalH = Scene::kHeight * kCell;
+
+    // 等比缩放，居中
+    const qreal scale =
+        std::min(qreal(width()) / logicalW, qreal(height()) / logicalH);
+    const qreal ox = (width() - logicalW * scale) * 0.5;
+    const qreal oy = (height() - logicalH * scale) * 0.5;
+    p.translate(ox, oy);
+    p.scale(scale, scale);
 
     const auto& step = scene_.stepBuf();
     const auto& color = scene_.colorBuf();
@@ -63,9 +70,8 @@ class AsciiDotView : public QWidget {
       const int yy = r * kCell;
       for (int x = 0; x < Scene::kWidth; ++x) {
         const int s = step[base + x];
-        if (s == 0) {
-          continue;  // 空格：跳过
-        }
+        if (s == 0)
+          continue;
         const int c = color[base + x];
         p.drawPixmap(x * kCell, yy, glyphs_[s][c]);
       }

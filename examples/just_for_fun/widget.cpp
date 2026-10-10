@@ -10,8 +10,17 @@
 #include "alpine_dawn.h"
 #include "ascii_dot_view.h"
 #include "ascii_gl_view.h"
+#include "big_text.h"
 #include "desert_night.h"
 #include "marine_drive.h"
+#include "ocean_sunset.h"
+
+template <typename T>
+static void addScenePair(QTabWidget* tabGl, QTabWidget* tabDots,
+                         const QString& name, const QColor& bg) {
+  tabGl->addTab(new AsciiGLView<T>(bg.rgb()), name);
+  tabDots->addTab(new AsciiDotView<T>(bg.rgb()), name);
+}
 
 Widget::Widget(QWidget* parent) : QWidget(parent) {
   resize(1202, 600);
@@ -24,23 +33,22 @@ Widget::Widget(QWidget* parent) : QWidget(parent) {
   layout->setContentsMargins(0, 0, 0, 0);
   layout->addWidget(tab_top);
 
-  QTabWidget* tab_gl = new QTabWidget(this);
-  tab_top->addTab(tab_gl, QStringLiteral("OpenGL"));
-  tab_gl->addTab(new AsciiGLView<MarineDrive>(qRgb(0x07, 0x08, 0x0f)),
-                 QStringLiteral("MarineDrive"));
-  tab_gl->addTab(new AsciiGLView<AlpineDawn>(qRgb(0x09, 0x0c, 0x18)),
-                 QStringLiteral("AlpineDawn"));
-  tab_gl->addTab(new AsciiGLView<DesertNight>(qRgb(0x04, 0x06, 0x0c)),
-                 QStringLiteral("DesertNight"));
+  QTabWidget* tabGl = new QTabWidget(this);
+  tab_top->addTab(tabGl, QStringLiteral("OpenGL"));
+  QTabWidget* tabDots = new QTabWidget(this);
+  tab_top->addTab(tabDots, QStringLiteral("QPainter"));
 
-  QTabWidget* tab_dots = new QTabWidget(this);
-  tab_top->addTab(tab_dots, QStringLiteral("QPainter"));
-  tab_dots->addTab(new AsciiDotView<MarineDrive>(qRgb(0x07, 0x08, 0x0f)),
-                   QStringLiteral("MarineDrive"));
-  tab_dots->addTab(new AsciiDotView<AlpineDawn>(qRgb(0x09, 0x0c, 0x18)),
-                   QStringLiteral("AlpineDawn"));
-  tab_dots->addTab(new AsciiDotView<DesertNight>(qRgb(0x04, 0x06, 0x0c)),
-                   QStringLiteral("DesertNight"));
+  //
+  addScenePair<MarineDrive>(tabGl, tabDots, QStringLiteral("MarineDrive"),
+                            qRgb(0x07, 0x08, 0x0f));
+  addScenePair<AlpineDawn>(tabGl, tabDots, QStringLiteral("AlpineDawn"),
+                           qRgb(0x09, 0x0c, 0x18));
+  addScenePair<DesertNight>(tabGl, tabDots, QStringLiteral("DesertNight"),
+                            qRgb(0x04, 0x06, 0x0c));
+  addScenePair<OceanSunset>(tabGl, tabDots, QStringLiteral("OceanSunset"),
+                            qRgb(0x0b, 0x08, 0x17));
+  addScenePair<BigText>(tabGl, tabDots, QStringLiteral("BigText"),
+                        qRgb(0x0b, 0x08, 0x17));
 }
 
 Widget::~Widget() = default;

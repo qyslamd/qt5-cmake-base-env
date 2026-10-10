@@ -14,6 +14,10 @@ add_executable(${TARGET_NAME} WIN32
     alpine_dawn.cpp
     desert_night.cpp
     desert_night.h
+    ocean_sunset.h
+    ocean_sunset.cpp
+    big_text.cpp
+    big_text.h
 )
 
 target_link_libraries(${TARGET_NAME} PRIVATE
