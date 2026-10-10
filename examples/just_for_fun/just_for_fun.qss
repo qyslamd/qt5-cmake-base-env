@@ -1,0 +1,24 @@
+
+QTabWidget::tab-bar[role="viewSwitch"] {
+  alignment: center;
+}
+
+QTabBar[role="viewSwitch"]::tab {
+  background: transparent;
+  color: #666666;                 /* 文本·次 */
+  padding: 5px 12px;
+  margin: 3px 2px 0 2px;          /* 与标签条留一道缝，才像"卡片" */
+  border: 1px solid transparent;  /* 预留边框位：悬停/选中时加边不跳位 */
+  border-radius: 3px;
+}
+QTabBar[role="viewSwitch"]::tab:hover {
+  background: #F5F6FA;            /* 背景·浅底 */
+  border-color: #E0E0E0;          /* 边框·浅 */
+  color: #333333;
+}
+QTabBar[role="viewSwitch"]::tab:selected {
+  background: #CCE4F7;            /* 选中 */
+  border-color: #CCE4F7;          /* 块面由底色定义，不再重描边 */
+  color: #0078D4;                 /* 强调·底 */
+  font-weight: bold;
+}

@@ -1,29 +1,22 @@
 {
     // ==================== 本机配置（克隆后按需修改）====================
-
     // 本机 Qt 安装路径：调试时用于定位 Qt 的 DLL 与插件。
     // 需与 local.cmake 中的 Qt5_12_x_Path_x64 保持一致；
     // launch.json 通过 ${config:qtcmake.qtDir} 引用此处，避免多处重复。
     "qtcmake.qtDir": "D:/Qt22/5.15.2/msvc2019_64",
-
     // ==================== 项目约定（一般无需修改）====================
-
     // 项目遵循 Google C++ Style Guide（见 CLAUDE.md），细则在仓库根的
     // .clang-format；fallbackStyle 只在找不到它时兜底。
     "editor.formatOnSave": true,
     "clang-format.fallbackStyle": "Google",
-
     // clang-format / clangd 用随仓库提供的那两份（3rdparty/clang）：
     // 排版结果与版本绑定，各人用各自装的那份会让 diff 混进纯格式噪声。
     // 命令行等价物是 scripts\clang_format.bat，默认只处理改动过的文件。
-    "clang-format.executable": "${workspaceFolder}/3rdparty/clang/clang-format.exe",
-    "clangd.path": "${workspaceFolder}/3rdparty/clang/clangd.exe",
-
+    "clang-format.executable": "${workspaceRoot}/3rdparty/clang/clang-format.exe",
+    "clangd.path": "${workspaceRoot}/3rdparty/clang/clangd.exe",
     // CMake Tools 用仓库自带的 cmake（bin 与同版本 share 成套）
     "cmake.cmakePath": "${workspaceFolder}/3rdparty/cmake/bin/cmake.exe",
-
     // ==================== 个人偏好 ====================
-
     "editor.fontSize": 14,
     "editor.fontFamily": "Cascadia Mono Light, Microsoft YaHei, monospace",
     "terminal.integrated.fontFamily": "Cascadia Code, Microsoft YaHei, monospace"
