@@ -1,14 +1,14 @@
 # Qt comfiguration
-set(Qt5_12_x_Path_x64 "@PATH_FOR_QT_INSTALLATION_X64@")
-set(Qt5_12_x_Path_x86 "@PATH_FOR_QT_INSTALLATION_X86@")
+set(Qt5_Install_Path_x64 "@PATH_FOR_QT_INSTALLATION_X64@")
+set(Qt5_Install_Path_x86 "@PATH_FOR_QT_INSTALLATION_X86@")
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    set(Qt5_12_x_Path "${Qt5_12_x_Path_x64}")
+    set(Qt5_Install_Path "${Qt5_Install_Path_x64}")
 else()
-    set(Qt5_12_x_Path "${Qt5_12_x_Path_x86}")
+    set(Qt5_Install_Path "${Qt5_Install_Path_x86}")
 endif()
 
 # Qt5 的包配置位置，只需这一个。会做「版本无关查找」的第三方库
 # （find_package(QT NAMES Qt6 Qt5)、find_package(Qt NAMES Qt5 Qt6)）
 # 都已由 patches/ 下的补丁锁定到 Qt5，不再需要各自拼法的 <pkg>_DIR 别名
-set(Qt5_DIR "${Qt5_12_x_Path}/lib/cmake/Qt5")
+set(Qt5_DIR "${Qt5_Install_Path}/lib/cmake/Qt5")

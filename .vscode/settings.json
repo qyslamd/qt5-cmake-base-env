@@ -1,9 +1,11 @@
 {
     // ==================== 本机配置（克隆后按需修改）====================
     // 本机 Qt 安装路径：调试时用于定位 Qt 的 DLL 与插件。
-    // 需与 local.cmake 中的 Qt5_12_x_Path_x64 保持一致；
-    // launch.json 通过 ${config:qtcmake.qtDir} 引用此处，避免多处重复。
+    // 需与 local.cmake 中的 Qt5_Install_Path_x64 保持一致；
+    // launch.json 通过 ${config:qtcmake.qtDir_x64} 引用此处，避免多处重复。
     "qtcmake.qtDir": "D:/Qt22/5.15.2/msvc2019_64",
+    "qtcmake.qtDir_x64": "D:/Qt22/5.15.2/msvc2019_64",
+    "qtcmake.qtDir_x86": "D:/Qt22/5.15.2/msvc2019",
     // ==================== 项目约定（一般无需修改）====================
     // 项目遵循 Google C++ Style Guide（见 CLAUDE.md），细则在仓库根的
     // .clang-format；fallbackStyle 只在找不到它时兜底。

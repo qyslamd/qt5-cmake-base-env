@@ -37,11 +37,11 @@
             "environment": [
                 {
                     "name": "PATH",
-                    "value": "${config:qtcmake.qtDir}/bin;${env:PATH}"
+                    "value": "${config:qtcmake.qtDir_x64}/bin;${env:PATH}"
                 },
                 {
                     "name": "QT_PLUGIN_PATH",
-                    "value": "${config:qtcmake.qtDir}/plugins"
+                    "value": "${config:qtcmake.qtDir_x64}/plugins"
                 }
             ],
             "console": "integratedTerminal",
@@ -58,11 +58,11 @@
             "environment": [
                 {
                     "name": "PATH",
-                    "value": "${config:qtcmake.qtDir}/bin;${env:PATH}"
+                    "value": "${config:qtcmake.qtDir_x64}/bin;${env:PATH}"
                 },
                 {
                     "name": "QT_PLUGIN_PATH",
-                    "value": "${config:qtcmake.qtDir}/plugins"
+                    "value": "${config:qtcmake.qtDir_x64}/plugins"
                 }
             ],
             "console": "integratedTerminal",
@@ -79,11 +79,11 @@
             "environment": [
                 {
                     "name": "PATH",
-                    "value": "${config:qtcmake.qtDir}/bin;${env:PATH}"
+                    "value": "${config:qtcmake.qtDir_x64}/bin;${env:PATH}"
                 },
                 {
                     "name": "QT_PLUGIN_PATH",
-                    "value": "${config:qtcmake.qtDir}/plugins"
+                    "value": "${config:qtcmake.qtDir_x64}/plugins"
                 }
             ],
             "console": "integratedTerminal",

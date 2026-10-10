@@ -139,9 +139,9 @@ echo   -c, --configure           Only run CMake configure, skip build
 echo   -h, --help                Show this help
 echo.
 echo Architecture notes:
-echo   VS2019 is auto-detected via vswhere when VS2019_CMD_DIR is not set.
-echo   Set VS2019_CMD_DIR to override, pointing to the directory containing
-echo   vcvars64.bat and vcvars32.bat.
+echo   VS2019 is located automatically via vswhere (shipped with the
+echo   VS Installer). Install VS2019 (or VS2019 Build Tools) with the
+echo   Desktop C++ workload for either x64 or x86 support.
 echo.
 echo Toolchain notes:
 echo   ninja and cmake come from 3rdparty\ (version pinned, ninja ^>= 1.10.0),
@@ -169,18 +169,15 @@ if /i not "%ARCH%"=="x64" if /i not "%ARCH%"=="x86" (
 )
 
 :: Init vcvars env for the chosen arch.
-:: VS2019_CMD_DIR takes priority (explicit override); otherwise
-:: auto-detect VS2019 via vswhere shipped with the VS Installer.
+:: VS2019 is located via vswhere (shipped with the VS Installer);
+:: no environment variables are required.
 set "VCVARS_DIR="
-if defined VS2019_CMD_DIR (
-    set "VCVARS_DIR=%VS2019_CMD_DIR%"
-) else (
-    call :find_vs2019
-)
+call :find_vs2019
 
 if not defined VCVARS_DIR (
     echo VS2019 not found.
-    echo Set VS2019_CMD_DIR to the directory containing vcvars64.bat and vcvars32.bat.
+    echo Install Visual Studio 2019 ^(or VS2019 Build Tools^) with the
+    echo Desktop C++ workload, then re-run this script.
     exit /b 1
 )
 
@@ -291,16 +288,31 @@ if /i "%ACTION%"=="package" (
 exit /b 0
 
 :: =======================================
-:: Auto-detect VS2019 via vswhere.
-:: Sets VCVARS_DIR on success, leaves it
+:: Locate VS2019 via vswhere.
+:: Sets VCVARS_DIR to the VS2019 build
+:: tools directory on success, leaves it
 :: empty on failure.
-:: =======================================
 :find_vs2019
+:: vswhere lives under "Program Files (x86)", a path containing spaces.
+:: Putting a quoted, space-containing program path inside for /f's
+:: backtick form is fragile: the command goes through cmd /c and the
+:: quoting gets mangled. Run vswhere directly, redirect to a temp file,
+:: then read the file back — no nested quotes to trip over.
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 if not exist "%VSWHERE%" exit /b 1
 
-for /f "usebackq tokens=*" %%I in (`call "%VSWHERE%" -version "[16.0,17.0)" -property installationPath -products *`) do (
-    rem keep the first match only, avoid being overwritten by later ones
-    if not defined VCVARS_DIR set "VCVARS_DIR=%%I\VC\Auxiliary\Build"
+set "VSWHERE_OUT=%TEMP%\vswhere_%RANDOM%%RANDOM%.txt"
+"%VSWHERE%" -version "[16.0,17.0)" -property installationPath -products * > "%VSWHERE_OUT%" 2>nul
+
+for /f "usebackq tokens=*" %%I in ("%VSWHERE_OUT%") do (
+    rem Keep the first instance that actually ships vcvars64.bat,
+    rem so we skip VS2019 installs without the Desktop C++ workload.
+    if not defined VCVARS_DIR (
+        if exist "%%I\VC\Auxiliary\Build\vcvars64.bat" (
+            set "VCVARS_DIR=%%I\VC\Auxiliary\Build"
+        )
+    )
 )
+
+del "%VSWHERE_OUT%" >nul 2>nul
 exit /b 0
