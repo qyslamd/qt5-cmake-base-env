@@ -16,14 +16,12 @@ static constexpr float kDecel = 4.4f;             // 着陆点火减速度
 static constexpr float kRate = 36.0f;             // 尾焰喷团：每秒个数
 static const float kBurn = std::sqrt(2.0f * kOut / kDecel);  // ≈4.264
 
-// 火箭的左右位置
 static constexpr int kLeft = (Rocket::kWidth - 14) / 2;  // 17
 static constexpr float kMid = kLeft + 14 / 2.0f - 0.5f;  // 23.5
 static constexpr int kTower = kLeft - 8;                 // 9
 static constexpr int kArmRow = kPad - 21 + 8;            // 13
 
 // clang-format off
-// 火箭精灵
 static const char* const kRocketArt[] = {
     "      /\\      ",
     "     /ww\\     ",
@@ -47,16 +45,11 @@ static const char* const kRocketArt[] = {
     "    /gggg\\    ",
     "   /gggggg\\   ",
 };
-
 // clang-format on
 
 static const char* const kPaletteHex[Rocket::kPaletteN] = {
-    "#606068",  // 0 中灰
-    "#b8b8c8",  // 1 浅灰
-    "#f0f0ff",  // 2 白
-    "#ff4020",  // 3 火焰边缘（深橙）
-    "#ff9040",  // 4 火焰主体（橙）
-    "#fff0a0",  // 5 火焰核心（黄）
+    "#c8c8d8",  // 0 主前景：火箭、塔架、烟雾、星
+    "#ff9040",  // 1 火焰
 };
 
 // ============================== RNG ========================================
@@ -75,7 +68,6 @@ class Mulberry32 {
 };
 
 // ============================== 时间函数 ===================================
-// 火箭底部在 t 时刻离甲板的高度（行）；不可见时返回 -1
 static float HeightAt(float t) {
   if (t < kLiftT || t >= kLandT)
     return 0.f;
@@ -90,97 +82,6 @@ static bool Burning(float t) {
 }
 static bool OnPad(float t) { return t < kArmT - 0.3f || t >= kLandT + 1.f; }
 
-// ============================== 字符 → (step, color) =======================
-// BODY / SMOKE 用的 8 级亮度斜坡
-static void BodyCell(char ch, uint8_t& s, uint8_t& col) {
-  switch (ch) {
-    case ' ':
-      s = 0;
-      col = 0;
-      return;
-    case '.':
-      s = 1;
-      col = 0;
-      return;
-    case ':':
-      s = 1;
-      col = 0;
-      return;
-    case '-':
-      s = 2;
-      col = 0;
-      return;
-    case '=':
-      s = 2;
-      col = 1;
-      return;
-    case '+':
-      s = 3;
-      col = 1;
-      return;
-    case '*':
-      s = 3;
-      col = 2;
-      return;
-    case '#':
-      s = 3;
-      col = 2;
-      return;
-    case '%':
-      s = 3;
-      col = 2;
-      return;
-    default:
-      s = 0;
-      col = 0;
-      return;
-  }
-}
-static void SmokeCell(char ch, uint8_t& s, uint8_t& col) {
-  switch (ch) {
-    case ' ':
-      s = 0;
-      col = 0;
-      return;
-    case '.':
-      s = 1;
-      col = 1;
-      return;
-    case ':':
-      s = 1;
-      col = 1;
-      return;
-    case '-':
-      s = 2;
-      col = 1;
-      return;
-    case '=':
-      s = 2;
-      col = 1;
-      return;
-    case '+':
-      s = 3;
-      col = 1;
-      return;
-    case '*':
-      s = 3;
-      col = 2;
-      return;
-    case '#':
-      s = 3;
-      col = 2;
-      return;
-    case '%':
-      s = 3;
-      col = 2;
-      return;
-    default:
-      s = 0;
-      col = 0;
-      return;
-  }
-}
-
 // ============================== 公开接口 ===================================
 const char* const* Rocket::PaletteHex() { return kPaletteHex; }
 
@@ -189,19 +90,21 @@ Rocket::Rocket() { Init(); }
 // ============================== 静态构建 ===================================
 void Rocket::Init() {
   const int N = kWidth * kHeight;
-  step_.assign(N, 0);
-  color_.assign(N, 0);
+  chars_.assign(N, QChar(' '));
+  colors_.assign(N, 0);
   fog_.assign(N, 0.f);
 
-  rkt_step_.assign(kRocketW * kRocketH, 0);
+  rkt_char_.assign(kRocketW * kRocketH, QChar(' '));
   rkt_color_.assign(kRocketW * kRocketH, 0);
 
   // ---------- 预渲染火箭精灵 ----------
+  // 圆柱光照：塔架泛光灯从左边来。字符直接用 BODY 斜坡，
+  // 不做 step/color 映射，形状保留在字符里。
   const char* BODY = " .:-=+*#%";
   for (int r = 0; r < kRocketH; ++r) {
     const char* line = kRocketArt[r];
 
-    // 找本行第一个和最后一个带色调字符（w/k/g）的列
+    // 本行第一个和最后一个 w/k/g 的位置
     int a = -1, b = -1;
     for (int c = 0; c < kRocketW; ++c) {
       char ch = line[c];
@@ -226,11 +129,12 @@ void Rocket::Init() {
 
     for (int c = 0; c < kRocketW; ++c) {
       char ch = line[c];
-      uint8_t s = 0, col = 0;
+      QChar qch;
+      uint8_t col = 0;
 
       if (ch == 'w' || ch == 'k' || ch == 'g' || ch == 'f') {
-        // 圆柱光照：塔架泛光灯从左边来
-        float x = (c + 0.5f - kRocketW / 2.0f) / ((b - a) / 2.0f + 0.5f);
+        float denom = (a < 0 || b < 0) ? 1.0f : (b - a) / 2.0f + 0.5f;
+        float x = (c + 0.5f - kRocketW / 2.0f) / denom;
         float lit;
         if (ch == 'f') {
           lit = (x < 0.f) ? 0.75f : 0.3f;
@@ -245,25 +149,21 @@ void Rocket::Init() {
         int i = std::max(
             1,
             static_cast<int>(std::round(tone * (0.12f + 0.88f * lit) * 8.0f)));
-        BodyCell(BODY[i], s, col);
+        qch = QChar(BODY[i]);
       } else if (ch == ' ') {
-        s = 0;
-        col = 0;
-      } else if (ch == '/' || ch == '\\' || ch == '|') {
-        s = 2;
-        col = 1;
+        qch = QChar(' ');
       } else {
-        s = 1;
-        col = 1;
+        // / \ | 直接保留
+        qch = QChar(ch);
       }
 
       int k = r * kRocketW + c;
-      rkt_step_[k] = s;
+      rkt_char_[k] = qch;
       rkt_color_[k] = col;
     }
   }
 
-  // ---------- 星空（避开火箭、尾气与塔顶） ----------
+  // ---------- 星空 ----------
   Mulberry32 rng(3);
   for (int r = 0; r < kPad - 9; ++r) {
     for (int c = 0; c < kWidth; ++c) {
@@ -300,13 +200,13 @@ void Rocket::Init() {
 }
 
 // ---------- 写入一格 -------------------------------------------------------
-void Rocket::Put(float x, float y, uint8_t s, uint8_t col) {
+void Rocket::Put(float x, float y, QChar ch, uint8_t col) {
   int c = static_cast<int>(std::round(x));
   int r = static_cast<int>(std::round(y));
   if (c >= 0 && c < kWidth && r >= 0 && r < kHeight) {
     int k = r * kWidth + c;
-    step_[k] = s;
-    color_[k] = col;
+    chars_[k] = ch;
+    colors_[k] = col;
   }
 }
 
@@ -332,7 +232,6 @@ void Rocket::Splat(float x, float y, float rad, float s) {
 // ---------- 一团尾焰从喷管喷出到散开 ---------------------------------------
 void Rocket::PuffDraw(const Puff& p, float x0, float y0, float age,
                       float thick) {
-  // 出发时向下喷，遇到甲板后向两侧扇开
   float down = 26.f * 0.2f * (1.f - std::exp(-age / 0.2f));
   float x = x0 + p.jx * (1.f + age);
   float y = y0 + down;
@@ -343,7 +242,6 @@ void Rocket::PuffDraw(const Puff& p, float x0, float y0, float age,
     x = x0 + p.jx +
         p.side * p.fan * 0.7f * (1.f - std::exp(-(age - hit) / 0.7f));
   }
-  // 无论哪种路径，都会减速、膨胀、上升、变淡
   y -= p.rise * age * age * 0.5f + 0.3f * age;
   float fade = std::max(0.f, 1.f - age / p.life);
   Splat(x + 0.8f * age, y, 1.2f + p.grow * age * 2.2f,
@@ -357,46 +255,35 @@ void Rocket::Update(double time) {
   if (tt < 0.f)
     tt += static_cast<float>(kLoop);
 
-  // 清空
-  std::fill(step_.begin(), step_.end(), 0);
-  std::fill(color_.begin(), color_.end(), 0);
+  std::fill(chars_.begin(), chars_.end(), QChar(' '));
+  std::fill(colors_.begin(), colors_.end(), uint8_t(0));
   std::fill(fog_.begin(), fog_.end(), 0.f);
 
   // ---------- 星星 ----------
   for (const auto& s : stars_) {
     float tw = std::sin(tf * 1.7f + s.phase);
-    uint8_t st, col;
+    QChar ch;
     if (s.big) {
-      if (tw > 0.3f) {
-        st = 3;
-        col = 2;
-      } else {
-        st = 2;
-        col = 2;
-      }
+      ch = (tw > 0.3f) ? QChar('+') : QChar('*');
     } else {
-      if (tw > -0.6f) {
-        st = 1;
-        col = 2;
-      } else {
-        st = 0;
-        col = 0;
-      }
+      ch = (tw > -0.6f) ? QChar('.') : QChar(' ');
     }
-    Put(static_cast<float>(s.c), static_cast<float>(s.r), st, col);
+    Put(static_cast<float>(s.c), static_cast<float>(s.r), ch, 0);
   }
 
   // ---------- 塔架 ----------
   for (int r = kPad - 20; r <= kPad; ++r) {
-    Put(static_cast<float>(kTower), static_cast<float>(r), 2, 1);
-    Put(static_cast<float>(kTower + 2), static_cast<float>(r), 2, 1);
-    Put(static_cast<float>(kTower + 1), static_cast<float>(r), 2, 1);
+    Put(static_cast<float>(kTower), static_cast<float>(r), QChar('|'), 0);
+    Put(static_cast<float>(kTower + 2), static_cast<float>(r), QChar('|'), 0);
+    Put(static_cast<float>(kTower + 1), static_cast<float>(r),
+        QChar((r & 1) ? '/' : '\\'), 0);
   }
-  Put(static_cast<float>(kTower + 1), static_cast<float>(kPad - 21), 2, 1);
+  Put(static_cast<float>(kTower + 1), static_cast<float>(kPad - 21), QChar('|'),
+      0);
   {
     bool on = (static_cast<int>(std::floor(tf * 1.25)) % 2) == 1;
     Put(static_cast<float>(kTower + 1), static_cast<float>(kPad - 22),
-        on ? 2 : 1, on ? 2 : 1);
+        on ? QChar('*') : QChar('.'), 0);
   }
 
   // ---------- 服务臂 ----------
@@ -413,17 +300,19 @@ void Rocket::Update(double time) {
   int arm_len = static_cast<int>(
       std::round(swing * static_cast<float>(kLeft + 1 - kTower)));
   for (int i = 0; i < arm_len; ++i) {
-    Put(static_cast<float>(kTower + 3 + i), static_cast<float>(kArmRow), 2, 1);
+    Put(static_cast<float>(kTower + 3 + i), static_cast<float>(kArmRow),
+        QChar('='), 0);
   }
 
   // ---------- 甲板与导流槽 ----------
   for (int c = 0; c < kWidth; ++c) {
-    Put(static_cast<float>(c), static_cast<float>(kHeight - 1), 3, 1);
+    Put(static_cast<float>(c), static_cast<float>(kHeight - 1), QChar(0x2580),
+        0);  // ▀
   }
   for (int c = 2; c < kWidth - 2; ++c) {
     bool in_trench = std::abs(static_cast<float>(c) - kMid) < 4.f;
     if (!in_trench) {
-      Put(static_cast<float>(c), static_cast<float>(kPad), 2, 1);
+      Put(static_cast<float>(c), static_cast<float>(kPad), QChar('_'), 0);
     }
   }
 
@@ -437,33 +326,33 @@ void Rocket::Update(double time) {
     if (!Burning(born))
       continue;
     float h = HeightAt(born);
-    // 下降时火箭撞进自己的尾迹，只有最后几行留烟
     if (kPad - 1 - h < -2.f)
       continue;
     float thick = std::exp(-h / (born > kLandT - kBurn ? 4.f : 9.f));
     PuffDraw(puffs_[k], kMid, static_cast<float>(kPad) - 0.5f - h, age, thick);
   }
 
-  // 从雾写出烟
+  // 从雾写出烟：SMOKE 斜坡 " .:-=+*#%"
+  static const QChar kSmokeRamp[8] = {
+      QChar('.'), QChar(':'), QChar('-'), QChar('='),
+      QChar('+'), QChar('*'), QChar('#'), QChar('%'),
+  };
   for (int r = 0; r < kHeight; ++r) {
     for (int c = 0; c < kWidth; ++c) {
       int k = r * kWidth + c;
       if (fog_[k] <= 0.06f)
         continue;
       float v = 1.f - std::exp(-fog_[k] / 0.9f);
-      int idx = 1 + std::min(7, static_cast<int>(std::floor(v * 8.f)));
-      // SMOKE 索引 1..8 → BODY/SMOKE 斜坡的 8 个字符
-      static const char* kSmokeRamp = ".:-=+*#%";
-      uint8_t s = 0, col = 0;
-      SmokeCell(kSmokeRamp[idx - 1], s, col);
-      Put(static_cast<float>(c), static_cast<float>(r), s, col);
+      int idx = std::min(7, static_cast<int>(std::floor(v * 8.f)));
+      Put(static_cast<float>(c), static_cast<float>(r), kSmokeRamp[idx], 0);
     }
   }
 
   // ---------- 尾翼支撑 ----------
   for (int r = kPad - 3; r < kPad; ++r) {
-    Put(static_cast<float>(kLeft), static_cast<float>(r), 2, 0);
-    Put(static_cast<float>(kLeft + kRocketW - 1), static_cast<float>(r), 2, 0);
+    Put(static_cast<float>(kLeft), static_cast<float>(r), QChar('['), 0);
+    Put(static_cast<float>(kLeft + kRocketW - 1), static_cast<float>(r),
+        QChar(']'), 0);
   }
 
   // ---------- 火箭 ----------
@@ -473,10 +362,10 @@ void Rocket::Update(double time) {
     for (int r = 0; r < kRocketH; ++r) {
       for (int c = span_lo_[r]; c < span_hi_[r]; ++c) {
         int rk = r * kRocketW + c;
-        if (rkt_step_[rk] == 0)
+        if (rkt_char_[rk] == QChar(' '))
           continue;
         Put(static_cast<float>(kLeft + c),
-            static_cast<float>(base - kRocketH + 1 + r), rkt_step_[rk],
+            static_cast<float>(base - kRocketH + 1 + r), rkt_char_[rk],
             rkt_color_[rk]);
       }
     }
@@ -498,26 +387,20 @@ void Rocket::Update(double time) {
                 0.2f * age * age + 1.1f * std::sin(2.3f * born) * f;
       float x = static_cast<float>(kLeft + kRocketW - 4) +
                 gust * (3.f * age + 0.6f * age * age);
-      uint8_t s, col;
-      if (f < 0.2f) {
-        s = 2;
-        col = 1;
-      } else if (f < 0.45f) {
-        s = 1;
-        col = 1;
-      } else if (f < 0.75f) {
-        s = 1;
-        col = 1;
-      } else {
-        s = 1;
-        col = 0;
-      }
-      Put(x, y, s, col);
+      QChar ch;
+      if (f < 0.2f)
+        ch = QChar('~');
+      else if (f < 0.45f)
+        ch = QChar('-');
+      else if (f < 0.75f)
+        ch = QChar('.');
+      else
+        ch = QChar(0x00b7);  // ·
+      Put(x, y, ch, 0);
     }
 
     // ---------- 火焰 ----------
     if (Burning(tt)) {
-      // 点火时短，爬升时长，减速时更短
       float len;
       if (tt < kLiftT) {
         len = 1.f + 2.5f * ((tt - kIgniteT) / (kLiftT - kIgniteT));
@@ -530,8 +413,12 @@ void Rocket::Update(double time) {
       int extra = ((f * 7) % 3 + 3) % 3;
       float len_max = len + static_cast<float>(extra) - 1.f;
 
-      static const uint8_t kFlameS[4] = {2, 3, 3, 3};
-      static const uint8_t kFlameCol[4] = {4, 4, 5, 5};
+      static const QChar kFlameCh[4] = {
+          QChar(0x2591),  // ░
+          QChar(0x2592),  // ▒
+          QChar(0x2593),  // ▓
+          QChar(0x2588),  // █
+      };
 
       for (int k = 1; k <= len_max; ++k) {
         float heat = 1.f - static_cast<float>(k - 1) / (len + 1.f);
@@ -547,8 +434,8 @@ void Rocket::Update(double time) {
           int i = static_cast<int>(std::floor(idxf));
           if (i >= 0) {
             i = std::min(i, 3);
-            Put(static_cast<float>(c), static_cast<float>(base + k), kFlameS[i],
-                kFlameCol[i]);
+            Put(static_cast<float>(c), static_cast<float>(base + k),
+                kFlameCh[i], 1);
           }
         }
       }

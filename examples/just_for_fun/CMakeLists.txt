@@ -18,6 +18,14 @@ add_executable(${TARGET_NAME} WIN32
     ocean_sunset.cpp
     big_text.cpp
     big_text.h
+    rocket.cpp
+    rocket.h
+    hourglass.cpp
+    hourglass.h
+    train.cpp
+    train.h
+    tv_static.cpp
+    tv_static.h
 )
 
 target_link_libraries(${TARGET_NAME} PRIVATE
