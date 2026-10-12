@@ -188,14 +188,33 @@ option(BUILD_FUNQ "构建 funq GUI 测试库（注入式，产物供测试运行
 option(BUILD_RIBBON "启用 SARibbon Ribbon 界面（主窗口的功能区菜单）" ON)
 
 #-------------------------------------------------------------------------------
-# BUILD_FFTW —— 频谱计算库
+# BUILD_FLUENT_UI —— 第二条界面路线（FluentUI3Style）
 #
-# 默认 ON。OFF 时不再引入 FFTW，examples/fft_demo 也不编（它是唯一的使用方）。
-# 除崩溃后端外，这是唯一一个**静态**链进本仓的第三方库——静态是为了省掉 DLL
-# 部署那一段，代价是 exe 大几 MB
+# 默认 ON。编 FluentUI3Style / Frameless / ExWidgets 三个库（外加 kissfft），
+# 产物落 bin/，与 QSS + SARibbon 那条路线并存、由使用者挑一条走（见
+# APP_UI_ROUTE）。不编 Qt 样式插件——它会往 Qt 安装目录写文件，与"自包含"相悖。
+# OFF 时这条路线整体不进构建
 #-------------------------------------------------------------------------------
 
-option(BUILD_FFTW "启用 FFTW 频谱计算（examples/fft_demo 用到）" ON)
+option(BUILD_FLUENT_UI "构建 FluentUI3Style 界面库（第二条界面路线）" ON)
+
+#-------------------------------------------------------------------------------
+# APP_UI_ROUTE —— 主界面走哪条路
+#
+# qss    ：QSS 项目层样式表（src/app/resources/styles/default.qss）+ SARibbon
+# fluent ：FluentUI3Style（QProxyStyle，不加载任何 QSS）+ Frameless 标题栏
+#
+# 两者在同一进程里互斥：只要加载了样式表，命中规则的控件就走 QStyleSheetStyle，
+# FluentUI3Style 的绘制被绕过；窗口框架同理（一个顶层窗口只能装一个 QWindowKit
+# window agent）。故只能二选一，不做运行期混用
+#-------------------------------------------------------------------------------
+
+set(APP_UI_ROUTE "qss" CACHE STRING "主界面路线：qss / fluent")
+set_property(CACHE APP_UI_ROUTE PROPERTY STRINGS qss fluent)
+if(NOT APP_UI_ROUTE STREQUAL "qss" AND NOT APP_UI_ROUTE STREQUAL "fluent")
+    message(FATAL_ERROR
+        "APP_UI_ROUTE 只能是 qss 或 fluent（当前：${APP_UI_ROUTE}）")
+endif()
 
 #-------------------------------------------------------------------------------
 # BUILD_TESTS —— 单元测试
@@ -381,46 +400,6 @@ add_subdirectory(3rdparty/QCustomPlot)
 # QXlsx Excel读写库
 add_subdirectory(3rdparty/QXlsx-1.5.0/QXlsx)
 
-# FFTW 频谱计算：静态、单精度、线程合并进主库，取 3rdparty 目录里那份
-# build_msvc2019_ninja.bat 的口径
-if(BUILD_FFTW)
-    set(ENABLE_FLOAT ON CACHE BOOL "只编单精度 fftw3f" FORCE)
-    set(ENABLE_LONG_DOUBLE OFF CACHE BOOL "不编长双精度" FORCE)
-    set(ENABLE_QUAD_PRECISION OFF CACHE BOOL "不编四倍精度" FORCE)
-    set(ENABLE_THREADS ON CACHE BOOL "允许单个 FFT 用多线程" FORCE)
-    set(WITH_COMBINED_THREADS ON CACHE BOOL "线程符号并进主库" FORCE)
-    set(ENABLE_SSE2 ON CACHE BOOL "SSE2 内核，CPU 不支持时自动退化" FORCE)
-    set(ENABLE_AVX ON CACHE BOOL "AVX 内核，CPU 不支持时自动退化" FORCE)
-    set(ENABLE_AVX2 ON CACHE BOOL "AVX2 内核，CPU 不支持时自动退化" FORCE)
-    set(DISABLE_FORTRAN ON CACHE BOOL "不编 Fortran 包装" FORCE)
-
-    # 这两个**必须**用普通变量、夹在 add_subdirectory 前后，不能写成 CACHE：
-    #
-    #   BUILD_TESTS      —— FFTW 自己那个选项与本仓顶部的 BUILD_TESTS **同名**。
-    #                       写成 CACHE ... FORCE 会覆盖本仓选项的缓存值，把整个仓库
-    #                       的单元测试一起关掉（踩过：改完之后 ctest 还在报通过，
-    #                       因为 CTestTestfile 与测试二进制都是上一轮留下的，
-    #                       CMake 的生成物只增不删）
-    #   BUILD_SHARED_LIBS —— CMake 的通用变量，后面还有依赖在读它
-    #
-    # 之所以普通变量就能摁住 FFTW 的 option()：补丁把它的 cmake_minimum_required
-    # 抬到了 3.15，CMP0077 因此是 NEW —— option() 见到同名普通变量就不覆盖，也不建
-    # cache 条目。add_subdirectory 之后立刻 unset 收尾，不影响后面的依赖
-    set(BUILD_TESTS OFF)
-    set(BUILD_SHARED_LIBS OFF)
-    add_subdirectory(3rdparty/fftw-3.3.11)
-    unset(BUILD_SHARED_LIBS)
-    unset(BUILD_TESTS)
-
-    # FFTW 只登记了 $<INSTALL_INTERFACE:include>，树内消费者拿不到头文件路径。
-    # 但**不能**在这里给 fftw3f 补 INTERFACE 目录：上游有
-    # install(TARGETS fftw3f EXPORT FFTW3LibraryDepends)，而导出目标的接口里
-    # 不允许出现源码/构建树路径——CMake 在 generate 阶段直接报错（实测：
-    # "INTERFACE_INCLUDE_DIRECTORIES property contains path ... which is prefixed
-    # in the source directory"）。所以包含目录由消费者自己加，与本仓对 crashpad
-    # 的做法一致，见 examples/fft_demo/CMakeLists.txt
-endif()
-
 # 崩溃捕获后端：宏与第三方引入（三态见顶部 APP_CRASH_BACKEND 的说明）。
 # 必须在 add_subdirectory(src) 之前：
 #   - src/core 和 src/app 都要能看见宏
@@ -515,24 +494,16 @@ endif()
 # SARibbon Ribbon 界面库：把主窗口的菜单栏换成功能区（Ribbon）。静态库，
 # 随本仓一次编译。（开关声明见顶部「构建开关区」）
 if(BUILD_RIBBON)
-    # 无边框窗口（frameless）由 QWindowKit 提供，而它要求 Qt ≥ 5.14：低版本
-    # 连编都不该编，故这里跳过整个 QWindowKit，SARibbon 侧对应关掉 frameless。
-    # 判的是 Qt5_VERSION——find_package(Qt5) 只设置这个变量，QT_VERSION 不由
-    # Qt5Config 提供（照着后者写会永远判成"低版本"）
+    # SARibbon 的无边框支持依赖 QWindowKit（见下面单独一段），而它要求
+    # Qt ≥ 5.14：低版本连编都不该编。判的是 Qt5_VERSION——find_package(Qt5)
+    # 只设置这个变量，QT_VERSION 不由 Qt5Config 提供（照着后者写会永远判成
+    # "低版本"）
     if(Qt5_VERSION VERSION_LESS "5.14")
         message(STATUS
-            "Qt ${Qt5_VERSION} < 5.14：跳过 QWindowKit，SARibbon 的无边框支持关闭"
-            "（Ribbon 本体不受影响）")
+            "Qt ${Qt5_VERSION} < 5.14：SARibbon 的无边框支持关闭（Ribbon 本体不受影响）")
         set(SARIBBON_USE_FRAMELESS_LIB OFF CACHE BOOL "关闭无边框窗口" FORCE)
     else()
-        set(QWINDOWKIT_BUILD_STATIC ON CACHE BOOL "把 QWindowKit 编成静态库" FORCE)
-        set(QWINDOWKIT_BUILD_WIDGETS ON CACHE BOOL "编 QWindowKit 的 widgets 模块" FORCE)
-        set(QWINDOWKIT_BUILD_QUICK OFF CACHE BOOL "不编 quick 模块" FORCE)
-        set(QWINDOWKIT_BUILD_EXAMPLES OFF CACHE BOOL "不编 QWindowKit 示例" FORCE)
-        set(QWINDOWKIT_BUILD_DOCUMENTATIONS OFF CACHE BOOL "不生成文档" FORCE)
-        set(QWINDOWKIT_INSTALL OFF CACHE BOOL "不安装 QWindowKit" FORCE)
         set(SARIBBON_USE_FRAMELESS_LIB ON CACHE BOOL "启用无边框窗口" FORCE)
-        add_subdirectory(3rdparty/qwindowkit-1.5.0)
     endif()
 
     # 这两个选项必须在 add_subdirectory 之前设好：SARibbon 用 option() 声明，
@@ -543,6 +514,90 @@ if(BUILD_RIBBON)
     add_subdirectory(3rdparty/SARibbon-2.5.7)
 else()
     message(STATUS "BUILD_RIBBON=OFF，跳过 SARibbon（主窗口用普通菜单栏）")
+endif()
+
+#-------------------------------------------------------------------------------
+# QWindowKit —— 无边框窗口（两条界面路线共用）
+#
+# 从 BUILD_RIBBON 段里提出来了：它不再只是 SARibbon 的依赖，FluentUI3Style 的
+# Frameless 也链它。两条路线共用本仓编的这一份；FluentUIStyle 靠
+# QWindowKit::Widgets 别名判断宿主已提供，就不会去编它自带的那份——否则同一个
+# 仓里会出现两套 QWindowKit 栈
+#-------------------------------------------------------------------------------
+if(BUILD_RIBBON OR BUILD_FLUENT_UI)
+    if(Qt5_VERSION VERSION_LESS "5.14")
+        message(STATUS
+            "Qt ${Qt5_VERSION} < 5.14：跳过 QWindowKit，两条路线的无边框窗口均不可用")
+    else()
+        set(QWINDOWKIT_BUILD_STATIC ON CACHE BOOL "把 QWindowKit 编成静态库" FORCE)
+        set(QWINDOWKIT_BUILD_WIDGETS ON CACHE BOOL "编 QWindowKit 的 widgets 模块" FORCE)
+        set(QWINDOWKIT_BUILD_QUICK OFF CACHE BOOL "不编 quick 模块" FORCE)
+        set(QWINDOWKIT_BUILD_EXAMPLES OFF CACHE BOOL "不编 QWindowKit 示例" FORCE)
+        set(QWINDOWKIT_BUILD_DOCUMENTATIONS OFF CACHE BOOL "不生成文档" FORCE)
+        set(QWINDOWKIT_INSTALL OFF CACHE BOOL "不安装 QWindowKit" FORCE)
+        add_subdirectory(3rdparty/qwindowkit-1.5.0)
+
+        # 别名由 qwindowkit 无条件创建（src/CMakeLists.txt:88），这里只是断言：
+        # 一旦它消失，FluentUIStyle 会静默改编自带那份，两套 QWK 栈同进程
+        if(NOT TARGET QWindowKit::Widgets)
+            message(FATAL_ERROR
+                "QWindowKit::Widgets 别名不存在：FluentUIStyle 会改编它自带的 "
+                "QWindowKit；请检查 3rdparty/qwindowkit-1.5.0 是否被改动")
+        endif()
+    endif()
+endif()
+
+#-------------------------------------------------------------------------------
+# kissfft —— 基础环境的 FFT 库
+#
+# 选它不选 FFTW：kissfft 是 BSD-3-Clause / Unlicense 双许可，FFTW 是 GPL-2.0
+# ——本仓是给人做业务的基础环境，GPL 会把业务代码一起拽进去；附带好处是它只有
+# 5 个 .c，不像 FFTW 每次 configure 都要跑编译器与 SIMD 探测
+#
+# 四个 cache 变量必须在 add_subdirectory 之前设好：
+#   TEST / TOOLS 默认 ON，而它们各自的 CMakeLists 里是
+#     pkg_check_modules(... REQUIRED ...)（fftw3 / libpng）——缺 pkg-config
+#     时 configure 直接 FATAL
+#   STATIC 默认 OFF，不改会编出要部署、要打包的 kissfft-float.dll
+#   PKGCONFIG 只是少一条 install(FILES *.pc)
+# KISSFFT_DATATYPE 默认 float，与 fft_demo、ExWidgets 的用法一致，不动
+#-------------------------------------------------------------------------------
+set(KISSFFT_STATIC ON CACHE BOOL "把 kissfft 编成静态库" FORCE)
+set(KISSFFT_TEST OFF CACHE BOOL "不编 kissfft 测试（它要 pkg-config 找 fftw3）" FORCE)
+set(KISSFFT_TOOLS OFF CACHE BOOL "不编 kissfft 工具（它要 pkg-config 找 libpng）" FORCE)
+set(KISSFFT_PKGCONFIG OFF CACHE BOOL "不生成 pkg-config 文件" FORCE)
+add_subdirectory(3rdparty/kissfft-131.2.0)
+
+#-------------------------------------------------------------------------------
+# FluentUI3Style —— 第二条界面路线（WinUI3/Fluent 风格的 QProxyStyle）
+#
+# 必须排在 QWindowKit 与 kissfft **之后**：它的 Frameless 靠
+# `if(NOT TARGET QWindowKit::Widgets)` 决定用宿主那份还是自带的，ExWidgets 靠
+# `if(NOT TARGET kissfft)` 同理——先定义好，它自带的两个副本都不参与构建
+#
+# BUILD_PLUGIN=OFF：那是 Qt 样式插件，默认还会往 Qt 安装目录写文件，与自包含
+# 相悖；EXAMPLES / QTCREATOR_PLUGIN 同理。ExWidgets 上游没给开关（无条件编），
+# 随库一起编但不进安装包（设计文档 D2）
+#-------------------------------------------------------------------------------
+if(BUILD_FLUENT_UI)
+    set(BUILD_PLUGIN OFF CACHE BOOL "不编 Qt 样式插件" FORCE)
+    set(BUILD_LIBRARY ON CACHE BOOL "编 FluentUI3Style 本体" FORCE)
+    set(BUILD_FRAMELESS ON CACHE BOOL "编 Frameless（QWindowKit 无边框）" FORCE)
+    set(BUILD_EXAMPLES OFF CACHE BOOL "不编 FluentUIStyle 示例" FORCE)
+    set(BUILD_QTCREATOR_PLUGIN OFF CACHE BOOL "不编 Qt Creator 插件" FORCE)
+    # 不生成它那套 install 规则，两个理由：
+    #   1) 它会 install(EXPORT FramelessTargets)，而 Frameless 链的 QWKWidgets
+    #      没进任何导出集（本仓 QWINDOWKIT_INSTALL=OFF），生成阶段直接报
+    #      "requires target QWKWidgets that is not in any export set"
+    #   2) Linux 的 AppImage 走 cmake --install，规则留着会把它的头文件与
+    #      cmake 包配置装进 AppDir
+    # 变量只在 add_subdirectory 调用时被继承：给这一支设完就撤，本仓自己的
+    # 安装规则（Linux 的 AppImage 走 cmake --install）不受影响
+    set(CMAKE_SKIP_INSTALL_RULES TRUE)
+    add_subdirectory(3rdparty/FluentUIStyle-4.0)
+    unset(CMAKE_SKIP_INSTALL_RULES)
+else()
+    message(STATUS "BUILD_FLUENT_UI=OFF，跳过 FluentUI3Style（界面只有 qss 一条路线）")
 endif()
 
 #-------------------------------------------------------------------------------

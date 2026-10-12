@@ -1,6 +1,6 @@
 #include "fft_processor.h"
 
-#include <fftw3.h>
+#include <kiss_fftr.h>
 
 #include <algorithm>
 #include <cmath>
@@ -34,45 +34,28 @@ constexpr int kPeakMinSeparationBins = 10;
 // 谱减法：功率低于"噪声底 × 这个倍数"的谱线清掉（10 倍 = 10 dB）
 constexpr double kDenoiseFactor = 10.0;
 
-// FFTW 的缓冲要用 fftwf_malloc 分配（SIMD 内核要求 16 字节对齐）、fftwf_free
-// 释放，plan 也要手工销毁。包一层 RAII 是为了中途
-// return（比如分配失败）时不漏， 也顺手排掉"释放了还去读"这类顺序错误
-template <typename T>
-class FftwBuffer {
+// kissfft 的实数变换配置。状态放在一块 malloc 出来的内存里，用 kiss_fftr_free
+// 还回去；输入输出缓冲是调用方自己的普通数组，**没有对齐要求**，所以换库之后
+// 只剩这一层 RAII（原来是 FFTW 的 fftwf_malloc + plan 两套）
+class KissFftrCfg {
  public:
-  explicit FftwBuffer(int count)
-      : data_(static_cast<T*>(fftwf_malloc(sizeof(T) * count))) {}
+  KissFftrCfg(int n, bool inverse)
+      : cfg_(kiss_fftr_alloc(n, inverse ? 1 : 0, nullptr, nullptr)) {}
 
-  ~FftwBuffer() { fftwf_free(data_); }
-
-  FftwBuffer(const FftwBuffer&) = delete;
-  FftwBuffer& operator=(const FftwBuffer&) = delete;
-
-  T* data() const { return data_; }
-  bool valid() const { return data_ != nullptr; }
-
- private:
-  T* data_;
-};
-
-class FftwPlan {
- public:
-  explicit FftwPlan(fftwf_plan plan) : plan_(plan) {}
-
-  ~FftwPlan() {
-    if (plan_ != nullptr) {
-      fftwf_destroy_plan(plan_);
+  ~KissFftrCfg() {
+    if (cfg_ != nullptr) {
+      kiss_fftr_free(cfg_);
     }
   }
 
-  FftwPlan(const FftwPlan&) = delete;
-  FftwPlan& operator=(const FftwPlan&) = delete;
+  KissFftrCfg(const KissFftrCfg&) = delete;
+  KissFftrCfg& operator=(const KissFftrCfg&) = delete;
 
-  void Execute() const { fftwf_execute(plan_); }
-  bool valid() const { return plan_ != nullptr; }
+  kiss_fftr_cfg get() const { return cfg_; }
+  bool valid() const { return cfg_ != nullptr; }
 
  private:
-  fftwf_plan plan_;
+  kiss_fftr_cfg cfg_;
 };
 
 // 复数谱。r2c 出来是 n/2+1 根（正频率那半边 + DC + Nyquist），逆变换要拿它回去
@@ -126,33 +109,23 @@ QVector<double> SynthesizeSignal(const FftParams& params, int n) {
   return signal;
 }
 
-// 实数到复数的正变换。samples 里的东西直接进 FFTW，加不加窗由调用方决定
-bool ForwardR2c(const QVector<double>& samples, int n, int threads,
-                double* elapsed_ms, Spectrum* spectrum) {
+// 实数到复数的正变换。samples 里的东西直接进 FFT，加不加窗由调用方决定
+bool ForwardR2c(const QVector<double>& samples, int n, double* elapsed_ms,
+                Spectrum* spectrum) {
   const int bins = n / 2 + 1;
-  FftwBuffer<float> in(n);
-  FftwBuffer<fftwf_complex> out(bins);
-  if (!in.valid() || !out.valid()) {
+  KissFftrCfg cfg(n, false);
+  if (!cfg.valid()) {
     return false;
   }
+  QVector<kiss_fft_scalar> in(n);
+  QVector<kiss_fft_cpx> out(bins);
   for (int i = 0; i < n; ++i) {
-    in.data()[i] = static_cast<float>(samples[i]);
-  }
-
-  // 多线程只影响此后新建的 plan；调用方没 init 过线程的话 FFTW 会忽略这一句
-  if (threads > 1) {
-    fftwf_plan_with_nthreads(threads);
-  }
-  // FFTW_ESTIMATE：规划瞬时完成、且不改动输入数组。换成 FFTW_MEASURE 重复执行
-  // 时更快，但规划本身慢得多，而且**会覆盖 in**——那种写法得在规划之后再填数据
-  FftwPlan plan(fftwf_plan_dft_r2c_1d(n, in.data(), out.data(), FFTW_ESTIMATE));
-  if (!plan.valid()) {
-    return false;
+    in[i] = static_cast<kiss_fft_scalar>(samples[i]);
   }
 
   QElapsedTimer timer;
   timer.start();
-  plan.Execute();
+  kiss_fftr(cfg.get(), in.constData(), out.data());
   if (elapsed_ms != nullptr) {
     *elapsed_ms = static_cast<double>(timer.nsecsElapsed()) / 1.0e6;
   }
@@ -161,8 +134,8 @@ bool ForwardR2c(const QVector<double>& samples, int n, int threads,
   spectrum->im.resize(bins);
   spectrum->power.resize(bins);
   for (int k = 0; k < bins; ++k) {
-    const float re = out.data()[k][0];
-    const float im = out.data()[k][1];
+    const float re = out[k].r;
+    const float im = out[k].i;
     spectrum->re[k] = re;
     spectrum->im[k] = im;
     spectrum->power[k] =
@@ -171,31 +144,27 @@ bool ForwardR2c(const QVector<double>& samples, int n, int threads,
   return true;
 }
 
-// 复数到实数的逆变换。既有的复数谱原样搬进 FFTW 的缓冲，**不**在这里清谱线
+// 复数到实数的逆变换。既有的复数谱原样搬进去，**不**在这里清谱线
 bool InverseC2r(const Spectrum& spectrum, int n, QVector<double>* signal_out) {
   const int bins = n / 2 + 1;
-  FftwBuffer<fftwf_complex> spec(bins);
-  FftwBuffer<float> out(n);
-  if (!spec.valid() || !out.valid()) {
+  KissFftrCfg cfg(n, true);
+  if (!cfg.valid()) {
     return false;
   }
+  QVector<kiss_fft_cpx> spec(bins);
+  QVector<kiss_fft_scalar> out(n);
   for (int k = 0; k < bins; ++k) {
-    spec.data()[k][0] = spectrum.re[k];
-    spec.data()[k][1] = spectrum.im[k];
+    spec[k].r = spectrum.re[k];
+    spec[k].i = spectrum.im[k];
   }
 
-  FftwPlan plan(
-      fftwf_plan_dft_c2r_1d(n, spec.data(), out.data(), FFTW_ESTIMATE));
-  if (!plan.valid()) {
-    return false;
-  }
-  plan.Execute();
+  kiss_fftri(cfg.get(), spec.constData(), out.data());
 
   signal_out->resize(n);
-  // c2r **不做** 1/N 归一，这里自己除
+  // kissfft 的逆变换同样**不**做 1/N 归一，这里自己除
   const double scale = 1.0 / n;
   for (int i = 0; i < n; ++i) {
-    (*signal_out)[i] = static_cast<double>(out.data()[i]) * scale;
+    (*signal_out)[i] = static_cast<double>(out[i]) * scale;
   }
   return true;
 }
@@ -288,6 +257,11 @@ FftResult RunFft(const FftParams& params) {
     result.error = QStringLiteral("采样点数太小");
     return result;
   }
+  // kissfft 的实数变换只处理偶数长度（半边的谱线数 = n/2 + 1）
+  if (n % 2 != 0) {
+    result.error = QStringLiteral("kissfft 的实数变换要求点数为偶数");
+    return result;
+  }
 
   double window_sum = 0.0;
   double window_square_sum = 0.0;
@@ -308,9 +282,8 @@ FftResult RunFft(const FftParams& params) {
     windowed[i] = signal[i] * window[i];
   }
   Spectrum display_spectrum;
-  if (!ForwardR2c(windowed, n, params.threads, &result.fft_ms,
-                  &display_spectrum)) {
-    result.error = QStringLiteral("正变换失败（缓冲区或规划）");
+  if (!ForwardR2c(windowed, n, &result.fft_ms, &display_spectrum)) {
+    result.error = QStringLiteral("正变换失败（配置或缓冲区）");
     return result;
   }
 
@@ -333,7 +306,7 @@ FftResult RunFft(const FftParams& params) {
   // ---- 去噪那条路：不加窗正变换 → 按噪声底清谱线 → 逆变换回时域 ----
   // 用未加窗的信号：窗在两端趋近 0，除回去会把噪声放大成尖刺
   Spectrum raw_spectrum;
-  if (!ForwardR2c(signal, n, params.threads, nullptr, &raw_spectrum)) {
+  if (!ForwardR2c(signal, n, nullptr, &raw_spectrum)) {
     result.error = QStringLiteral("正变换失败（去噪那条路）");
     return result;
   }

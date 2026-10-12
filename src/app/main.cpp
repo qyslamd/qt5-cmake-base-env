@@ -28,6 +28,10 @@
 //
 // 标了「可删」的段落不需要时整段拿掉即可，不影响其余部分。
 
+#ifdef APP_UI_FLUENT
+#include <fluentui3style.h>
+#endif
+
 #include <tour_bridge.h>
 #include <tour_controller.h>
 #include <tour_menu.h>
@@ -64,10 +68,10 @@
 #ifdef APP_ENABLE_AUTH
 #include "dialogs/login_dialog.h"
 #endif
-#include "tour_app_topics.h"
 #include "launch_options.h"
 #include "logger/logger.h"
 #include "mainwindow.h"
+#include "tour_app_topics.h"
 
 #ifdef APP_ENABLE_QT_TESTING
 #include <pqEventDispatcher.h>
@@ -340,9 +344,19 @@ int main(int argc, char* argv[]) {
   // 这几步刻意不抽成函数：crash_handler 一旦离开作用域就会析构、顺带撤掉
   // 崩溃捕获，抽出去反而埋雷
   {
-    // 全局样式：读本仓的项目层样式表。原先的底座层（base/*.qss）由
-    // demo_style 提供，该库已迁往 qt-libui 仓库，本仓只保留 objectName
-    // 规则这一层；读不到就带告警裸奔。全局字体原先也由那边顺带设置
+    // 全局样式：两条界面路线互斥（APP_UI_ROUTE，见顶层与
+    // src/app/CMakeLists.txt）
+    //   fluent —— 换掉整个样式底座（FluentUI3Style 是个 QProxyStyle）。
+    //             **不加载任何 QSS**：只要 setStyleSheet 生效，命中规则的控件
+    //             就走 QStyleSheetStyle，Fluent 的绘制被整个绕过，结果是界面
+    //             一半 Fluent、一半样式表
+    //   qss —— 读本仓的项目层样式表。原先的底座层（base/*.qss）由 demo_style
+    //          提供，该库已迁往 qt-libui 仓库，本仓只保留 objectName
+    //          规则这一层； 读不到就带告警裸奔
+    // 全局字体两条路都要设（原先由底座层顺带设置）
+#ifdef APP_UI_FLUENT
+    QApplication::setStyle(new FluentUI3Style);
+#else
     {
       QFile sheet(QStringLiteral(":/resources/styles/default.qss"));
       if (sheet.open(QIODevice::ReadOnly)) {
@@ -350,10 +364,11 @@ int main(int argc, char* argv[]) {
       } else {
         qWarning("样式表读取失败，将无样式：:/resources/styles/default.qss");
       }
-      QFont app_font = app.font();
-      app_font.setFamily(QStringLiteral("Microsoft YaHei"));
-      app.setFont(app_font);
     }
+#endif
+    QFont app_font = app.font();
+    app_font.setFamily(QStringLiteral("Microsoft YaHei"));
+    app.setFont(app_font);
 
     ConfigManager::instance();
 
@@ -364,6 +379,14 @@ int main(int argc, char* argv[]) {
 
     Logger::init();
     LOG_INFO("MAIN", "应用程序启动，版本: {}", getProjectVersionAll());
+    // 这次构建走的是哪条界面路线（两条路的外观差别很大，报出来省得对着截图猜）
+#ifdef APP_UI_FLUENT
+    LOG_INFO("MAIN", "界面路线：fluent（FluentUI3Style + Frameless 标题栏）");
+#elif defined(APP_ENABLE_RIBBON)
+    LOG_INFO("MAIN", "界面路线：qss + SARibbon 功能区（项目层样式表）");
+#else
+    LOG_INFO("MAIN", "界面路线：qss（项目层样式表）");
+#endif
 
     // 信号捕获 + Qt 消息重定向。崩溃类信号要不要接，随崩溃后端而变
     // （APP_CRASH_BACKEND）：
@@ -398,11 +421,10 @@ int main(int argc, char* argv[]) {
 
       // 应用元信息进 dump 的注解，也进导出的 summary.txt：崩溃报告得能自证
       // "我是哪个构建"，才能和 dist/symbols/<版本>-<git hash>-<架构>/ 对上
-      const crash::AppInfo app_info{
-          QCoreApplication::applicationName(),
-          QString::fromLatin1(getProjectVersionAll()),
-          QString::fromLatin1(getProjectGitCommit()),
-          QString::fromLatin1(APP_BUILD_TYPE)};
+      const crash::AppInfo app_info{QCoreApplication::applicationName(),
+                                    QString::fromLatin1(getProjectVersionAll()),
+                                    QString::fromLatin1(getProjectGitCommit()),
+                                    QString::fromLatin1(APP_BUILD_TYPE)};
 
 #if defined(APP_ENABLE_CRASHPAD)
       if (crash::Init(handler_path, app_info)) {
@@ -459,8 +481,7 @@ int main(int argc, char* argv[]) {
   // 存在，挂到主窗口下的话那几步没法高亮。桥接对象因此是独立顶层窗口，没有
   // Qt 父级，由这里的 unique_ptr 持有（控制器挂在 app 下）
   auto* tour_controller = new TourController(&app);
-  auto tour_bridge =
-      std::make_unique<TourBridge>(tour_controller->overlay());
+  auto tour_bridge = std::make_unique<TourBridge>(tour_controller->overlay());
 
   // ========================= 5. 登录 =========================
   // 登录成功前不创建主窗口。回放模式跳过登录：录制入口在主窗口菜单里，
@@ -501,8 +522,7 @@ int main(int argc, char* argv[]) {
   // 引导的 viewport 与主题要靠 findChild 找到主窗口里的控件，所以只能等窗口
   // 建好之后再接
   tour_controller->setViewport(&w);
-  TourTopic* tour_topic =
-      tour_controller->addTopic(BuildTemplateTourTopic(&w));
+  TourTopic* tour_topic = tour_controller->addTopic(BuildTemplateTourTopic(&w));
   auto* tour_menu = new TourMenu(tour_controller, &w);
   // 主题显式传给菜单：菜单文字写的是「模板导览」，那就得真播模板导览那一条，
   // 不能再靠"第一个注册的"这个位置关系

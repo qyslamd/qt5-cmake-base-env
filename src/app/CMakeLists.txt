@@ -127,11 +127,32 @@ if(BUILD_QT_TESTING)
     target_compile_definitions(${TARGET_NAME} PRIVATE APP_ENABLE_QT_TESTING)
 endif()
 
-# Ribbon 界面：主窗口的基类与入口形态随这个开关二选一，见 mainwindow.h 的
-# MainWindowBase。关掉时退回 QMainWindow + 普通菜单栏，也不链 SARibbon
-if(BUILD_RIBBON)
-    target_link_libraries(${TARGET_NAME} PRIVATE SARibbonBar)
-    target_compile_definitions(${TARGET_NAME} PRIVATE APP_ENABLE_RIBBON)
+# 界面路线（APP_UI_ROUTE，见顶层）决定主窗口长什么样，两条路互斥：
+#
+#   qss（默认）：Ribbon 开就 SARibbonMainWindow + 功能区，否则 QMainWindow +
+#               普通菜单栏；样式来自项目层 QSS
+#   fluent     ：QMainWindow + Fluent 标题栏（Frameless），样式来自
+#               FluentUI3Style（QProxyStyle，不加载任何 QSS）
+#
+# 窗口壳互斥的原因是硬的：一个顶层窗口只能装一个 QWindowKit window agent
+# （SARibbon 与 Frameless 各自都要装）。所以这里是 if/else 而不是各自追加——
+# fluent 下不链 SARibbonBar、也不注入 APP_ENABLE_RIBBON，mainwindow.h 的基类
+# 与 mainwindow.cpp 的入口形态都据这两个宏分叉
+if(APP_UI_ROUTE STREQUAL "fluent")
+    if(NOT BUILD_FLUENT_UI)
+        message(FATAL_ERROR
+            "APP_UI_ROUTE=fluent 需要 BUILD_FLUENT_UI=ON（见顶层「构建开关区」）")
+    endif()
+    target_link_libraries(${TARGET_NAME} PRIVATE
+        FluentUI3Style
+        Frameless
+    )
+    target_compile_definitions(${TARGET_NAME} PRIVATE APP_UI_FLUENT)
+else()
+    if(BUILD_RIBBON)
+        target_link_libraries(${TARGET_NAME} PRIVATE SARibbonBar)
+        target_compile_definitions(${TARGET_NAME} PRIVATE APP_ENABLE_RIBBON)
+    endif()
 endif()
 
 # --crash 测试开关：只影响命令行选项的注册与那一次主动崩溃，见顶层 CMakeLists

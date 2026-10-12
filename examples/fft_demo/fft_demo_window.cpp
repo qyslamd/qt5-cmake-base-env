@@ -16,7 +16,6 @@
 #include <QPushButton>
 #include <QSpinBox>
 #include <QStringList>
-#include <QThread>
 #include <QVBoxLayout>
 
 namespace {
@@ -34,14 +33,13 @@ const char* const kSampleCountLabels[] = {"256",  "512",  "1024",
 
 }  // namespace
 
-FftDemoWindow::FftDemoWindow(bool threads_available, QWidget* parent)
-    : QWidget(parent) {
-  initUi(threads_available);
+FftDemoWindow::FftDemoWindow(QWidget* parent) : QWidget(parent) {
+  initUi();
   initSignals();
   onRecompute();  // 起来就有一幅图，不必先点按钮
 }
 
-void FftDemoWindow::initUi(bool threads_available) {
+void FftDemoWindow::initUi() {
   setObjectName(QStringLiteral("FftDemoWindow"));
   setWindowTitle(QStringLiteral("FFT 频谱演示"));
   resize(1180, 700);
@@ -63,8 +61,8 @@ void FftDemoWindow::initUi(bool threads_available) {
   for (const char* label : kSampleCountLabels) {
     sample_count_combo_->addItem(QString::fromLatin1(label));
   }
-  // 只给 2 的幂：FFTW 对 2^k 长度最快，也让"谱线间隔 = 采样率 / 点数"这条
-  // 心算保持干净
+  // 只给 2 的幂：kissfft 对任意偶数长度都行，这里收窄是为了让"谱线间隔 =
+  // 采样率 / 点数"这条心算保持干净
   sample_count_combo_->setCurrentIndex(
       sample_count_combo_->findText(QString::number(kDefaultSampleCount)));
   signal_form->addRow(QStringLiteral("点数"), sample_count_combo_);
@@ -111,16 +109,6 @@ void FftDemoWindow::initUi(bool threads_available) {
   spectrum_combo_->addItem(QStringLiteral("双边幅度"));
   spectrum_combo_->addItem(QStringLiteral("单边 PSD (dB/Hz)"));
   fft_form->addRow(QStringLiteral("谱显示"), spectrum_combo_);
-
-  if (threads_available) {
-    threads_spin_ = new QSpinBox(fft_group);
-    threads_spin_->setObjectName(QStringLiteral("threads_spin"));
-    // FFTW 内部开的就是普通 worker 线程，和 QThread / std::thread 是两回事，
-    // 各跑各的；这里只决定"这一次变换用几个线程"
-    threads_spin_->setRange(1, qMax(1, QThread::idealThreadCount()));
-    threads_spin_->setValue(1);
-    fft_form->addRow(QStringLiteral("FFT 线程数"), threads_spin_);
-  }
 
   recompute_button_ = new QPushButton(QStringLiteral("重新计算"), fft_group);
   recompute_button_->setObjectName(QStringLiteral("recompute_button"));
@@ -228,7 +216,6 @@ FftParams FftDemoWindow::CollectParams() const {
   params.sample_count = sample_count_combo_->currentText().toInt();
   params.noise_amp = noise_spin_->value();
   params.window = window_combo_->currentIndex();
-  params.threads = (threads_spin_ != nullptr) ? threads_spin_->value() : 1;
   params.view = static_cast<SpectrumView>(spectrum_combo_->currentIndex());
   for (int i = 0; i < kToneCount; ++i) {
     params.tone_freqs.append(tone_freq_spins_[i]->value());

@@ -23,15 +23,13 @@ class FftDemoWindow : public QWidget {
   Q_OBJECT
 
  public:
-  // threads_available：调用方是否成功初始化了 FFTW 的线程支持（见 main.cpp）。
-  // 没成功就不摆线程数控件——摆一个改不动的控件只会误导
-  explicit FftDemoWindow(bool threads_available, QWidget* parent = nullptr);
+  explicit FftDemoWindow(QWidget* parent = nullptr);
 
  private slots:
   void onRecompute();
 
  private:
-  void initUi(bool threads_available);
+  void initUi();
   void initSignals();
   FftParams CollectParams() const;
   void PlotResult(const FftResult& result);
@@ -50,7 +48,6 @@ class FftDemoWindow : public QWidget {
   QDoubleSpinBox* noise_spin_ = nullptr;
   QComboBox* window_combo_ = nullptr;
   QComboBox* spectrum_combo_ = nullptr;
-  QSpinBox* threads_spin_ = nullptr;
   QPushButton* recompute_button_ = nullptr;
   QLabel* status_label_ = nullptr;
   QLabel* result_label_ = nullptr;

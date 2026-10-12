@@ -17,13 +17,13 @@ enum class SpectrumView {
 // FFT 的输入参数。这一层刻意不碰任何 Qt 部件：界面那半只负责把控件值搬进来、
 // 把结果画出去，算法与显示分开，便于替换与验证
 struct FftParams {
-  int sample_count = 2048;      // 采样点数，取 2 的幂（FFTW 最快的长度）
+  int sample_count = 2048;  // 采样点数，取 2 的幂（谱线间隔 =
+                            // 采样率/点数，好心算；kissfft 对任意偶数长度都行）
   double sample_rate = 8000.0;  // 采样率，Hz
   QVector<double> tone_freqs;   // 各分量频率，Hz
   QVector<double> tone_amps;    // 各分量幅度
   double noise_amp = 0.0;       // 均匀噪声幅度，0 = 不加
   int window = 0;               // 0 矩形 / 1 Hann / 2 Hamming
-  int threads = 1;              // 交给 FFTW 的线程数；>1 时调用方须先 init 线程
   SpectrumView view = SpectrumView::kSingleAmplitude;  // 谱怎么摆
 };
 

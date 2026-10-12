@@ -10,6 +10,71 @@
 
 ### 新增
 
+- **界面双路线打通：`APP_UI_ROUTE` 决定主界面走哪条**。`qss`（默认）维持现状
+  ——项目层样式表 + SARibbon 功能区/普通菜单栏；`fluent` 则换成
+  `FluentUI3Style`（QProxyStyle）+ `Frameless` 无边框标题栏，**不加载任何 QSS**
+  （只要 `setStyleSheet` 生效，命中规则的控件就走 `QStyleSheetStyle`，Fluent
+  的绘制会被整个绕过）。落地方式：`src/app/CMakeLists.txt` 里两条路 if/else
+  互斥地链库与注宏（fluent 下不链 SARibbonBar、不注入 `APP_ENABLE_RIBBON`），
+  新增 `APP_UI_FLUENT` 宏管 `mainwindow.h` 的基类选择与 `mainwindow.cpp` 的
+  入口形态，`main.cpp` 的样式块按宏二选一；`initFluentFrame()` 里
+  `FluentWindowFrame::installChromeHeader(menuBar())` 把菜单栏收进标题栏下方
+  那一块（窗口不额外占一行）。启动日志会打印本次构建走的路线。实测：fluent 版
+  exe 只多依赖 `FluentUI3Style.dll`（**没有 ExWidgets.dll、没有 QWK DLL**，
+  QWK 静态链入），两个版本都能起来；`-t relwithdebinfo -a x86` 编译通过，
+  ctest 11/11
+- **FluentUI3Style 入库：第二条界面路线**（设计与决策见
+  `docs/plan/界面双路线与FFT选型设计.md`）。`3rdparty/FluentUIStyle-4.0.tar.gz`
+  （MIT，WinUI3/Fluent 的 `QProxyStyle` 实现）接入为 `FluentUI3Style` +
+  `Frameless` + `ExWidgets` 三个目标，`BUILD_FLUENT_UI` 默认 ON；**Qt 样式插件
+  不开**——它默认会把插件写进 Qt 安装目录，与自包含相悖。三条接线上的实测结论：
+  ① 它自带的 `3rd/qwindowkit` 与 `3rd/kissfft` **都没参与构建**（Frameless 靠
+  `if(NOT TARGET QWindowKit::Widgets)`、ExWidgets 靠 `if(NOT TARGET kissfft)`
+  复用宿主的那份，实测构建目录里那两个 `3rd/` 子目录根本没被配置）——为此把
+  QWindowKit 的 `add_subdirectory` 从 `if(BUILD_RIBBON)` 里提出来（两条路线
+  共用一份静态库），并加了一句 `QWindowKit::Widgets` 别名断言；② 它做「版本
+  无关查找」（`find_package(QT NAMES Qt6 Qt5)`，包名 QT、认 `QT_DIR`），与本仓
+  `local.cmake` 只给 `Qt5_DIR` 的写法对不上，配置阶段直接失败——补丁
+  `FluentUIStyle/0001-qt5-only` 钉到 Qt5（同 QXlsx / SARibbon / funq 的处理）；
+  ③ 它的 `install(TARGETS/EXPORT)` 会在 **generate 阶段**报错（`Frameless` 链的
+  `QWKWidgets` 不在任何导出集），且 Linux 侧 `cmake --install` 会把它的头文件
+  与 cmake 包配置装进 AppDir——用作用域内的 `CMAKE_SKIP_INSTALL_RULES` 关掉，
+  **不打补丁**，本仓自己的安装规则不受影响（实测：它的 `cmake_install.cmake`
+  不再生成，`src/app` 的照旧）。安装包侧：`.iss` 的 `[Files]` 是白名单，
+  `FluentUI3Style.dll` 单独补了一行（带 `skipifsourcedoesntexist`）
+- **kissfft 入库，成为本仓唯一的一等 FFT 依赖**：`3rdparty/kissfft-131.2.0.tar.gz`
+  （上游完整包，**BSD-3-Clause 或 Unlicense 双许可**）。四个 cache 变量必须在
+  `add_subdirectory` 之前设好，其中两个是硬要求：`KISSFFT_TEST`/`KISSFFT_TOOLS`
+  默认 ON 而它们的 CMakeLists 里是 `pkg_check_modules(libpng/fftw3 REQUIRED ...)`
+  ——**默认选项下 configure 直接 FATAL**（不是"多几个 ctest 用例"那么轻）；
+  `KISSFFT_STATIC` 默认 OFF，不改会编出要部署要打包的 `kissfft-float.dll`。
+  （`BUILD_SHARED_LIBS` 那个"全局污染"的担心不成立：它是子目录作用域的普通
+  变量，实测不外泄。`KISSFFT_DATATYPE` 默认 float，与用法一致。）
+
+### 移除
+
+- **FFTW 下线，`examples/fft_demo` 移植到 kissfft**。选 kissfft 的理由是**许可**
+  ——FFTW 是 GPL-2.0，而本仓是给人做业务的基础环境，GPL 会把业务代码一起拽进去；
+  附带好处是 5 个 .c 秒编，不再有每次 configure 的编译器/SIMD 探测。删除清单
+  五处：`BUILD_FFTW` 段（option 与接线）、`DEPENDENCY_ARCHIVES` 条目、tarball、
+  `patches/fftw/` **连同 `patch_dependencies.cmake` 里的两条注册**（只删文件不删
+  注册，`apply_patch_to_dir` 会因补丁文件缺失直接 FATAL）、以及文档里拿它当范例
+  的地方（`第三方依赖补丁.md` 三处改为 zlib/SARibbon/QXlsx 的例子，FFTW 的教训
+  保留为"踩过的坑"）。
+  移植要点：`fftwf_plan_dft_r2c_1d/c2r_1d` → `kiss_fftr_alloc + kiss_fftr/kiss_fftri`，
+  RAII 从"缓冲区 + plan"两层减到一层；kissfft 没有线程 API，`FftParams::threads`
+  与界面上的线程数控件一并删掉（它本来就是为 FFTW 的多线程加的）；
+  **kissfft 的实数变换只吃偶数长度**，`RunFft` 补了一条显式拒绝。
+  数值用一次性探针逐项核对（期望值按第一性原理给，不抄 FFTW 时代那组——那是
+  另一套参数下的数）：bin 上的分量峰值精确等于幅度（0.8/0.5/0.3，频率分毫不差）、
+  双边谱 ±f 各半且相等（差 0）、**PSD × bin 宽 = a²/2**（0.320000）、100.4 Hz 被
+  插值到 100.61（容差内；三点抛物线在线性幅度上做、窗是 Hann，本来就有百分之几
+  bin 的系统偏差，与换引擎无关）、噪声底 −68.42 对理论 −66.81（差 1.6 dB，正是
+  中位数相对均值的 ln2 因子）、未处理信号 RMS = σ、去噪后 RMS 从 0.0290 降到
+  0.0032、奇数点数被拒绝；**谱线本身与朴素 DFT（double，按定义直算）交叉核对，
+  相对最大谱线差 1.4e-8**——单精度 FFT 该有的精度。探针留在 `temp/fft_probe/`
+  （不入库）
+
 - **构建工具链随仓库提供，版本固定**：`3rdparty/` 下新增 `cmake/`（4.2.0，
   `bin\` 与同版本的 `share\` 成套——实测只有 exe 时它报 `Could not find
   CMAKE_ROOT` 直接拒绝运行）、`ninja.exe`（1.10.2）与 `clang/`（21.1.2：
@@ -509,6 +574,18 @@
 
 ### 修复
 
+- **fluent 路线登录后必崩（0xC0000005，读 0x00000004）**：窗口壳
+  `FluentWindowFrame::installChromeHeader` 内部 `setMenuWidget(chromeHeader)`
+  把菜单部件换成了普通 QWidget，而 Qt 5.15 的 `QMainWindow::menuBar()` 是
+  「菜单部件不是 QMenuBar 就新建一个装上去」——实测这条新建路径崩在
+  `QMenuBar::cornerWidget`（this=0），而且就算不崩也会把 Fluent 的 chrome
+  header 顶掉。两个受害点：`TourMenu::attachMenu`（`tour_menu.cpp`）与
+  `UiTestSupport::attachMenu`（`testing_support.cpp`），都直接
+  `window->menuBar()->addMenu(...)`。修法是新增 `HostMenuBar(window)`：菜单部件
+  本身就是 QMenuBar（QSS / SARibbon 路线）就直接返回；为空才调 `menuBar()`
+  （它会建，安全）；两者都不是（fluent 的 chrome header）则 `findChild` 按对象树
+  找——**绝不**在这种情形下调 `menuBar()`。实测：`--play` 复现的崩溃消失
+  （退出码 0、零转储），qss 路线回归通过，ctest 11/11
 - **`-d` 部署后 `bin\funq` 里的工具跑不起来**：套件的脚本与 `.py` 在 configure
   期就生成到位，但解释器、client/server 包、注入库与 `qt\` 补件只在
   `make_funq_kit` 里落盘，而它此前只被 `make_package` 依赖——不打包就永远差

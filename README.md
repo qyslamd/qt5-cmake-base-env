@@ -41,7 +41,8 @@
 的「工具链随仓库提供」）。Linux / WSL 侧不适用那些 Windows 可执行文件，仍需
 系统装 cmake 与 ninja。
 
-第三方库随仓库提供（spdlog、googletest、QCustomPlot、QXlsx），首次
+第三方库随仓库提供（spdlog、googletest、QCustomPlot、QXlsx、SARibbon、
+QWindowKit、crashpad、fft 用的 kissfft、界面用的 FluentUI3Style 等），首次
 configure 时自动解压，无需另行下载。仓库不含 git submodule，克隆后即可
 直接构建。
 
@@ -75,6 +76,20 @@ configure 时自动解压，无需另行下载。仓库不含 git submodule，�
    ```
 
 更细致的说明见[模板使用指南](docs/guide/模板使用指南.md)。
+
+## 界面路线：两条，二选一
+
+界面备了两条互斥的路，由顶层 `APP_UI_ROUTE` 选：
+
+| 路线 | 外观来源 | 窗口壳 | 怎么构建 |
+|------|----------|--------|----------|
+| `qss`（默认） | 项目层样式表 `src/app/resources/styles/default.qss` | SARibbon 功能区（`BUILD_RIBBON=OFF` 时退回普通菜单栏） | `scripts\build_ninja.bat -t relwithdebinfo -a x86` |
+| `fluent` | `FluentUI3Style`（WinUI3/Fluent 的 `QProxyStyle`，**不加载任何 QSS**） | QWindowKit 无边框 + Fluent 标题栏 | 独立构建目录：`cmake -S . --preset ninja-relwithdebinfo-x86 -B build/ninja-relwithdebinfo-x86-fluent -DAPP_UI_ROUTE=fluent` 然后 `cmake --build build/ninja-relwithdebinfo-x86-fluent` |
+
+两者**不能混用**：同一个进程里 `setStyleSheet` 一生效，命中规则的控件就会绕过
+`QProxyStyle`；同一个顶层窗口也只能装一个 QWindowKit window agent。启动日志里
+会打印本次构建走的是哪条路。设计与决策记录见
+[界面双路线与FFT选型设计](docs/plan/界面双路线与FFT选型设计.md)。
 
 ## 目录结构
 

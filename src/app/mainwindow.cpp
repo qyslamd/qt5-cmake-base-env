@@ -8,8 +8,12 @@
 #include <QVBoxLayout>
 
 // clang-format off
-// 功能区与普通菜单栏的构建方式不同，各自只包含自己那套头文件
-#ifdef APP_ENABLE_RIBBON
+// 三条路线各自的入口形态不同，各自只包含自己那套头文件
+#ifdef APP_UI_FLUENT
+#include <QMenu>
+#include <QMenuBar>
+#include <fluentwindowframe.h>
+#elif defined(APP_ENABLE_RIBBON)
 #include <SARibbonBar.h>
 #include <SARibbonCategory.h>
 #include <SARibbonPanel.h>
@@ -35,7 +39,10 @@ void MainWindow::initUi() {
   setMinimumSize(800, 600);
 
   createActions();
-#ifdef APP_ENABLE_RIBBON
+#if defined(APP_UI_FLUENT)
+  initMenuBar();
+  initFluentFrame();
+#elif defined(APP_ENABLE_RIBBON)
   initRibbon();
 #else
   initMenuBar();
@@ -119,6 +126,16 @@ void MainWindow::initMenuBar() {
   auto* help_menu = menuBar()->addMenu(QStringLiteral("帮助(&H)"));
   help_menu->setObjectName(QStringLiteral("menuHelp"));
   help_menu->addAction(about_action_);
+}
+#endif
+
+#ifdef APP_UI_FLUENT
+// Fluent 路线的窗口壳：QWK 无边框 + FluentTitleBar。菜单栏交给
+// installChromeHeader——它内部走 setMenuWidget，把「标题栏 + 菜单栏」当成
+// 窗口顶部的整体，窗口不会因此多占一行
+void MainWindow::initFluentFrame() {
+  fluent_frame_ = new FluentWindowFrame(this, this);
+  fluent_frame_->installChromeHeader(menuBar());
 }
 #endif
 
