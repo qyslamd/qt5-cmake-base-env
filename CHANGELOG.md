@@ -598,6 +598,15 @@
 
 ### 修复
 
+- **fluent 路线下登录框是"没有底的浮空控件"**：登录框走的是「无边框 + 透明背景
+  （`WA_TranslucentBackground`，为阴影留透明区）+ QSS 画的圆角白卡片 + 阴影」
+  这套，而 fluent 路线不加载任何 QSS——卡片没有底，只剩一圈阴影（Windows 上还
+  可能整块发黑）。修法：`APP_UI_FLUENT` 下不设无边框与透明，退回普通对话框交给
+  `FluentUI3Style` 画，阴影要的那 10px 边距与 `QGraphicsDropShadowEffect` 一并
+  去掉；原生标题栏也顺带补上了"无边框时只能拖拽移动"这一点。附带排查：
+  tour 的气泡 / 遮罩 / 主页也用透明背景，但那是 `QPainter` 自绘（不依赖 QSS），
+  两条路线都正常，不动。实测（两版各截一张登录框）：fluent 是正常的不透明
+  对话框（原生标题栏、勾选框是 Fluent 的蓝勾），qss 路线观感不变
 - **fluent 路线登录后必崩（0xC0000005，读 0x00000004）**：窗口壳
   `FluentWindowFrame::installChromeHeader` 内部 `setMenuWidget(chromeHeader)`
   把菜单部件换成了普通 QWidget，而 Qt 5.15 的 `QMainWindow::menuBar()` 是

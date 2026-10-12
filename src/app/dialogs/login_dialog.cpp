@@ -22,9 +22,17 @@
 LoginDialog::LoginDialog(QWidget* parent) : QDialog(parent) {
   setObjectName(QStringLiteral("loginDialog"));
   setWindowTitle(QStringLiteral("登录"));
+#ifdef APP_UI_FLUENT
+  // fluent 路线：这个"浮空卡片"是样式表画的（#loginContent 的白底圆角，
+  // 阴影挂在它上面），而那条路不加载任何 QSS——留着透明背景只会得到
+  // "没有底的浮空控件 + 一圈阴影"（Windows 上还可能整块发黑）。退回普通
+  // 对话框，让 FluentUI3Style 按它自己的对话框外观画；原生标题栏也顺带
+  // 补上了"无边框只能靠拖拽移动"这一点
+#else
   // 无边框 + 透明背景，卡片阴影显示在透明区域
   setWindowFlag(Qt::FramelessWindowHint);
   setAttribute(Qt::WA_TranslucentBackground);
+#endif
   setFixedSize(460, 370);
   initUi();
   initSignals();
@@ -47,15 +55,19 @@ LoginDialog::LoginDialog(QWidget* parent) : QDialog(parent) {
 void LoginDialog::initUi() {
   // 顶层卡片（圆角白底 + 阴影）
   auto* outer = new QVBoxLayout(this);
-  outer->setContentsMargins(10, 10, 10, 10);
-
   auto* content = new QFrame(this);
   content->setObjectName(QStringLiteral("loginContent"));
+#ifdef APP_UI_FLUENT
+  // 没有 QSS 就没有卡片底：不留阴影要的那圈边距，也不挂阴影效果
+  outer->setContentsMargins(0, 0, 0, 0);
+#else
+  outer->setContentsMargins(10, 10, 10, 10);
   auto* shadow = new QGraphicsDropShadowEffect(content);
   shadow->setBlurRadius(24);
   shadow->setOffset(0, 4);
   shadow->setColor(QColor(0, 0, 0, 60));
   content->setGraphicsEffect(shadow);
+#endif
 
   auto* h_layout = new QHBoxLayout(content);
   h_layout->setContentsMargins(0, 0, 0, 0);
