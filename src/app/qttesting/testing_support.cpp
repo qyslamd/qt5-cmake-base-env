@@ -11,14 +11,15 @@
 #include <QTimer>
 
 #include "qttesting_xml.h"
+#include "tour_menu.h"  // HostMenuBar
 
 // 静态库里的 qrc 符号没人引用就不会被链进来，得有代码显式引用一次。
 //
 // 这个函数**必须留在文件作用域**，不能放进匿名命名空间、也不能放进类成员函数：
 // Q_INIT_RESOURCE 展开后是一个块作用域的 extern 声明，它会把
 // qInitResources_QtTesting 声明到"最近的封闭命名空间"里——放进匿名命名空间就变成
-// `anonymous namespace'::qInitResources_QtTesting，而 rcc 生成的那个在全局作用域，
-// 于是链接期报 LNK2019（这条注释是踩过之后补的）
+// `anonymous namespace'::qInitResources_QtTesting，而 rcc
+// 生成的那个在全局作用域， 于是链接期报 LNK2019（这条注释是踩过之后补的）
 //
 // 少了它会怎样：pqRecordEventsDialog / pqPlayBackEventsDialog 的按钮全靠
 // QtTesting.qrc 里的图标，而那个「校验」按钮**只有图标、没有文字**——资源缺失时
@@ -34,7 +35,13 @@ UiTestSupport::UiTestSupport(QObject* parent)
 }
 
 void UiTestSupport::attachMenu(QMainWindow* window) {
-  QMenu* menu = window->menuBar()->addMenu(QStringLiteral("测试(&C)"));
+  // 走 HostMenuBar 而不是 window->menuBar()：fluent
+  // 路线的窗口壳会换掉菜单部件， menuBar() 从此返回空（见 tour_menu.h 的说明）
+  QMenuBar* menu_bar = HostMenuBar(window);
+  if (menu_bar == nullptr) {
+    return;
+  }
+  QMenu* menu = menu_bar->addMenu(QStringLiteral("测试(&C)"));
 
   QAction* record_action = menu->addAction(QStringLiteral("录制事件(&R)..."));
   connect(record_action, &QAction::triggered, this, [this, window]() {
@@ -54,7 +61,8 @@ void UiTestSupport::attachMenu(QMainWindow* window) {
     // 但**不能紧接着就开录**：库内部用 QApplication::activeWindow() 决定要不要
     // 弹那个控制面板，而刚刚关掉的文件对话框还没把激活交还回来，此刻读到的是空，
     // 面板就不出现（录制照常跑，只是没有面板）。延后一轮，让激活先落回去
-    QTimer::singleShot(0, this, [this, file]() { utility_->recordTests(file); });
+    QTimer::singleShot(0, this,
+                       [this, file]() { utility_->recordTests(file); });
   });
 
   QAction* play_action = menu->addAction(QStringLiteral("回放事件(&P)..."));

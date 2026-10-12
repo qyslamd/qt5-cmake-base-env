@@ -9,6 +9,28 @@
 #include <QMenuBar>
 #include <QString>
 
+QMenuBar* HostMenuBar(QMainWindow* window) {
+  if (window == nullptr) {
+    return nullptr;
+  }
+  // 菜单栏本身就是菜单部件：QSS / SARibbon 路线走这里（menuWidget 是纯 getter，
+  // 不会新建任何东西）
+  if (QMenuBar* bar = qobject_cast<QMenuBar*>(window->menuWidget())) {
+    return bar;
+  }
+  // 菜单部件为空 = 菜单栏还没建。这时 menuBar() 是安全的（它会建一个装上）
+  if (window->menuWidget() == nullptr) {
+    return window->menuBar();
+  }
+  // 剩下这种就是 fluent 路线：菜单部件是窗口壳的 chrome header（普通
+  // QWidget）， 菜单栏成了它的子控件。
+  // **此处绝不能调 window->menuBar()**：Qt 5.15 的实现是「菜单部件不是
+  // QMenuBar 就新建一个 QMenuBar 装上去」，实测这条路径直接崩（转储里
+  // QMenuBar::cornerWidget 以 this=0 被调用、故障地址 0x4），而且就算不崩也会
+  // 把 Fluent 的 chrome header 顶掉
+  return window->findChild<QMenuBar*>();
+}
+
 TourMenu::TourMenu(TourController* controller, QObject* parent)
     : QObject(parent), controller_(controller) {}
 
@@ -17,7 +39,11 @@ void TourMenu::attachMenu(QMainWindow* window, TourTopic* tour_topic) {
     return;
   }
 
-  QMenu* menu = window->menuBar()->addMenu(QStringLiteral("功能引导"));
+  QMenuBar* menu_bar = HostMenuBar(window);
+  if (menu_bar == nullptr) {
+    return;  // 没有菜单栏可挂（宿主自行改了窗口结构），静默跳过
+  }
+  QMenu* menu = menu_bar->addMenu(QStringLiteral("功能引导"));
   menu->setObjectName(QStringLiteral("menuTour"));
 
   QAction* home_action = menu->addAction(QStringLiteral("打开引导主页"));
