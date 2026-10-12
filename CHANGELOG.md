@@ -22,7 +22,13 @@
   那一块（窗口不额外占一行）。启动日志会打印本次构建走的路线。实测：fluent 版
   exe 只多依赖 `FluentUI3Style.dll`（**没有 ExWidgets.dll、没有 QWK DLL**，
   QWK 静态链入），两个版本都能起来；`-t relwithdebinfo -a x86` 编译通过，
-  ctest 11/11
+  ctest 11/11。
+  **一条顺序约束（踩过）**：QWindowKit 那段必须排在 SARibbon **之前**——
+  SARibbon 在配置期就检查 `TARGET QWindowKit::Widgets` 决定要不要编它的
+  frameless 支持，排反了它会把无边框整个关掉（qss 路线的主窗口失去自绘圆角
+  与标题栏，而配置输出里只有一行 WARNING、宏变成
+  `SARIBBON_USE_3RDPARTY_FRAMELESSHELPER=0`）。现在 SARibbon 段紧跟在
+  QWindowKit 段之后，判据也用同一个 `if(TARGET QWindowKit::Widgets)`
 - **FluentUI3Style 入库：第二条界面路线**（设计与决策见
   `docs/plan/界面双路线与FFT选型设计.md`）。`3rdparty/FluentUIStyle-4.0.tar.gz`
   （MIT，WinUI3/Fluent 的 `QProxyStyle` 实现）接入为 `FluentUI3Style` +

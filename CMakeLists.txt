@@ -491,33 +491,14 @@ else()
     message(STATUS "BUILD_FUNQ=OFF，跳过 funq（注入式 UI 测试不可用）")
 endif()
 
-# SARibbon Ribbon 界面库：把主窗口的菜单栏换成功能区（Ribbon）。静态库，
-# 随本仓一次编译。（开关声明见顶部「构建开关区」）
-if(BUILD_RIBBON)
-    # SARibbon 的无边框支持依赖 QWindowKit（见下面单独一段），而它要求
-    # Qt ≥ 5.14：低版本连编都不该编。判的是 Qt5_VERSION——find_package(Qt5)
-    # 只设置这个变量，QT_VERSION 不由 Qt5Config 提供（照着后者写会永远判成
-    # "低版本"）
-    if(Qt5_VERSION VERSION_LESS "5.14")
-        message(STATUS
-            "Qt ${Qt5_VERSION} < 5.14：SARibbon 的无边框支持关闭（Ribbon 本体不受影响）")
-        set(SARIBBON_USE_FRAMELESS_LIB OFF CACHE BOOL "关闭无边框窗口" FORCE)
-    else()
-        set(SARIBBON_USE_FRAMELESS_LIB ON CACHE BOOL "启用无边框窗口" FORCE)
-    endif()
-
-    # 这两个选项必须在 add_subdirectory 之前设好：SARibbon 用 option() 声明，
-    # 缓存里已有条目时它不会覆盖
-    set(SARIBBON_BUILD_STATIC_LIBS ON CACHE BOOL "把 SARibbonBar 编成静态库" FORCE)
-    set(SARIBBON_BUILD_EXAMPLES OFF CACHE BOOL "不编 SARibbon 自带示例" FORCE)
-    set(SARIBBON_INSTALL_IN_CURRENT_DIR OFF CACHE BOOL "不安装到当前目录" FORCE)
-    add_subdirectory(3rdparty/SARibbon-2.5.7)
-else()
-    message(STATUS "BUILD_RIBBON=OFF，跳过 SARibbon（主窗口用普通菜单栏）")
-endif()
-
 #-------------------------------------------------------------------------------
 # QWindowKit —— 无边框窗口（两条界面路线共用）
+#
+# 这段**必须排在 SARibbon 之前**：SARibbon 在配置期就检查
+# `TARGET QWindowKit::Widgets` 决定要不要编它的 frameless 支持
+# （见 3rdparty/SARibbon-2.5.7/CMakeLists.txt 的 _SARIBBON_USE_FRAMELESS_LIB），
+# 排反了它会把无边框整个关掉——窗口失去自绘的圆角与标题栏，而配置输出里只有
+# 一行 WARNING（实测踩过：宏变成 SARIBBON_USE_3RDPARTY_FRAMELESSHELPER=0）
 #
 # 从 BUILD_RIBBON 段里提出来了：它不再只是 SARibbon 的依赖，FluentUI3Style 的
 # Frameless 也链它。两条路线共用本仓编的这一份；FluentUIStyle 靠
@@ -545,6 +526,33 @@ if(BUILD_RIBBON OR BUILD_FLUENT_UI)
                 "QWindowKit；请检查 3rdparty/qwindowkit-1.5.0 是否被改动")
         endif()
     endif()
+endif()
+
+#-------------------------------------------------------------------------------
+# SARibbon Ribbon 界面库 —— 把主窗口的菜单栏换成功能区
+#
+# （开关声明见顶部「构建开关区」；必须排在 QWindowKit 之后，理由见上一段）
+#-------------------------------------------------------------------------------
+if(BUILD_RIBBON)
+    # 无边框支持只看目标在不在——比自己再判一遍 Qt 版本可靠：上游
+    # SARibbon-2.5.7/CMakeLists.txt 就是 `if(TARGET QWindowKit::Widgets)` 决定
+    # 要不要编那段，这里与它保持同一个判据
+    if(TARGET QWindowKit::Widgets)
+        set(SARIBBON_USE_FRAMELESS_LIB ON CACHE BOOL "启用无边框窗口" FORCE)
+    else()
+        message(STATUS
+            "没有 QWindowKit 目标：SARibbon 的无边框支持关闭（Ribbon 本体不受影响）")
+        set(SARIBBON_USE_FRAMELESS_LIB OFF CACHE BOOL "关闭无边框窗口" FORCE)
+    endif()
+
+    # 这两个选项必须在 add_subdirectory 之前设好：SARibbon 用 option() 声明，
+    # 缓存里已有条目时它不会覆盖
+    set(SARIBBON_BUILD_STATIC_LIBS ON CACHE BOOL "把 SARibbonBar 编成静态库" FORCE)
+    set(SARIBBON_BUILD_EXAMPLES OFF CACHE BOOL "不编 SARibbon 自带示例" FORCE)
+    set(SARIBBON_INSTALL_IN_CURRENT_DIR OFF CACHE BOOL "不安装到当前目录" FORCE)
+    add_subdirectory(3rdparty/SARibbon-2.5.7)
+else()
+    message(STATUS "BUILD_RIBBON=OFF，跳过 SARibbon（主窗口用普通菜单栏）")
 endif()
 
 #-------------------------------------------------------------------------------
