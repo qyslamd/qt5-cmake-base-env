@@ -1,0 +1,79 @@
+/* 底座层 08 / 10 · 菜单与栏
+ *
+ * QMenuBar 这条是给"不带功能区"的构建用的（BUILD_RIBBON=OFF 时主窗口用
+ * 传统菜单栏）。带功能区时 SARibbonBar 是 QMenuBar 的子类，QMenuBar::item
+ * 之类的规则会波及功能区——好在功能区主题对冲突属性优先（widget 级样式表），
+ * 但新增规则时仍要看一眼功能区。
+ */
+
+QMenuBar {
+  background-color: #F5F6FA;
+  color: #333333;
+  border-bottom: 1px solid #E0E0E0;
+}
+QMenuBar::item {
+  background: transparent;
+  padding: 5px 10px;
+}
+QMenuBar::item:selected {
+  background-color: #E8EAF6;
+  border-radius: 3px;
+}
+QMenuBar::item:pressed {
+  background-color: #DCE9F7;
+}
+
+QMenu {
+  background-color: #FFFFFF;
+  border: 1px solid #E0E0E0;
+  border-radius: 6px;
+  padding: 4px;
+  color: #333333;
+}
+QMenu::item {
+  padding: 6px 24px 6px 12px;
+  border-radius: 4px;
+}
+QMenu::item:selected {
+  background-color: #E8EAF6;
+}
+QMenu::item:disabled {
+  color: #AAAAAA;
+}
+QMenu::separator {
+  height: 1px;
+  background-color: #E0E0E0;
+  margin: 4px 8px;
+}
+QMenu::icon {
+  padding-left: 6px;
+}
+
+QStatusBar {
+  background-color: #F5F6FA;
+  color: #666666;
+  border-top: 1px solid #E0E0E0;
+}
+QStatusBar::item {
+  border: none;
+}
+
+QToolBar {
+  background-color: #F5F6FA;
+  border: none;
+  spacing: 4px;
+  padding: 2px;
+}
+QToolBar::separator {
+  width: 1px;
+  background-color: #E0E0E0;
+  margin: 4px 6px;
+}
+
+QToolTip {
+  background-color: #FFFFFF;
+  color: #333333;
+  border: 1px solid #CCCCCC;
+  border-radius: 4px;
+  padding: 4px 8px;
+}

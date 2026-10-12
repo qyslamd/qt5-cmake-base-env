@@ -1,0 +1,231 @@
+/* 底座层 03 / 10 · 输入族
+ *
+ * role="form" 是表单里的输入框变体（浅底、细边框），本仓登录与改密对话框用它。
+ * 错误态用动态属性 [error="true"]（本仓既有约定），运行中改属性要
+ * unpolish + polish。
+ */
+
+/* QLineEdit */
+QLineEdit {
+  background-color: rgba(255, 255, 255, 0.85);
+  border: 1.5px solid #D0D0DD;
+  border-radius: 8px;
+  padding: 4px 12px;
+  color: #333333;
+  selection-background-color: #007ACC;
+  selection-color: #FFFFFF;
+}
+QLineEdit:focus {
+  border-color: #007ACC;
+  background-color: #FFFFFF;
+}
+QLineEdit:disabled {
+  background-color: #F0F0F0;
+  color: #AAAAAA;
+  border-color: #E0E0E0;
+}
+QLineEdit[error="true"] {
+  border: 1.5px solid #D13438;
+}
+QLineEdit[role="form"] {
+  background: #F5F5F5;
+  border: 1px solid #D7D7D9;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+QLineEdit[role="form"]:focus {
+  border-color: #1D8FE1;
+  background: #FFFFFF;
+}
+
+/* QTextEdit / QPlainTextEdit */
+QTextEdit, QPlainTextEdit {
+  background-color: rgba(255, 255, 255, 0.85);
+  border: none;
+  border-radius: 10px;
+  padding: 8px 10px;
+  color: #333333;
+  selection-background-color: #007ACC;
+  selection-color: #FFFFFF;
+}
+QTextEdit:focus, QPlainTextEdit:focus {
+  border: 1px solid #007ACC;
+}
+QTextEdit[error="true"], QPlainTextEdit[error="true"] {
+  border: 1.5px solid #D13438;
+}
+
+/* 微调框族：QAbstractSpinBox 覆盖 QSpinBox / QDoubleSpinBox / QDateEdit /
+   QTimeEdit / QDateTimeEdit */
+QAbstractSpinBox {
+  background: #F0F0F0;
+  border: 1px solid #CCCCCC;
+  border-radius: 8px;
+  padding: 8px 30px 8px 12px;
+  color: #333333;
+  font-size: 13px;
+  selection-background-color: #CCE4F7;
+  selection-color: #FFFFFF;
+  min-height: 20px;
+}
+QAbstractSpinBox:hover {
+  background: #F1F1F1;
+  border: 1px solid #007ACC;
+}
+QAbstractSpinBox:focus {
+  border: 2px solid #007ACC;
+}
+QAbstractSpinBox:disabled {
+  background: #F0F0F0;
+  color: #AAAAAA;
+  border: 1px solid #CCCCCC;
+}
+QAbstractSpinBox::up-button {
+  subcontrol-origin: border;
+  subcontrol-position: right top;
+  width: 28px;
+  /* 高度不写：交给 Qt 按控件高度对半分。写死像素会在两个按钮之间留缝，
+     写 50% 也不行——Qt 会把它当成 50 像素 */
+  border: none;
+  border-top-right-radius: 7px;
+  border-left: 1px solid #CCCCCC;
+  background: transparent;
+}
+QAbstractSpinBox::up-button:hover {
+  background: rgba(0, 122, 204, 0.2);
+}
+QAbstractSpinBox::up-button:pressed {
+  background: rgba(0, 122, 204, 0.4);
+}
+QAbstractSpinBox::down-button {
+  subcontrol-origin: border;
+  subcontrol-position: right bottom;
+  width: 28px;
+  /* 高度同 up-button：不写 */
+  border: none;
+  border-bottom-right-radius: 7px;
+  border-left: 1px solid #CCCCCC;
+  background: transparent;
+}
+QAbstractSpinBox::down-button:hover {
+  background: rgba(0, 122, 204, 0.2);
+}
+QAbstractSpinBox::down-button:pressed {
+  background: rgba(0, 122, 204, 0.4);
+}
+/* 上下箭头：与 QComboBox 同一套 SVG，约束也一样（要有 image、不写
+   subcontrol-position、尺寸等于 SVG 原生尺寸 16x8） */
+QAbstractSpinBox::up-arrow {
+  image: url(:/resources/icons/svg/arrow_up.svg);
+  width: 16px;
+  height: 8px;
+}
+QAbstractSpinBox::down-arrow {
+  image: url(:/resources/icons/svg/arrow_down.svg);
+  width: 16px;
+  height: 8px;
+}
+/* 日历下拉按钮（QDateEdit / QDateTimeEdit 开 calendarPopup 时） */
+QDateEdit::drop-down, QTimeEdit::drop-down, QDateTimeEdit::drop-down {
+  subcontrol-origin: border;
+  subcontrol-position: center right;
+  width: 24px;
+  border: none;
+  background: transparent;
+}
+
+/* QComboBox */
+QComboBox {
+  background: #F0F0F0;
+  border: 1px solid #CCCCCC;
+  border-radius: 8px;
+  /* 右内边距是留给下拉区的：下拉区 32px + 左侧分隔线 1px，取 34px 留 1px 余量 */
+  padding: 8px 34px 8px 8px;
+  color: #333333;
+  font-size: 13px;
+  selection-background-color: #CCE4F7;
+  selection-color: #FFFFFF;
+  min-height: 20px;
+}
+QComboBox:hover {
+  border: 1px solid #007ACC;
+  background: #F1F1F1;
+}
+QComboBox:focus {
+  border: 2px solid #007ACC;
+  background: #F1F1F1;
+}
+QComboBox:disabled {
+  background: #F0F0F0;
+  color: #AAAAAA;
+  border: 1px solid #CCCCCC;
+}
+QComboBox::drop-down {
+  subcontrol-origin: padding;
+  subcontrol-position: center right;
+  width: 32px;
+  height: 100%;
+  border: none;
+  border-left: 1px solid #CCCCCC;
+  border-top-right-radius: 7px;
+  border-bottom-right-radius: 7px;
+  background: transparent;
+}
+QComboBox::drop-down:hover {
+  background: rgba(0, 122, 204, 0.2);
+}
+QComboBox::drop-down:pressed {
+  background: rgba(0, 122, 204, 0.4);
+}
+QComboBox::drop-down:disabled {
+  background: #F0F0F0;
+  border-left: 1px solid #CCCCCC;
+}
+/* 下拉箭头：SVG 由本模块的 style_res.qrc 提供（换自绘就一定要给 image——
+   子控件一旦被规则接管，Qt 就不再画原生箭头，只写尺寸的结果是什么都没有）。
+   两条约束别动：
+   1. 不要写 subcontrol-origin / subcontrol-position——写了就不在下拉区里居中，
+      交给 Qt 自己在 drop-down 内居中；
+   2. 尺寸必须等于 SVG 的原生尺寸（16x8）：写别的值，Qt 会先按原生尺寸栅格化
+      再缩放，1.6px 的描边被稀释成亚像素，箭头淡到看不见 */
+QComboBox::down-arrow {
+  image: url(:/resources/icons/svg/arrow_down.svg);
+  width: 16px;
+  height: 8px;
+}
+QComboBox::down-arrow:on {
+  image: url(:/resources/icons/svg/arrow_up.svg);
+}
+
+/* 下拉弹出列表：它会命中 itemview.qss 的 QAbstractItemView 规则，这里的
+   后代选择器具体度更高，把外观收回到下拉框自己的样子 */
+QComboBox QAbstractItemView {
+  background: #F0F0F0;
+  border: 1px solid #CCCCCC;
+  border-radius: 8px;
+  padding: 4px;
+  selection-background-color: #CCE4F7;
+  selection-color: #FFFFFF;
+  outline: none;
+  alternate-background-color: transparent;
+  color: #333333;
+}
+QComboBox QAbstractItemView::item {
+  padding: 10px 14px;
+  margin: 2px 4px;
+  border-radius: 6px;
+  min-height: 24px;
+  color: #333333;
+}
+QComboBox QAbstractItemView::item:hover {
+  background: rgba(0, 122, 204, 0.3);
+  color: #333333;
+}
+QComboBox QAbstractItemView::item:selected {
+  background: rgba(0, 122, 204, 0.6);
+  color: #FFFFFF;
+  border: 1px solid rgba(0, 122, 204, 0.8);
+}
+QComboBox QAbstractItemView::item:alternate {
+  background: transparent;
+}

@@ -30,6 +30,8 @@
 
 #ifdef APP_UI_FLUENT
 #include <fluentui3style.h>
+#else
+#include <style.h>
 #endif
 
 #include <tour_bridge.h>
@@ -350,21 +352,16 @@ int main(int argc, char* argv[]) {
     //             **不加载任何 QSS**：只要 setStyleSheet 生效，命中规则的控件
     //             就走 QStyleSheetStyle，Fluent 的绘制被整个绕过，结果是界面
     //             一半 Fluent、一半样式表
-    //   qss —— 读本仓的项目层样式表。原先的底座层（base/*.qss）由 demo_style
-    //          提供，该库已迁往 qt-libui 仓库，本仓只保留 objectName
-    //          规则这一层； 读不到就带告警裸奔
-    // 全局字体两条路都要设（原先由底座层顺带设置）
+    //   qss —— ApplyStyleSheet 装两层：先是本仓的底座层（src/style 的
+    //          base/*.qss，只写类型/伪状态/子控件/属性选择器），再是本仓业务
+    //          控件的项目层（objectName 规则）。底座在前、项目层在后，两层重合
+    //          时以项目层为准，顺序固定在 ApplyStyleSheet 里
+    // 全局字体两条路都要设（ApplyStyleSheet 内部也会设一次，这里是 fluent
+    // 路线也要的那份）
 #ifdef APP_UI_FLUENT
     QApplication::setStyle(new FluentUI3Style);
 #else
-    {
-      QFile sheet(QStringLiteral(":/resources/styles/default.qss"));
-      if (sheet.open(QIODevice::ReadOnly)) {
-        app.setStyleSheet(QString::fromUtf8(sheet.readAll()));
-      } else {
-        qWarning("样式表读取失败，将无样式：:/resources/styles/default.qss");
-      }
-    }
+    ApplyStyleSheet(app, {QStringLiteral(":/resources/styles/default.qss")});
 #endif
     QFont app_font = app.font();
     app_font.setFamily(QStringLiteral("Microsoft YaHei"));
@@ -383,9 +380,9 @@ int main(int argc, char* argv[]) {
 #ifdef APP_UI_FLUENT
     LOG_INFO("MAIN", "界面路线：fluent（FluentUI3Style + Frameless 标题栏）");
 #elif defined(APP_ENABLE_RIBBON)
-    LOG_INFO("MAIN", "界面路线：qss + SARibbon 功能区（项目层样式表）");
+    LOG_INFO("MAIN", "界面路线：qss + SARibbon 功能区（底座 + 项目层样式表）");
 #else
-    LOG_INFO("MAIN", "界面路线：qss（项目层样式表）");
+    LOG_INFO("MAIN", "界面路线：qss（底座 + 项目层样式表）");
 #endif
 
     // 信号捕获 + Qt 消息重定向。崩溃类信号要不要接，随崩溃后端而变

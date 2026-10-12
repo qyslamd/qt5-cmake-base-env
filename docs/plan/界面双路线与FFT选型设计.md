@@ -189,7 +189,7 @@ set(APP_UI_ROUTE "qss" CACHE STRING "demo_app 的界面路线：qss / fluent")
 | D1 | `APP_UI_ROUTE` 默认值 | `qss` 保持现状 / `fluent` 立为新默认 | **qss**（不破坏现状，Fluent 用开关打开） |
 | D2 | `ExWidgets` 要不要编 | 上游没有开关（见 §3.2）：A) 打一条补丁关掉；B) 编但不用、也不进安装包 | **B**——零补丁零维护；`ExWidgets.dll` 只躺在 `bin/`（本地构建产物），发布件不带它。kissfft 反正是要留的一等依赖 |
 | D3 | SARibbon 与 Fluent 的关系 | 保持两条路各自独立 / 允许"Fluent 样式 + SARibbon 壳"混搭 | **各自独立**（混搭是 4.1 约束 2 的反面） |
-| D4 | qt-libui 的定位 | 作为路线 B 的底座接回来 / 不再接（路线 B 只用项目层 QSS） | **待定**——取决于你还要不要那套自研底座 |
+| D4 | qt-libui 的定位 | 作为路线 B 的底座接回来 / 不再接（路线 B 只用项目层 QSS） | **定案（2026-10-12）：qt-libui 保持独立（当试验场），两仓不留依赖；只把它的**底座样式表**按原样拷回本仓 `src/style/`。实测拷贝内容与 qt-libui 现版逐字节一致，此后两仓不再同步 |
 | D5 | 项目层 38 条 QSS 规则 | 走 fluent 时逐条翻成 Fluent 属性（`fluentui3styleproperties.h`）/ 先不翻，接受 fluent 路线下这些规则失效 | **先不翻**（把"翻规则"作为独立任务，`fluent` 路线先以"业务控件用 Fluent 默认观感"起步） |
 | D6 | `FluentUI3Style.dll` 进不进安装包 | A) 进（`.iss` 补一行 + `skipifsourcedoesntexist`）B) 只在 `APP_UI_ROUTE=fluent` 时进（`.iss` 加 `#if`）C) 先不进，等真用 fluent 路线发布再说 | **A**——几百 KB 的死重量换取 .iss 零分支；`qss` 路线下它没被链接，装了也不会被加载 |
 
@@ -295,6 +295,9 @@ set(KISSFFT_PKGCONFIG OFF CACHE BOOL "" FORCE)  # 默认 ON
    的构建里 `QWindowKit::Widgets` 不存在，守卫断言会 FATAL，而 FluentUIStyle
    会转而编它自带那份 QWK——同一个仓两套 QWK 栈，正是要避免的。
    守卫写成 `if(BUILD_RIBBON OR BUILD_FLUENT_UI)` 里的断言。
+   **顺序上还要排在 SARibbon 之前**（实测踩过）：SARibbon 配置期检查
+   `TARGET QWindowKit::Widgets` 决定要不要编 frameless，排反了 qss 路线的主窗口
+   会失去自绘圆角与标题栏（宏 `SARIBBON_USE_3RDPARTY_FRAMELESSHELPER=0`）。
    → 验证：configure/build 通过，产物落 `bin/`、`lib/`，ctest 数量不变。
 2. **kissfft 提升 + fft_demo 移植 + 安装包接线** → 验证：fft_demo 功能对齐
    （频谱显示与改前一致），构建时间对比记录；`.iss` 的 `[Files]` 段补

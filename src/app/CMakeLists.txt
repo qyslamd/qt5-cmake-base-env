@@ -149,6 +149,8 @@ if(APP_UI_ROUTE STREQUAL "fluent")
     )
     target_compile_definitions(${TARGET_NAME} PRIVATE APP_UI_FLUENT)
 else()
+    # 底座层（src/style 的 base/*.qss + 箭头图 + ApplyStyleSheet）
+    target_link_libraries(${TARGET_NAME} PRIVATE ${APP_TARGET_PREFIX}_style)
     if(BUILD_RIBBON)
         target_link_libraries(${TARGET_NAME} PRIVATE SARibbonBar)
         target_compile_definitions(${TARGET_NAME} PRIVATE APP_ENABLE_RIBBON)

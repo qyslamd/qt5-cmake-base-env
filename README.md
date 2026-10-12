@@ -83,7 +83,7 @@ configure 时自动解压，无需另行下载。仓库不含 git submodule，�
 
 | 路线 | 外观来源 | 窗口壳 | 怎么构建 |
 |------|----------|--------|----------|
-| `qss`（默认） | 项目层样式表 `src/app/resources/styles/default.qss` | SARibbon 功能区（`BUILD_RIBBON=OFF` 时退回普通菜单栏） | `scripts\build_ninja.bat -t relwithdebinfo -a x86` |
+| `qss`（默认） | 底座层 `src/style/resources/styles/base/*.qss`（拷自 `qt-libui` 仓库，两侧不再同步）+ 项目层 `src/app/resources/styles/default.qss`，由 `ApplyStyleSheet()` 拼接 | SARibbon 功能区（`BUILD_RIBBON=OFF` 时退回普通菜单栏） | `scripts\build_ninja.bat -t relwithdebinfo -a x86` |
 | `fluent` | `FluentUI3Style`（WinUI3/Fluent 的 `QProxyStyle`，**不加载任何 QSS**） | QWindowKit 无边框 + Fluent 标题栏 | 独立构建目录：`cmake -S . --preset ninja-relwithdebinfo-x86 -B build/ninja-relwithdebinfo-x86-fluent -DAPP_UI_ROUTE=fluent` 然后 `cmake --build build/ninja-relwithdebinfo-x86-fluent` |
 
 两者**不能混用**：同一个进程里 `setStyleSheet` 一生效，命中规则的控件就会绕过
@@ -95,12 +95,14 @@ configure 时自动解压，无需另行下载。仓库不含 git submodule，�
 
 ```text
 src/
+├── style/  底座层样式表（base/*.qss + ApplyStyleSheet，拷自 qt-libui）
 ├── core/   无 UI 依赖：配置 / 日志 / 崩溃捕获 / 认证 / 单实例
 └── app/    界面骨架、资源与项目层样式（通用控件在 widgets/）
 cmake/      构建脚本模块（版本、运行脚本、测试宏、符号归档、打包）
 scripts/    构建与打包入口脚本
 tests/      单元测试
-examples/   tour_demo、funq 手动分离运行示例
+examples/   fft_demo / funq_target / tour_demo（qss 路线下都挂底座样式表，
+            正好当看样式效果的靶场）、funq 手动分离运行示例
 docs/       文档
 config/     随构建拷贝到输出目录的配置样例
 ```

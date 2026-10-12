@@ -1,0 +1,78 @@
+/* 底座层 04 / 10 · 列表、表格、树
+ *
+ * 注意：SARibbon 的功能区画廊（SARibbonGalleryGroup）是 QListView 的子类，
+ * 这层的 QListView / QAbstractItemView 规则会作用到它——改这里要看一眼功能区。
+ */
+
+QAbstractItemView {
+  background-color: #FFFFFF;
+  color: #1F1F1F;
+  border: none;
+  outline: none;
+  selection-background-color: #CCE4F7;
+  selection-color: #1F1F1F;
+  alternate-background-color: #FAFAFA;
+}
+QAbstractItemView:disabled {
+  color: #AAAAAA;
+}
+
+QTreeView {
+  border: none;
+}
+
+QListView {
+  background-color: #FFFFFF;
+  border: none;
+}
+
+QTableView {
+  background-color: #FFFFFF;
+  border: 1px solid #E0E0E0;
+  border-radius: 6px;
+  gridline-color: #F0F0F0;
+}
+
+/* QListWidget / QTreeWidget / QTableWidget 都是上面几类的子类，无需重复声明 */
+
+/* 行 */
+QAbstractItemView::item {
+  padding: 5px 8px;
+  border: none;
+  border-radius: 6px;
+}
+QAbstractItemView::item:hover {
+  background-color: #EAEAEA;
+}
+QAbstractItemView::item:selected {
+  background-color: rgba(0, 103, 192, 0.10);
+}
+
+/* 表头 */
+QHeaderView {
+  background-color: transparent;
+  border: none;
+}
+QHeaderView::section {
+  background-color: #F5F6FA;
+  color: #666666;
+  padding: 6px 10px;
+  border: none;
+  border-bottom: 2px solid #E0E0E0;
+  font-size: 12px;
+  font-weight: 600;
+}
+QHeaderView::section:hover {
+  background-color: #EAECF5;
+}
+QHeaderView::section:vertical {
+  border-bottom: none;
+  border-right: 2px solid #E0E0E0;
+}
+
+/* 表格左上角那个按钮（行列表头交叉处） */
+QTableCornerButton::section {
+  background-color: #F5F6FA;
+  border: none;
+  border-bottom: 2px solid #E0E0E0;
+}

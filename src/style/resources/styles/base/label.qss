@@ -1,0 +1,23 @@
+/* 底座层 10 / 10 · 文本
+ *
+ * QLabel 的规则会波及功能区：SARibbonPanelLabel 是 QLabel 的子类。文本色是
+ * 最容易被忽略又最容易到处变的一类属性，改这里务必看一眼功能区。
+ */
+
+QLabel {
+  color: #333333;
+}
+QLabel:disabled {
+  color: #AAAAAA;
+}
+
+/* 提示/报错文本（角色用动态属性表达，本仓登录、改密、用户管理三处的提示
+   原来各写一条 #objectName 规则，合并成这一条） */
+QLabel[role="error"] {
+  color: #D13438;
+  font-size: 12px;
+}
+QLabel[role="hint"] {
+  color: #999999;
+  font-size: 12px;
+}

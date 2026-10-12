@@ -65,8 +65,8 @@ scripts/build_ninja.bat -t relwithdebinfo -m demo_app -p
 - for语句，如果只有一行，也请加上`{}`
 - if语句，如果只有一行，也请加上`{}`
 - Qt 界面样式禁止在 C++ 代码中通过 `setStyleSheet` 硬编码
-  - 所有样式统一写入 QSS 文件中：本仓只维护**项目层** `src/app/resources/styles/default.qss`（**只写挂在 `#objectName` 上的规则**），由 `src/app/main.cpp` 启动时加载。原先的**底座层**（类型/伪状态/子控件/属性选择器规则，原 `src/style/` 模块 `demo_style`）已迁往 `qt-libui` 仓库，由其 `ApplyStyleSheet()` 负责拼接与加载
-  - 规则挂哪一层看**控件身份**：挂在类型上的是"哪一类控件"（`QLabel[role="runFailure"]`），归 qt-libui 的底座层（要动它去那边改）；挂在 `#objectName` 上的是"哪一个控件"（`#statusBackend[backend="fake"]`），归本仓项目层。所以项目层不是"只写裸 objectName"，而是"只写**挂在 objectName 上**的规则"；裸写一个 `[backend="fake"]` 不锚定任何控件，仍属底座层的范畴
+  - 所有样式统一写入 QSS 文件中，分两层，都由 `src/style` 模块的 `ApplyStyleSheet()` 拼接加载（底座在前、项目层在后，顺序固定在它的 `kBaseSheets` 里）：**底座层** `src/style/resources/styles/base/*.qss`（只许用类型、伪状态、子控件、属性选择器，**禁止出现 objectName**，且必须从宽到窄排序、`widget.qss` 置首），**项目层** `src/app/resources/styles/default.qss`（**只写挂在 `#objectName` 上的规则**）。底座层的 QSS 与两张箭头图**拷贝自 `qt-libui` 仓库**（它已独立发展，两边不再同步；上游有修复要手工带过来）
+  - 规则挂哪一层看**控件身份**：挂在类型上的是"哪一类控件"（`QLabel[role="runFailure"]`），归底座层；挂在 `#objectName` 上的是"哪一个控件"（`#statusBackend[backend="fake"]`），归本仓项目层。所以项目层不是"只写裸 objectName"，而是"只写**挂在 objectName 上**的规则"；裸写一个 `[backend="fake"]` 不锚定任何控件，仍属底座层的范畴
   - 定位控件按三档优先级：**类型 + 伪状态 + 子控件** → **动态属性**（`setProperty("role", "primary")` 配 `[role="primary"]`；运行中改属性后要 `unpolish` + `polish`）→ `#objectName`（仅项目层，且仅当确实无法用属性表达时）。`objectName` 是 funq 控件路径与 QtTesting 录制的锚点，不要拿它做样式角色
   - 对于QPushButton或者QToolButon而言，如果明确不需要对外观定制，用QPushButton,否则用QToolButton
   - 如果 QSS 必须使用 Type Selector、Descendant Selector 或 Child Selector 定位带命名空间的 Qt/C++ 类，必须写 Qt 元对象系统使用的完整命名空间选择器：将 C++ 命名空间中的 `::` 替换为 `--`

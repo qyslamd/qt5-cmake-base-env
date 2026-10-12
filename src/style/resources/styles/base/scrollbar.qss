@@ -1,0 +1,55 @@
+/* 底座层 05 / 10 · 滚动条
+ *
+ * 一条滚动条要写四个部分：handle（滑块）、add-line / sub-line（两端的箭头，
+ * 这里去掉）、add-page / sub-page（滑槽空白）、以及滚动条本体。只写本体是
+ * 不出效果的——这是 QSS 里最常被漏的一步。
+ *
+ * 这层会作用到功能区的滚动区（SARibbonGalleryViewport 是 QScrollArea），
+ * 主题里没有 QScrollBar 规则，所以改这里功能区会跟着变。
+ */
+
+QScrollBar:vertical {
+  background-color: #F0F0F0;
+  width: 10px;
+  margin: 0px;
+}
+QScrollBar::handle:vertical {
+  background-color: #C0C0C0;
+  min-height: 30px;
+  border-radius: 5px;
+}
+QScrollBar::handle:vertical:hover {
+  background-color: #A0A0A0;
+}
+QScrollBar::handle:vertical:pressed {
+  background-color: #909090;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+  height: 0px;
+}
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+  background: none;
+}
+
+QScrollBar:horizontal {
+  background-color: #F0F0F0;
+  height: 10px;
+  margin: 0px;
+}
+QScrollBar::handle:horizontal {
+  background-color: #C0C0C0;
+  min-width: 30px;
+  border-radius: 5px;
+}
+QScrollBar::handle:horizontal:hover {
+  background-color: #A0A0A0;
+}
+QScrollBar::handle:horizontal:pressed {
+  background-color: #909090;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+  width: 0px;
+}
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+  background: none;
+}

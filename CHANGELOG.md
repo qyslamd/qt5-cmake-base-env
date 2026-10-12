@@ -10,6 +10,24 @@
 
 ### 新增
 
+- **三个示例在 qss 路线下挂上底座样式表**（`fft_demo` / `funq_target` /
+  `tour_demo`）：`APP_UI_ROUTE` 不是 fluent 时链 `${APP_TARGET_PREFIX}_style`
+  并注入 `APP_UI_QSS` 宏，main 里调 `ApplyStyleSheet(app)`——它们没有自己的
+  项目层，看到的正好是**纯底座层**，当"看样式效果"的靶场用（fluent 路线不链：
+  那条路不加载任何 QSS）。`tour_demo` 的引导样式由
+  `TourStyle::ensureApplied()` **追加**到应用样式表（`+` 拼接），先底座后引导
+  的顺序天然成立。验证：qss 路线下三个 exe 里都能找到底座样式表的资源路径串、
+  fluent 路线下一个都没有（静态库不调用就拉不进来，所以这条能反证调用真发生了）；
+  三个示例都能起来
+- **底座层样式表搬回本仓（`src/style/`），与 qt-libui 脱钩**（设计文档 D4 定案）：
+  qt-libui 已长成独立库（自绘控件 + 三套 `QProxyStyle`），本仓不需要那部分，
+  也不再要两仓之间的依赖——只把**底座 QSS + 两张箭头图**按原样拷回，
+  `ApplyStyleSheet` 与 app 的接线（`main.cpp` 的 qss 分支）一并恢复。实测拷回的
+  内容与 qt-libui 现版**逐字节一致**（除行尾），此后两仓不再同步，上游有修复要
+  手工比对。qss 路线因此从"只有项目层、通用控件裸奔"回到完整两层；
+  `default.qss` 头部那句"底座在前、本文件在后"也重新成立。验证：qss 路线启动
+  日志里没有"样式表读取失败"（12 个资源全部加载）、回放退出码 0、fluent 路线
+  不受影响（它不链这个库）、ctest 11/11
 - **界面双路线打通：`APP_UI_ROUTE` 决定主界面走哪条**。`qss`（默认）维持现状
   ——项目层样式表 + SARibbon 功能区/普通菜单栏；`fluent` 则换成
   `FluentUI3Style`（QProxyStyle）+ `Frameless` 无边框标题栏，**不加载任何 QSS**

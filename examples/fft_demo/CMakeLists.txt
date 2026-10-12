@@ -19,6 +19,14 @@ target_link_libraries(${TARGET_NAME} PRIVATE
     kissfft
 )
 
+# 界面路线是 qss 时链上底座样式表（src/style）——示例正好当"看样式表效果"的
+# 靶场：它们没有自己的项目层，看到的就是纯底座层。fluent 路线不链（那条路
+# 不加载任何 QSS）
+if(NOT APP_UI_ROUTE STREQUAL "fluent")
+    target_link_libraries(${TARGET_NAME} PRIVATE ${APP_TARGET_PREFIX}_style)
+    target_compile_definitions(${TARGET_NAME} PRIVATE APP_UI_QSS)
+endif()
+
 set_target_properties(${TARGET_NAME} PROPERTIES
     AUTOMOC ON
     AUTOUIC ON
