@@ -276,11 +276,13 @@ if(BUILD_FUNQ)
     add_subdirectory(3rdparty/funq-master/server)
 
     # 注入库要放进 funq_server 包目录、且名字与 runner.py 的 _find_library 一致
-    # （libFunq.dll / libFunq.so），故拷一份改名；再按构建类型另存一份带后缀的
-    # （同名会被别的构建目录覆盖，而 Debug 与 Release 的 Qt 二进制不兼容，错配
-    # 只报一句 "WaitForSingleObject() returned 258"；详见
-    # docs/guide/funq注入式UI测试.md）。用 ALL 目标而非 POST_BUILD：解压产物被
-    # 补丁重放删除重建时对象文件未必重编，POST_BUILD 不会再触发
+    # （libFunq.dll / libFunq.so），故拷一份改名；再按**构建类型 + 架构**另存
+    # 一份带后缀的（暂存目录在源码树里、所有构建目录共用，少了哪一维都会互相
+    # 覆盖：Debug 与 Release 的 Qt 二进制不兼容，错配报一句
+    # "WaitForSingleObject() returned 258"；x86 与 x64 撞名则是注入直接失败，
+    # 只报 LoadLibraryW() 返回 0）。详见 docs/guide/funq注入式UI测试.md。
+    # 用 ALL 目标而非 POST_BUILD：解压产物被补丁重放删除重建时对象文件未必重编，
+    # POST_BUILD 不会再触发
     if(TARGET Funq)
         if(WIN32)
             set(FUNQ_INJECTOR_STAGE_NAME "libFunq.dll")
@@ -295,7 +297,7 @@ if(BUILD_FUNQ)
             get_filename_component(FUNQ_INJECTOR_STEM "${FUNQ_INJECTOR_STAGE_NAME}" NAME_WE)
             get_filename_component(FUNQ_INJECTOR_EXT "${FUNQ_INJECTOR_STAGE_NAME}" EXT)
             set(FUNQ_INJECTOR_CONFIGURED_NAME
-                "${FUNQ_INJECTOR_STEM}-${FUNQ_CONFIG_SUFFIX}${FUNQ_INJECTOR_EXT}")
+                "${FUNQ_INJECTOR_STEM}-${APP_ARCH_SUFFIX}-${FUNQ_CONFIG_SUFFIX}${FUNQ_INJECTOR_EXT}")
         else()
             # 多配置生成器（VS）下 CMAKE_BUILD_TYPE 为空，配置名要到生成期才
             # 知道，故退回无后缀名字

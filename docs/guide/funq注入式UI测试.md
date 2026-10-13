@@ -86,7 +86,7 @@ libFunq.dll / libFunq.so（注入进靶子进程，在里面起 JSON 服务）
   （用 `ALL` 目标而非 `POST_BUILD`：解压产物被删除重建时对象文件未必重编，
   `POST_BUILD` 不会再触发，库就悄悄消失了）。
 - **注入库必须与被测程序同一构建配置**，所以暂存时按配置分名
-  （`libFunq-debug.dll` / `libFunq-relwithdebinfo.dll` / …），由 `funq_attach`
+  （`libFunq-x86-relwithdebinfo.dll` 这类：架构 + 构建类型，见「排错」），由 `funq_attach`
   与 `funq-server-demo` 通过 `--library` 显式指定。不分名的后果很贵：暂存位置在
   源码树里只有一个，后一次构建会把前一次覆盖掉，于是「在 debug 目录跑测试，
   但上一次全量构建是 relwithdebinfo」就变成往 Debug 程序里注入 Release 库——
@@ -281,18 +281,19 @@ Linux 侧走不到「库被占用删不掉」那一段——允许删除正在�
 靶子才有同一套 Qt 运行时；拿 Release 的库注入 Debug 的程序会在一个进程里加载
 两套 Qt。
 
-**暂存文件名分构建类型、但不分架构，两个架构会互相覆盖。** `stage_funq_injector`
-把注入库拷进源码树的**共享**暂存目录，名字是 `libFunq-<构建类型>.<ext>`——x86 与
-x64 的同名构建类型（都叫 relwithdebinfo）**撞名**。先编 x64 再编 x86，暂存的就是
-64 位那份；x86 的 runner 去注入它就失败，报的却是：
+**暂存名里的架构那一维（2026-10-13 起）。** `stage_funq_injector` 把注入库拷进
+源码树的**共享**暂存目录，名字是 `libFunq-<架构>-<构建类型>.<ext>`
+（`libFunq-x86-relwithdebinfo.dll`）。**架构这一维是后补的**：原先只有构建类型，
+于是 x86 与 x64 的同名构建类型互相覆盖——先编 x64 再跑 x86 的
+`funq-server-demo.bat`，注入的就是 64 位那份，报出来的却是：
 
 ```text
 Failed to inject DLL! LoadLibraryW() returned c_ulong(0). The last error is 0x0
 ([WinError 0] 操作成功完成)。Maybe x86/x64 mismatch between python.exe and Qt DLLs?
 ```
 
-（实测：先编 `build/ninja-relwithdebinfo-x64`，再跑 x86 的 `funq-server-demo.bat`。）
-处理：**换架构前先按目标架构编一次**（重新暂存），或删掉暂存目录里那份让它重建。
+留着这段是因为**症状仍然会出现**：无后缀那份 `libFunQ.dll`（留给手工
+`python -m funq_server.runner`）依旧全架构共用一个名字，手工跑时拿错位数还是这句。
 判据是读 PE 头的 Machine（`0x14c` = x86、`0x8664` = x64）与靶子比一下。
 
 **位数这条要对齐三方，而且错的一方不报错、只表现为超时。** 靶子、注入库、以及

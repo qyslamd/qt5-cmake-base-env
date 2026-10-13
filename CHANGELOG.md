@@ -637,6 +637,11 @@
 
 ### 修复
 
+- **注入库的暂存名补上架构**：`stage_funq_injector` 原先只按构建类型分名
+  （`libFunq-relwithdebinfo.dll`），而暂存目录在源码树里、所有构建目录共用，
+  x86 与 x64 的同名构建类型互相覆盖——换架构后注入直接失败，只报
+  `LoadLibraryW() returned 0 ... Maybe x86/x64 mismatch`。现在叫
+  `libFunq-<架构>-<构建类型>.dll`，两个架构并存不打架（实测两次构建后各归各位）
 - **qss 路线下功能区丢了 SARibbon 主题**：`TourStyle::ensureApplied()` 干的是
   "重设应用级样式表"，迁移 `Application` 时引导从"登录前"挪到了 `w.show()` 之后，
   于是应用表的最后一次设置跑到了主窗口主题（窗口级样式表）后面，把它挤掉。修法

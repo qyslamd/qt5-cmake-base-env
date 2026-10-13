@@ -98,10 +98,11 @@ libFunq 是被**注入**到被测进程里的，仓库里没有任何一个工�
 - **改在 `3rdparty/` 里的源码会被冲掉**：那是解压产物，删掉重建时会重新解压再
   打补丁。调试时临时改两行没问题，想留住就得做成补丁
   （`patches/funq/NNNN-*.patch`，在 `cmake/patch_dependencies.cmake` 注册）。
-- **注入的是暂存的那份**：`3rdparty/funq-master/server/funq_server/libFunq-<配置>.dll`，
-  由构建时的 `stage_funq_injector` 从 `build/ninja-<配置>-x64/bin/Funq.dll` 拷来。
-  改完 funq 源码要重新构建；**只编 `Funq` 目标不会更新暂存**——暂存挂在 `ALL`
-  目标上。
+- **注入的是暂存的那份**：
+  `3rdparty/funq-master/server/funq_server/libFunq-<架构>-<配置>.dll`
+  （如 `libFunq-x86-relwithdebinfo.dll`），由构建时的 `stage_funq_injector` 从
+  `build/ninja-<配置>-x64/bin/Funq.dll` 拷来。改完 funq 源码要重新构建；
+  **只编 `Funq` 目标不会更新暂存**——暂存挂在 `ALL` 目标上。
 - **pick 模式的断点会冻住界面**：钩子在 GUI 线程上，断在 `PickFormatter::handle()`
   时窗口不响应，属正常现象。
 - **附加需要权限**：被测程序若以管理员身份运行，Visual Studio 也要以管理员身份
