@@ -24,7 +24,7 @@ scripts/build_ninja.bat -t relwithdebinfo -m demo_app -p
 - 自动配置VS2019 x64编译环境
 - 使用Ninja生成器构建
 - 工具链用仓库自带的那几份：`3rdparty/cmake/bin/cmake.exe` 与 `3rdparty/ninja.exe`（要求 ≥ 1.10.0，不用 VS2019 自带的那份），预设已固定指向它们
-- 界面有两条路线，`APP_UI_ROUTE` 二选一（默认 `qss`：项目层样式表 + SARibbon；`fluent`：FluentUI3Style + Frameless，不加载 QSS）。fluent 要独立构建目录：`cmake -S . --preset ninja-relwithdebinfo-x86 -B build/ninja-relwithdebinfo-x86-fluent -DAPP_UI_ROUTE=fluent`。设计与决策见 `docs/plan/界面双路线与FFT选型设计.md`
+- 界面有两条路线，`APP_UI_ROUTE` 二选一（默认 `qss`：项目层样式表 + SARibbon；`fluent`：FluentUI3Style + Frameless，不加载 QSS）。fluent 要独立构建目录：`cmake -S . --preset ninja-relwithdebinfo-x86 -B build/ninja-relwithdebinfo-x86-fluent -DAPP_UI_ROUTE=fluent`。设计与决策见 `docs/plan/plan总结.md`
 - 构建输出目录：`build/ninja-debug/`（debug）、`build/ninja-relwithdebinfo/`（relwithdebinfo）、`build/ninja-release/`（release）
 - 支持两种参数模式：旧模式（位置参数 `build_ninja.bat debug deploy`）和新模式（显式参数 `-t <type> -m <target> -d/-p`），详见 `scripts/build_ninja.bat -h`
 - 可执行文件输出到：`build/ninja-debug/bin/`

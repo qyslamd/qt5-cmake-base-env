@@ -89,7 +89,7 @@ configure 时自动解压，无需另行下载。仓库不含 git submodule，�
 两者**不能混用**：同一个进程里 `setStyleSheet` 一生效，命中规则的控件就会绕过
 `QProxyStyle`；同一个顶层窗口也只能装一个 QWindowKit window agent。启动日志里
 会打印本次构建走的是哪条路。设计与决策记录见
-[界面双路线与FFT选型设计](docs/plan/界面双路线与FFT选型设计.md)。
+[plan 总结](docs/plan/plan总结.md) 的「界面双路线与 FFT 选型」。
 
 ## 目录结构
 

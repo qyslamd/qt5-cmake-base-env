@@ -130,7 +130,7 @@ BRIDGE = "tourBridge"
 class Tour(object):
     """funq -> tour 的薄封装：脚本走到哪一步，屏幕上就高亮到哪一步。
 
-    底层是 tourBridge 上的两个槽，见 docs/plan/tour库重构_决策记录.md 的
+    底层是 tourBridge 上的两个槽，见 docs/plan/plan总结.md 的
     「funq 桥接（对外契约）」。
     桥接**回报**失败（ok=false，含原因）时不中断脚本——它只是可视化，不该把
     用例拖垮。但桥接本身调不通（对象不在、连接断了）会抛异常，那是另一回事，

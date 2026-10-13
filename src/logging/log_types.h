@@ -5,7 +5,7 @@
 #include <string>
 
 // 日志核心的公共类型。**本模块不依赖 Qt**，只有 std 类型与 spdlog。
-// 详见 docs/plan/日志模块拆分设计.md。
+// 详见 docs/plan/plan总结.md 的「日志模块拆分」。
 
 // 日志级别。配置里存的是 int（0=debug … 4=fatal），那张映射表放在 Qt 桥里——
 // 核心只认强类型，不认识配置格式

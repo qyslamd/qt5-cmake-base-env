@@ -58,7 +58,7 @@
   `SARIBBON_USE_3RDPARTY_FRAMELESSHELPER=0`）。现在 SARibbon 段紧跟在
   QWindowKit 段之后，判据也用同一个 `if(TARGET QWindowKit::Widgets)`
 - **FluentUI3Style 入库：第二条界面路线**（设计与决策见
-  `docs/plan/界面双路线与FFT选型设计.md`）。`3rdparty/FluentUIStyle-4.0.tar.gz`
+  `docs/plan/plan总结.md`）。`3rdparty/FluentUIStyle-4.0.tar.gz`
   （MIT，WinUI3/Fluent 的 `QProxyStyle` 实现）接入为 `FluentUI3Style` +
   `Frameless` + `ExWidgets` 三个目标，`BUILD_FLUENT_UI` 默认 ON；**Qt 样式插件
   不开**——它默认会把插件写进 Qt 安装目录，与自包含相悖。三条接线上的实测结论：
@@ -282,7 +282,7 @@
   全隐、倒计时一律停、点遮罩不退出，推进全由外部给）与气泡开关，并给
   `TourBridge` 按 path 定位控件的两个 `Q_INVOKABLE`（**零 funq 依赖**：
   自己用 Qt 的 `findChild` 解析、用引擎同一套 `mapToGlobal` 算矩形，所以 tour
-  库不必链 funq）。实测撞出四处约束，都记在 `docs/plan/tour库重构_决策记录.md`：
+  库不必链 funq）。实测撞出四处约束，都记在 `docs/plan/plan总结.md`：
   桥接对象必须是**可见的 QWidget**（funq 的 `call_slot` 要 `qobject_cast<QWidget*>`，
   纯 QObject 判 `NotAWidget`）、必须**早于登录**就存在（脚本第一步跑在登录框上，
   那时主窗口还没创建，所以它是独立顶层窗口）、槽签名只能是"单个 `QVariant` 进、

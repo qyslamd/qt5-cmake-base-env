@@ -10,7 +10,7 @@
 
 // 日志核心：**不依赖 Qt**，只链 spdlog与标准库。
 //
-// 与 Qt 有关的三件事都被挡在门外（见 docs/plan/日志模块拆分设计.md）：
+// 与 Qt 有关的三件事都被挡在门外（见 docs/plan/plan总结.md 的「日志模块拆分」）：
 //   - 路径：日志目录由调用方算好放进 LogInitOptions
 //   - 配置：级别与 pattern 开关由调用方填好；变更后调 ApplyOptions 重新应用
 //   - 界面 sink：通过 extra_sinks 注入，核心只认 spdlog::sink_ptr

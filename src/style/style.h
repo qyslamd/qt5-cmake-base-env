@@ -3,7 +3,7 @@
 
 // 底座层样式表与箭头图**拷贝自 qt-libui 仓库**（对方已独立发展，两边不再同步；
 // 本仓只需要这份稳定的 QSS 底座）。上游若有修复要带过来，得手工比一遍——
-// 见 docs/plan/界面双路线与FFT选型设计.md 的 D4。
+// 见 docs/plan/plan总结.md 的「界面双路线与 FFT 选型」D4。
 //
 // 与项目层的分工：底座只写类型/伪状态/子控件/属性选择器，项目层（本仓
 // src/app/resources/styles/default.qss）只写挂在 objectName 上的规则

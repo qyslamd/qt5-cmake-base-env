@@ -158,7 +158,7 @@ QSplitterHandle 只能通过 `QSplitter::handle` 表达。
 > 本仓不需要）。做法：QSS 与两张箭头图按原样拷回（实测与 qt-libui 现版逐字节
 > 一致），`ApplyStyleSheet` 与 app 的接线一并恢复。两仓从此**不再同步**，
 > 上游有修复得手工比对。决策与理由见
-> [界面双路线与FFT选型设计](界面双路线与FFT选型设计.md) 的 D4。
+> 本文档「界面双路线与 FFT 选型」的 D4。
 
 ## tour 接入 funq（2026-09-22，原同名文档）
 
@@ -176,10 +176,13 @@ QSplitterHandle 只能通过 `QSplitter::handle` 表达。
   许可证；算法本身不受版权保护
 - 桥接的三条硬约束，都是实测撞出来的：**必须是可见的 QWidget**（`call_slot` 走
   `qobject_cast<QWidget*>`，纯 `QObject` 判 `NotAWidget`，且 `client.widget()`
-  默认还要等 `visible`）；**必须早于登录就存在**（脚本第一步跑在登录对话框上，
-  那时主窗口还没建）→ 独立顶层窗口（`Qt::Tool` 不进任务栏）；**签名必须是
-  "单个 QVariant 进、QVariant 出"**（funq 固定按那种 `invokeMethod` 调，多形参
-  直接 `NoMethodInvoked`）
+  默认还要等 `visible`）；**必须是独立顶层窗口**（脚本按 `tourBridge` 单段路径
+  寻址它，挂窗口下路径就多一段；`Qt::Tool` 不进任务栏）；**签名必须是"单个
+  QVariant 进、QVariant 出"**（funq 固定按那种 `invokeMethod` 调，多形参直接
+  `NoMethodInvoked`）
+  - **2026-10-13 修订**：原先还有一条"必须早于登录就存在"（脚本第一步跑在登录
+    框上）。引导已改到登录之后装配（main 里的 `SetupTour`），该约束作废；登录
+    框不再做高亮
 - **别在 Python 侧自己凑全局坐标**：funq 的 QtJson 序列化拿不到 `geometry` /
   `pos` / `size`（直接跳过），只给 int 的 `x` / `y` / `width` / `height`，且
   `x`/`y` 是**父相对**的
@@ -215,7 +218,9 @@ QSplitterHandle 只能通过 `QSplitter::handle` 表达。
 - D1 导出成**目录**不压缩：Qt5 没有公开的 zip 写入口，为压缩引依赖不值当
 - D2 提示放**登录前**（崩溃可能发生在登录前，且此时还没有主窗口）；回放模式与
   无桌面（`QT_QPA_PLATFORM=offscreen`）跳过
-- D3 `--crash` 由 `APP_ENABLE_CRASH_TEST` 控制（模板默认 ON，发布可关）
+- D3 ~~`--crash` 由 `APP_ENABLE_CRASH_TEST` 控制~~ ——**2026-10-13 修订**：该宏与
+  `--crash` 参数一并下线，演练改为主窗口「工具」里的"触发测试崩溃"动作；
+  崩溃后端本身也改成运行时配置（`crash/backend`，重启生效）
 - D4 自研模式本期不导出，只保证调用不崩
 - D5 导出**不删除**报告：`SkipReportUpload(uuid, kUploadsDisabled)` 转入
   `completed/`——不再提示，又不会因为客户弄丢导出文件而永久失去唯一副本
@@ -247,6 +252,151 @@ QSplitterHandle 只能通过 `QSplitter::handle` 表达。
 Windows 用 `cdb -z <dmp> -y <归档符号目录>`；Linux 用 lldb 直读 minidump——
 **选项必须写在可执行文件之前**（`lldb -b -o "bt" -c <dmp> ./exe < /dev/null`），
 写后面会挂住（gdb 9.2 不支持 minidump，别用它）。
+
+## 界面双路线与 FFT 选型（2026-10-12，原同名文档）
+
+一次办两件事：**接 FluentUIStyle 当第二条界面路线**（与"QSS + SARibbon"并存），
+**FFT 收敛成一个**（kissfft 留、FFTW 下线）。底线不变：别人不用管三方库从哪来、
+怎么编、怎么打包。
+
+**三条硬约束（决定方案形态）**
+
+1. 同一进程里样式二选一：`setStyleSheet` 一生效，命中控件就走 `QStyleSheetStyle`，
+   `QProxyStyle` 的绘制被整个绕过（反之亦然），叠加的结果是一半 Fluent 一半 QSS
+2. 同一顶层窗口的 window agent 二选一：SARibbon 与 Fluent `Frameless` 都要
+   `setupWindowAgent()`
+3. 因此选路必须在构建/启动期定死，不能逐窗口混用
+
+**落地形态**：`BUILD_FLUENT_UI`（编不编那条路）+ `APP_UI_ROUTE`（demo_app 走哪条）
++ 宏 `APP_UI_FLUENT`（管基类与链库）。两条路都编、都打包；fluent 用独立构建目录
+（`-DAPP_UI_ROUTE=fluent`），不动默认目录的缓存。
+
+**依赖对账**：新库自带的 qwindowkit / kissfft **一份都不用重复编**——靠上游的
+`if(NOT TARGET ...)` 门禁复用本仓那份。两条顺序约束都是硬的：
+`qmsetup → qwindowkit → FluentUIStyle`；**QWindowKit 必须排在 SARibbon 之前**
+（SARibbon 配置期查 `TARGET QWindowKit::Widgets` 决定编不编 frameless，排反了
+qss 路线的主窗口静默失去圆角与标题栏，只剩一行 WARNING）。`ExWidgets` 上游
+无条件编且私有链 kissfft → **接入 FluentUIStyle 就一定会编 kissfft**，
+"不编"这个选项不存在。
+
+**FFT**：GPL 是决定性差异（FFTW 是 GPL-2.0，会把业务代码一起拽进去；kissfft 是
+BSD-3/Unlicense 双许可）。kissfft 提升为一等依赖，`fft_demo` 移植过去。
+下线 FFTW **五处一处不能漏**——尤其 `patches/fftw/` 的两条补丁与
+`patch_dependencies.cmake` 的注册行必须同删（`apply_patch_to_dir` 在补丁文件缺失
+时是 FATAL，只删文件不删注册，下次 configure 直接挂）。
+kissfft 四个 cache 变量：`STATIC=ON`（否则编出要部署、要打包的
+`kissfft-float.dll`）、`TEST/TOOLS=OFF`（默认 ON，而它们
+`pkg_check_modules(... REQUIRED ...)`，缺 pkg-config 时 configure 直接 FATAL）、
+`PKGCONFIG=OFF`（清噪音）。
+
+**决策**
+
+| # | 决策 | 定案 |
+|---|---|---|
+| D1 | `APP_UI_ROUTE` 默认值 | **qss**（不破坏现状，Fluent 用开关打开） |
+| D2 | ExWidgets 编不编 | **编但不用**：上游无开关，打补丁不值当；不进安装包 |
+| D3 | SARibbon 与 Fluent 的关系 | **各自独立**（混搭是硬约束 2 的反面） |
+| D4 | qt-libui 的定位 | **保持独立**（当试验场），两仓不留依赖；只把底座样式表按原样拷回 `src/style/`，此后不再同步 |
+| D5 | 项目层 QSS 规则翻不翻 | **不翻**——见下，这个任务本身不成立 |
+| D6 | `FluentUI3Style.dll` 进不进包 | **进**（`.iss` 一行 + `skipifsourcedoesntexist`），换 .iss 零分支 |
+
+**D5 的结论（2026-10-13 查证后写死）**：原文说"走 fluent 时把 38 条项目层规则
+逐条翻成 Fluent 属性"——**做不到**。`fluentui3styleproperties.h` 只提供 23 个
+属性，全是**部件外观开关**（TabBar 样式、进度条样式/粗细、旋钮、滑块提示、
+下拉/菜单动画、按钮强调、开关样式、NavigationView、Segmented 配色）；而项目层
+那 40 余条规则是"某个对话框/区块的配色、字号、圆角、渐变"。两边没有交集：
+`QProxyStyle` 按 Fluent 自己的调色板画标准控件，没有"给某个 objectName 单独上色"
+的机制。**fluent 路线的真实代价就是这些品牌化外观不存在**，接受 Fluent 默认观感。
+唯一对得上的是底座层角色（`role="primary"/"secondary"/"danger"` →
+`ButtonAccentStyleProperty`/`ButtonShapeProperty`），补不补是另一件事。
+
+**风险与解法**：上游 `install()` 会随 `cmake --install` 外溢（Linux 的 AppImage
+会把它装进 AppDir；`install(EXPORT FramelessTargets)` 还会因 QWKWidgets 不在导出集
+而 generate 报错）→ 作用域内的 `CMAKE_SKIP_INSTALL_RULES`；上游插件会往 Qt 安装
+目录写文件 → `BUILD_PLUGIN=OFF`。
+
+## 日志模块拆分（2026-09-30，原《日志模块拆分设计》）
+
+日志核心从 Qt 里拆出来成 `src/logging/`（Qt-free 静态库，只链 spdlog），
+`src/core/logger/` 只剩 Qt 桥，**门面同名同签名 → 66 处调用点零改动**。
+动因：依赖方向反了（日志核心主动 connect 上层 `ConfigManager`）、每次调用两次
+字符串分配、以及 Qt-free 模块链不到日志。
+
+> 原文档写于产品仓语境（`hal`/`measure`/`ephad_log`）。本仓没有 hal/measure，
+> 目标名是 `${APP_TARGET_PREFIX}_log`；其余结论原样适用。
+
+**定死的约束**（实现时不许走样）：`ApplyOptions` 必须经 `spdlog::set_level()`
+（它遍历 registry，只改全局变量则设置页改级别不生效）、且是**全量重放**（级别 +
+两套 pattern）；`extra_sinks` 一律用 console pattern；启动期回放必须在 sink 挂载
+之后；`Shutdown()` 先放 sink 引用、再让调用方删 history buffer（否则 sink 里的
+裸指针悬垂）；**日志目录由核心建**（`rotating_file_sink` 自己不建目录，失败被
+降级路径吞掉，表现为"没有日志文件"这种难查的故障）；模块名用 `string_view` +
+带 `std::less<>` 的 `std::map`（C++17 无异构查找，查表不分配）。
+
+**路径必须由桥侧算**：`QStandardPaths::AppLocalDataLocation` 的语义（含
+organization/application 两层）不是 `std::filesystem` 能复刻的；核心自己推路径
+一旦差一点，日志就悄悄搬家，事后极难发现。
+
+**启动期缓冲**：未 `Init()` 时 `GetLogger` 不返回 nullptr，而是落进同步缓冲，
+`Init()` 尾部按原级别回放并加 `[启动期]` 前缀——`SingleInstance` 的判定发生在
+`Logger::init()` 之前，那段恰是"程序为什么一闪就退"最需要的线索。已知缺口：
+第二实例 early return 走不到 `Init()`，它的日志仍不落盘。
+
+**验证**：两个配置构建通过；`test_log_core.exe` **不把 Qt 加进 PATH 也能跑通**
+（核心真的不依赖 Qt）；日志目录没搬家；启动期回放仍有效。
+
+## tour 库重构决策（2026-10-09，原同名文档）
+
+`src/tour` 按一次外部评审重构的决策台账，外加**从代码注释里搬出来的坑**。代码里
+只留"为什么要有它"（每条 ≤3 行），"当年那场事故怎么发生的"记在这儿。
+
+**评审四条**：D1 上帝类 `TourOverlay`（759 行）按"谁画什么"拆成
+`TourOverlayMask`（高亮在哪儿：挖洞/命中/动画）、`TourBubbleView`（气泡自己）、
+`TourCountdown`（还剩几秒）、`TourBubblePlacer`（摆哪儿，纯几何可单测）+ 协调者
+`TourOverlay`；D2 恒真死配置 `use_anime_` 删除；D3 高亮三份状态改成"一处真相 +
+一个明确标注的动画副本"；D4 `Target` 按内容分型（`WidgetTarget`/`GlobalRect`/
+`SplashImage`，额外靶只收前两种 → 图片进不来成了类型保证）；D5 方法小驼峰、
+类名统一 `Tour` 前缀。
+
+**坑（按主题，全部仍有效）**
+
+- **状态一个写者**：`setInteractive` 与 `setPassiveMode` 写同一个
+  `WA_TransparentForMouseEvents`，后者无条件盖前者——遮罩穿透从来没生效过；
+  自动挡布尔被直接置 false——走过实操主题后连讲解主题也不自动翻页；
+  "还有没有下一站"曾有两个出口（数组末尾可能是占位主题）
+- **几何**：`QRect::center()` 是 `(x1+x2)/2` 向下取整、不是几何中心（摆气泡用它，
+  单测按"目标中线"手算的期望值会比几何中线小 1）；多靶的洞必须 `WindingFill`
+  （默认 OddEven 下重叠区算洞外，遮罩留黑竖条）；点空白退出要**逐个矩形判、
+  不合并并集**（否则遮罩永远关不掉）；锚点矩形只许在 `RectInOverlay` 一处算
+  （两处实现漂移 = 同一步两次高亮在不同位置）；`clearHighlight()` 要停动画，
+  否则在途动画下一帧把孤框写回来
+- **气泡**：换挂法与显隐有三种躲不掉的情况（实操模式下必须提到独立顶层窗口才
+  点得到；**被显式隐藏的子控件不会随父 `show()` 回来**；`setParent()` 会隐藏控件，
+  换挂法后要显式恢复 + `raise()`）；提到顶层后必须显式删，否则泄漏且窗口留在屏幕上
+- **倒计时**：自动挡与"外部驱动的视觉倒计时"两种走法收进 `TourCountdown`
+  （`finished()` 只在自动挡发）；起表那一帧必须自己刷状态（归零的是"已过去"的比例）
+- **首页与菜单**：`exec()` 等的必须是"用户选完了"，不能等 `hideEvent`（页面没了 ≠
+  选完了）；菜单那条主题由宿主**显式传入**，不许 `topics().first()`；标题不许写死
+  产品名（默认取宿主 `applicationName()`）
+- **样式**：`TourCard` 的自绘曾无条件盖住 QSS → 外观只有 QSS 一个出处；
+  `TourStyle` 必须并入**应用级**样式表（实操模式下气泡被 reparent、离开首页子树）；
+  `Q_INIT_RESOURCE` 必须在全局作用域；静态库里的 qrc 符号要有人显式引用一次
+- **funq 桥接（对外契约，脚本与用例按名字寻址，不能改名）**：① 必须是可见的
+  QWidget（`call_slot` 走 `qobject_cast<QWidget*>`，且 `client.widget()` 默认等
+  visible）；② 必须是独立顶层控件——脚本按 `tourBridge` **单段路径**寻址它，
+  挂窗口下路径就多一段；③ 槽签名只能"单个 QVariant 进、QVariant 出"
+  （多形参直接 `NoMethodInvoked`）；④ `highlightCount` 必须是**静态**
+  `Q_PROPERTY`（funq 只读 metaObject 里的属性，动态属性读出来是 KeyError）；
+  ⑤ 锚点 `tourOverlay`、气泡 `bubble_self`（父子关系也不能变）、槽名
+  `showHighlight`/`hideHighlight` 等一律不许改名；⑥ 不可见控件的几何是未初始化
+  的 → 拒绝高亮并回报原因；额外靶必须与锚点同窗口
+  - 路径解析照 `libFunq/objectpath.cpp` 的行为**重写**、不抄源码——funq 是
+    CeCILL v2.1（copyleft），拷进来会把 tour 卷进那个许可证；算法本身不受版权保护
+  - **2026-10-13 修订**：原先还有一条"必须早于登录就存在"（脚本第一步跑在登录框
+    上）。引导已改到登录之后装配（main 的 `SetupTour`），该约束作废，登录框不再高亮
+
+**两条硬约束留给后来人**：改库的公开接口要同步改 `docs/`（每条坑都对应代码里一句
+"为什么"，改掉行为却留着注释比没有注释更坏）；提交前过 clang-format。
 
 ## 挂起事项（原 `挂起事项.md`，活清单）
 
@@ -320,17 +470,6 @@ exe + PDB 解析 minidump。
 一类，措辞不像本仓手笔，疑为外部移植残留；`withTitle` / `withStep` / `addTopic`
 那套链式构造器 API 与本仓其余部分的风格也不一致。保留（尊重上游写法）还是改写
 （与本仓风格统一，涉及库的公开 API），需要定。
-
-### 7. funq 手动示例的"有登录框"那条分支没在本仓实跑
-
-**现状**：`b1f0db2`（`fix(funq): 解释器选择收敛到一处…`，自产品分支 cherry-pick）
-让示例脚本先探测登录框：有就走完整七步，没有就跳过登录三步、从主窗口继续。
-**没有登录框那条路已在 x86 relwithdebinfo 上实跑过**（client 退出码 0，七步全过，
-2026-09-29）；而本仓登录是开着的——**有登录框那条路一次都没跑过**。
-
-**入手点**：在本仓构建一次（`APP_ENABLE_AUTH` 默认 ON），按
-`examples/funq-scripts/README.md` 起两个终端，确认第 2-4 步（输错密码 →
-看提示文字 → 换对密码进主窗口）照旧。跑过就把这条删掉。
 
 ### 已决定不做
 
