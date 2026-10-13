@@ -72,8 +72,8 @@ endif()
 #   须后于解压步骤、先于 add_subdirectory(src)
 #===============================================================================
 
-# 崩溃捕获后端与 --crash 演练参数都是常编：后端是运行时配置（crash/backend，
-# 重启生效，见 src/core/crashhandler/crash_bootstrap.h 的 Backend）
+# 崩溃捕获后端是运行时配置（crash/backend，重启生效），不再有编译期开关
+# ——见 src/core/crashhandler/crash_bootstrap.h 的 Backend
 
 option(BUILD_QT_TESTING "启用 QtTesting UI 录制/回放" ON)
 option(BUILD_FUNQ "构建 funq GUI 测试库（注入式，产物供测试运行时使用）" ON)
@@ -174,7 +174,9 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 if(MSVC)
-    add_compile_options("/utf-8")
+    # /utf-8 只给 C/C++：MASM 不认识它，crashpad 的 .asm 每个文件会报一条
+    # A4018 invalid command-line option；汇编没有源码编码问题，不需要它
+    add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:/utf-8>")
     add_compile_definitions(WIN32_LEAN_AND_MEAN NOMINMAX)
 endif()
 
