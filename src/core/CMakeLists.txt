@@ -23,9 +23,9 @@ set(ALL_HEADERS_SOURCES
     auth/user_manager.h
 
     # 崩溃捕获：三个后端全部常编，运行时按配置 crash/backend 挑一个装
-    # （见 crash_bootstrap.h 的 Backend）
-    crashhandler/crash_bootstrap.cpp
-    crashhandler/crash_bootstrap.h
+    # （见 crash.h 的 Backend）
+    crashhandler/crash.cpp
+    crashhandler/crash.h
     crashhandler/crashpad_bootstrap.cpp
     crashhandler/crashpad_bootstrap.h
     crashhandler/crash_handler.cpp

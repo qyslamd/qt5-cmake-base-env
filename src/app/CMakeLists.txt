@@ -19,18 +19,20 @@ configure_file(${CMAKE_SOURCE_DIR}/cmake/template/app_info.h.in
 set(TARGET_SRCS 
     main.cpp
     res.qrc
+    application.cpp
+    application.h
     mainwindow.cpp
     mainwindow.h
     tour_app_topics.cpp
     tour_app_topics.h
     launch_options.cpp
     launch_options.h
-    log_window.cpp
-    log_window.h
     dialogs/about_dialog.cpp
     dialogs/about_dialog.h
     dialogs/crash_report_dialog.cpp
     dialogs/crash_report_dialog.h
+    dialogs/log_window.cpp
+    dialogs/log_window.h
     dialogs/settings_dialog.cpp
     dialogs/settings_dialog.h
     dialogs/add_edit_user_dialog.cpp
@@ -41,10 +43,10 @@ set(TARGET_SRCS
     dialogs/login_dialog.h
     dialogs/user_manage_dialog.cpp
     dialogs/user_manage_dialog.h
-    log_filter_bar.cpp
-    log_filter_bar.h
-    log_output_panel.cpp
-    log_output_panel.h
+    widgets/log_filter_bar.cpp
+    widgets/log_filter_bar.h
+    widgets/log_output_panel.cpp
+    widgets/log_output_panel.h
     widgets/switch_button.cpp
     widgets/switch_button.h
     )

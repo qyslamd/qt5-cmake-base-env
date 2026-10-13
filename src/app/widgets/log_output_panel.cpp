@@ -91,14 +91,16 @@ QString LogOutputPanel::buildEntryHtml(const LogEntry& entry) const {
   // 无文本过滤或正则非法 -> 整行着色，不高亮
   if (current_filter_.text.isEmpty() ||
       (current_filter_.use_regex && !current_filter_.isValid())) {
-    return QStringLiteral("<span style=\"color:%1;white-space:pre-wrap\">%2</span>")
+    return QStringLiteral(
+               "<span style=\"color:%1;white-space:pre-wrap\">%2</span>")
         .arg(color, entry.text.toHtmlEscaped());
   }
 
   // 命中区间（基于原始 text 索引，与 matches 共用逻辑）
   QList<QPair<int, int>> ranges = current_filter_.matchRanges(entry.text);
   if (ranges.isEmpty()) {
-    return QStringLiteral("<span style=\"color:%1;white-space:pre-wrap\">%2</span>")
+    return QStringLiteral(
+               "<span style=\"color:%1;white-space:pre-wrap\">%2</span>")
         .arg(color, entry.text.toHtmlEscaped());
   }
 
@@ -108,7 +110,8 @@ QString LogOutputPanel::buildEntryHtml(const LogEntry& entry) const {
   for (const auto& r : ranges) {
     if (r.first > cursor) {
       QString seg = entry.text.mid(cursor, r.first - cursor);
-      html += QStringLiteral("<span style=\"color:%1;white-space:pre-wrap\">%2</span>")
+      html += QStringLiteral(
+                  "<span style=\"color:%1;white-space:pre-wrap\">%2</span>")
                   .arg(color, seg.toHtmlEscaped());
     }
     QString hit = entry.text.mid(r.first, r.second - r.first);
@@ -120,7 +123,8 @@ QString LogOutputPanel::buildEntryHtml(const LogEntry& entry) const {
   }
   if (cursor < entry.text.size()) {
     QString seg = entry.text.mid(cursor);
-    html += QStringLiteral("<span style=\"color:%1;white-space:pre-wrap\">%2</span>")
+    html += QStringLiteral(
+                "<span style=\"color:%1;white-space:pre-wrap\">%2</span>")
                 .arg(color, seg.toHtmlEscaped());
   }
   return html;

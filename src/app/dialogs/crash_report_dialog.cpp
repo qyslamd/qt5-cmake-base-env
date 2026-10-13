@@ -3,39 +3,33 @@
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QStandardPaths>
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QVariant>
 
-namespace {
+#include "logger/logger.h"
 
-// 桌面 → 文档 → 主目录：客户机上"桌面"最容易被找到，但无桌面环境（或精简
-// 系统）可能没有它，逐级退到一定存在的目录
-QString WritableBaseDir() {
-  const QStandardPaths::StandardLocation locations[] = {
-      QStandardPaths::DesktopLocation,
-      QStandardPaths::DocumentsLocation,
-      QStandardPaths::HomeLocation};
-  for (QStandardPaths::StandardLocation location : locations) {
-    const QString path = QStandardPaths::writableLocation(location);
-    if (!path.isEmpty() && QDir(path).exists()) {
-      return path;
-    }
+void PromptPendingCrashReportIfAny() {
+  if (QGuiApplication::platformName() == QStringLiteral("offscreen")) {
+    LOG_INFO("MAIN",
+             "无桌面环境，跳过崩溃报告提示（可用 --export-report 导出）");
+    return;
   }
-  return QDir::homePath();
-}
 
-}  // namespace
+  const QVector<crash::PendingReport> reports =
+      crash::ListPendingReports(crash::DatabaseDir());
+  if (reports.isEmpty()) {
+    return;
+  }
+  LOG_INFO("MAIN", "检测到 {} 份待导出的崩溃报告", reports.size());
 
-QString DefaultCrashReportDir() {
-  const QString stamp =
-      QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
-  return WritableBaseDir() + QStringLiteral("/CrashReport-") + stamp;
+  CrashReportDialog dialog(reports);
+  dialog.exec();
 }
 
 CrashReportDialog::CrashReportDialog(
@@ -68,8 +62,8 @@ void CrashReportDialog::initUi() {
       QStringLiteral("已生成 %1 份崩溃报告，需要发送给开发者才能定位问题。\n"
                      "最近一次崩溃：%2")
           .arg(reports_.size())
-          .arg(QDateTime::fromSecsSinceEpoch(newest)
-                   .toString(QStringLiteral("yyyy-MM-dd HH:mm:ss"))),
+          .arg(QDateTime::fromSecsSinceEpoch(newest).toString(
+              QStringLiteral("yyyy-MM-dd HH:mm:ss"))),
       this);
   detail->setObjectName(QStringLiteral("crashReportDetail"));
   detail->setWordWrap(true);
@@ -99,17 +93,14 @@ void CrashReportDialog::initSignals() {
 }
 
 void CrashReportDialog::onExportClicked() {
-  const QString target_dir = DefaultCrashReportDir();
-  const crash::ExportResult result =
-      crash::ExportPendingReports(crash::DatabaseDir(), target_dir,
-                                  crash::CurrentAppInfo());
+  // 导出到默认目录，与 --export-report 用的是同一处（crash::DefaultExportDir）
+  const crash::ExportResult result = crash::ExportTo(QString());
 
   if (!result.ok() || result.exported == 0) {
-    QMessageBox::warning(
-        this, QStringLiteral("导出失败"),
-        result.error.isEmpty()
-            ? QStringLiteral("没有找到可导出的崩溃报告。")
-            : result.error);
+    QMessageBox::warning(this, QStringLiteral("导出失败"),
+                         result.error.isEmpty()
+                             ? QStringLiteral("没有找到可导出的崩溃报告。")
+                             : result.error);
     return;
   }
 

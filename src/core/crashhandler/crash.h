@@ -1,9 +1,12 @@
-#ifndef FILE_CORE_CRASHHANDLER_CRASH_BOOTSTRAP_H_
-#define FILE_CORE_CRASHHANDLER_CRASH_BOOTSTRAP_H_
+#ifndef FILE_CORE_CRASHHANDLER_CRASH_H_
+#define FILE_CORE_CRASHHANDLER_CRASH_H_
 
 #include <QString>
 #include <QVector>
 
+// 崩溃模块的对外门面：初始化、后端状态、报告库的查询与导出。
+// 具体后端（crashpad_bootstrap / crash_handler）在 .cpp 里按运行时配置分派，
+// 调用方只认这里
 namespace crash {
 
 // 应用元信息：写进 minidump 的注解（随 dump 走），导出时也写进 summary.txt。
@@ -73,6 +76,14 @@ ExportResult ExportPendingReports(const QString& db_dir,
                                   const QString& target_dir,
                                   const AppInfo& info);
 
+// 默认导出目录：桌面 → 文档 → 主目录（逐级退到一定存在的），其下新建
+// CrashReport-<yyyyMMdd-HHmmss>/。客户机上"桌面"最容易被找到
+QString DefaultExportDir();
+
+// 导出到 target_dir（空串 = DefaultExportDir()）。数据库目录与应用元信息
+// 都用本次运行记录的那份，即"把当前待处理的报告导给开发者"这一件事
+ExportResult ExportTo(const QString& target_dir);
+
 }  // namespace crash
 
-#endif  // FILE_CORE_CRASHHANDLER_CRASH_BOOTSTRAP_H_
+#endif  // FILE_CORE_CRASHHANDLER_CRASH_H_

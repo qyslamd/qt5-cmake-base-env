@@ -73,7 +73,7 @@ endif()
 #===============================================================================
 
 # 崩溃捕获后端是运行时配置（crash/backend，重启生效），不再有编译期开关
-# ——见 src/core/crashhandler/crash_bootstrap.h 的 Backend
+# ——见 src/core/crashhandler/crash.h 的 Backend
 
 option(BUILD_QT_TESTING "启用 QtTesting UI 录制/回放" ON)
 option(BUILD_FUNQ "构建 funq GUI 测试库（注入式，产物供测试运行时使用）" ON)

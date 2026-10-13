@@ -282,7 +282,7 @@
   全隐、倒计时一律停、点遮罩不退出，推进全由外部给）与气泡开关，并给
   `TourBridge` 按 path 定位控件的两个 `Q_INVOKABLE`（**零 funq 依赖**：
   自己用 Qt 的 `findChild` 解析、用引擎同一套 `mapToGlobal` 算矩形，所以 tour
-  库不必链 funq）。实测撞出四处约束，都记在 `docs/plan/tour接入funq.md`：
+  库不必链 funq）。实测撞出四处约束，都记在 `docs/plan/tour库重构_决策记录.md`：
   桥接对象必须是**可见的 QWidget**（funq 的 `call_slot` 要 `qobject_cast<QWidget*>`，
   纯 QObject 判 `NotAWidget`）、必须**早于登录**就存在（脚本第一步跑在登录框上，
   那时主窗口还没创建，所以它是独立顶层窗口）、槽签名只能是"单个 `QVariant` 进、
@@ -400,6 +400,16 @@
 
 ### 变更
 
+- **引导改到登录之后装配**：`TourController` / `TourBridge` 原先建在登录之前
+  （理由是"外部脚本第一步跑在登录框上"），现挪到登录之后、主窗口之前，main 里
+  收成 `SetupTour(w)` 一个函数。**登录框不再有高亮**——示例脚本里那几步的高亮
+  随之删掉；桥接仍是顶层控件，脚本照旧按 `tourBridge` 寻址
+- **默认导出目录与导出入口收进崩溃模块**：`DefaultCrashReportDir` 从对话框头
+  挪成 `crash::DefaultExportDir`，新增 `crash::ExportTo(dir)`（空 = 默认目录），
+  命令行导出与对话框导出按钮共用同一处；"有待报告就弹提示"收进
+  `PromptPendingCrashReportIfAny`（与对话框同文件）。`crash_bootstrap.*` 因此
+  更名为 `crash.*`——它早就是崩溃模块的门面（初始化 + 报告查询/导出），不是
+  只有启动那一半
 - **测试崩溃从命令行参数改为主窗口动作**：`APP_ENABLE_CRASH_TEST` 编译开关与
   `--crash` 参数一并下线，「工具」面板/菜单新增"触发测试崩溃"
   （`MainWindow::onMakeCrash`）——售后在客户机器上走通"崩溃 → 捕获 → 导出 →

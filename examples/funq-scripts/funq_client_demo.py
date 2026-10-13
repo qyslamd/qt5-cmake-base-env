@@ -86,6 +86,11 @@ SETTINGS_PAGE_LOG = "MainWindow::settingsDialog::settingsPageStack::settingsPage
 SETTINGS_RETAIN_DAYS = (
     SETTINGS_PAGE_LOG + "::settingsCard::settingsRow-1::QSpinBox")
 
+# 左侧分类导航。设置对话框默认停在第一页（「通用」），要在别的页上操作得先
+# 切过去——funq 的 client.widget() 默认等 visible，不在当前页的控件等不到
+SETTINGS_CATEGORY_LIST = "MainWindow::settingsDialog::settingsCategoryList"
+SETTINGS_ROW_LOG = 1  # 分类顺序：通用 / 日志 / 日志格式
+
 # 每次高亮后的默认停留秒数。**只在这里定义一份**——类和命令行各写一个默认值时，
 # 命令行那个恒定有值，会把类默认值悄悄盖掉（踩过）
 DEFAULT_DWELL = 3.0
@@ -117,15 +122,16 @@ def exists(client, path):
         return False
 
 
-# 桥接对象是独立顶层窗口（不是主窗口的子控件）——脚本第一步就跑在登录
-# 对话框上，那时主窗口还没创建。见 docs/plan/tour接入funq.md
+# 桥接对象是独立顶层窗口（不是主窗口的子控件），登录通过之后才创建——
+# 引导演示的是主界面，登录框那几步不做高亮
 BRIDGE = "tourBridge"
 
 
 class Tour(object):
     """funq -> tour 的薄封装：脚本走到哪一步，屏幕上就高亮到哪一步。
 
-    底层是 tourBridge 上的两个槽，见 docs/plan/tour接入funq.md。
+    底层是 tourBridge 上的两个槽，见 docs/plan/tour库重构_决策记录.md 的
+    「funq 桥接（对外契约）」。
     桥接**回报**失败（ok=false，含原因）时不中断脚本——它只是可视化，不该把
     用例拖垮。但桥接本身调不通（对象不在、连接断了）会抛异常，那是另一回事，
     会直接中断——那种情况挂掉比静默继续好查。
@@ -143,7 +149,7 @@ class Tour(object):
 
     def _target(self):
         if self._bridge is None:
-            # 主窗口出来之前桥接对象还不存在，到这里才去拿
+            # 登录通过之前桥接对象还不存在，到这里才去拿
             self._bridge = self._client.widget(path=BRIDGE, timeout=10.0)
         return self._bridge
 
@@ -194,9 +200,10 @@ def main():
           % opts.dwell)
     guide = Tour(client, dwell=opts.dwell)
 
-    # 登录这三步只在登录开着时成立：它可以在配置（login/enabled）或命令行
+    # 登录这几步只在登录开着时成立：它可以在配置（login/enabled）或命令行
     # （--set）里关掉，那样根本没有登录对话框、主窗口启动即建。判据只能问
-    # 界面——脚本是经 TCP 连过来的，看不到对方的配置与命令行
+    # 界面——脚本是经 TCP 连过来的，看不到对方的配置与命令行。
+    # 这几步不做高亮：引导演示的是主界面，桥接对象要登录之后才存在
     if exists(client, LOGIN_USERNAME):
         banner(2, "看一眼登录界面上有什么")
         print("登录对话框在 funq 眼里长这样：")
@@ -204,11 +211,9 @@ def main():
         print("    %s" % LOGIN_PASSWORD)
         print("    %s" % LOGIN_BUTTON)
         print("    %s   <- 提示文字在这里" % LOGIN_HINT)
-        guide.highlight(LOGIN_USERNAME, "用户名", "脚本接下来要动这个控件")
 
         banner(3, "故意输错密码")
         client.widget(path=LOGIN_USERNAME).set_property("text", GOOD_USER)
-        guide.highlight(LOGIN_PASSWORD, "密码", "这一步故意填错")
         client.widget(path=LOGIN_PASSWORD).set_property("text", BAD_PASSWORD)
         client.widget(path=LOGIN_BUTTON).click()
         # 界面的反应不是同步的：点击只是把事件投进 Qt 队列，得给它一点时间
@@ -217,11 +222,9 @@ def main():
         print("输错后，提示文字 = %r" % hint)
         print("此时主窗口在不在：%s（应该不在）" % exists(client, MAIN_WINDOW))
         assert hint == "用户名或密码错误", "提示文字与预期不符：%r" % hint
-        guide.highlight(LOGIN_HINT, "看提示", "提示文字变了：登录失败")
         print("断言通过：登录失败这条路走对了。")
 
         banner(4, "换正确密码，进主窗口")
-        guide.highlight(LOGIN_PASSWORD, "换对密码", "这次能进主窗口")
         client.widget(path=LOGIN_PASSWORD).set_property("text", GOOD_PASSWORD)
         client.widget(path=LOGIN_BUTTON).click()
     else:
@@ -257,10 +260,11 @@ def main():
     banner(6, "在设置对话框里读一个值")
     print("目标：%s" % SETTINGS_RETAIN_DAYS)
     print("（「日志」页的『保留天数』）")
-    # 高亮「日志」页本身：那个 QSpinBox 没有 objectName，funq 的路径是
-    # 合成名（settingsRow-1::QSpinBox），引导解析不了
-    # 直接指那个 QSpinBox：它没有 objectName，路径里是合成段
-    # （settingsRow-1::QSpinBox），引导的解析器照 funq 的规则逐段下钻，认这个
+    # 切到「日志」页：默认停在「通用」页，不在当前页的控件不可见，funq 等不到
+    client.widget(path=SETTINGS_CATEGORY_LIST).set_property(
+        "currentRow", SETTINGS_ROW_LOG)
+    # 那个 QSpinBox 没有 objectName，路径里是合成段（settingsRow-1::QSpinBox），
+    # 引导的解析器照 funq 的规则逐段下钻，认这个
     guide.highlight(SETTINGS_RETAIN_DAYS, "保留天数", "读一个值，再写回去")
     spin = client.widget(path=SETTINGS_RETAIN_DAYS)
     before = spin.properties()["value"]

@@ -1,4 +1,4 @@
-#include "widgets/switch_button.h"
+#include "switch_button.h"
 
 #include <QPainter>
 #include <QPainterPath>

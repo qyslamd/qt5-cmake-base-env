@@ -10,7 +10,7 @@ add_unit_test(
     NO_GTEST_MAIN
 )
 
-# 崩溃捕获与异常处理：三个后端常编（见 crash_bootstrap.h），两个测试都无条件注册
+# 崩溃捕获与异常处理：三个后端常编（见 crash.h），两个测试都无条件注册
 #
 # 自研方案（CrashHandler）：子进程拉起 → 触发 SEH/信号 → 断言 crash_*.log
 # 落盘与内容结构。

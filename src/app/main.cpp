@@ -1,15 +1,9 @@
-// 应用入口。启动顺序有约束：单实例先于 Logger（拒绝回放时只能写 stderr）、
-// 翻译先于任何界面构造、功能引导先于登录（外部脚本第一步常跑在登录框上）。
+// 应用入口，按序走启动流程。顺序有约束：单实例先于 Logger（拒绝回放时只能
+// 写 stderr），引导接线晚于主窗口（要 findChild 窗口里的控件）。
 //
 // 所有权三种并存：短生命周期用栈对象；活到进程结束的 QObject 挂 Qt 父子；
-// 活到进程结束的非 QObject 用 unique_ptr（如不能有父级的 TourBridge）。
+// 活到进程结束的非 QObject 用 unique_ptr（如 TourBridge）。
 // 标了「可删」的段落可整段拿掉，不影响其余。
-
-#ifdef APP_UI_FLUENT
-#include <fluentui3style.h>
-#else
-#include <style.h>
-#endif
 
 #include <tour_bridge.h>
 #include <tour_controller.h>
@@ -19,24 +13,20 @@
 #include <memory>
 #include <optional>
 
-#include <QApplication>
 #include <QByteArray>
 #include <QDialog>
-#include <QFont>
-#include <QIcon>
-#include <QLibraryInfo>
 #include <QString>
 #include <QTimer>
-#include <QTranslator>
 #include <QVector>
 
 #include "AppInfo.h"
 #include "AppVersion.h"
+#include "application.h"
 #include "auth/auth_service.h"
 #include "common/single_instance.h"
 #include "config/config_defs.h"
 #include "config/config_manager.h"
-#include "crashhandler/crash_bootstrap.h"
+#include "crashhandler/crash.h"
 #include "crashhandler/global_exception_handler.h"
 #include "dialogs/crash_report_dialog.h"
 #include "dialogs/login_dialog.h"
@@ -60,48 +50,6 @@ static void InitRibbonResources() { Q_INIT_RESOURCE(SARibbonResource); }
 #endif
 
 namespace {
-
-// 组织名/应用名决定数据目录、单实例键与日志文件名，须与安装脚本一致
-void SetupAppMetadata(QApplication& app) {
-  app.setOrganizationName(QString::fromLatin1(APP_ORGANIZATION_NAME));
-  app.setApplicationName(QString::fromLatin1(APP_APPLICATION_NAME));
-  app.setWindowIcon(QIcon(":/resources/icons/icon.ico"));
-  app.setApplicationVersion(getProjectVersionAll());
-}
-
-// 命令行导出崩溃报告（售后兜底）。返回退出码：0 = 成功（含"没有报告"）
-int RunCrashReportExport(const QString& target_dir) {
-  const QString dir =
-      target_dir.isEmpty() ? DefaultCrashReportDir() : target_dir;
-  const crash::ExportResult result = crash::ExportPendingReports(
-      crash::DatabaseDir(), dir, crash::CurrentAppInfo());
-  if (!result.ok()) {
-    LOG_WARN("MAIN", "导出崩溃报告失败: {}", result.error.toStdString());
-    return 1;
-  }
-  LOG_INFO("MAIN", "导出崩溃报告 {} 份到 {}", result.exported,
-           result.target_dir.toStdString());
-  return 0;
-}
-
-// 有待处理的崩溃报告就弹导出提示；无桌面环境只记日志（模态框没人点）
-void MaybePromptCrashReport() {
-  if (QGuiApplication::platformName() == QStringLiteral("offscreen")) {
-    LOG_INFO("MAIN",
-             "无桌面环境，跳过崩溃报告提示（可用 --export-report 导出）");
-    return;
-  }
-
-  const QVector<crash::PendingReport> reports =
-      crash::ListPendingReports(crash::DatabaseDir());
-  if (reports.isEmpty()) {
-    return;
-  }
-  LOG_INFO("MAIN", "检测到 {} 份待导出的崩溃报告", reports.size());
-
-  CrashReportDialog dialog(reports);
-  dialog.exec();
-}
 
 // 注入 --set 覆盖。须在 Logger::init 之前（log/level 在 init 时读）；那时
 // 日志未起，坏条目攒着返回，由调用方事后告警
@@ -149,33 +97,6 @@ std::optional<int> HandleAlreadyRunning(SingleInstance& instance,
   return 2;
 }
 
-// 装载中文翻译；translator 用静态对象持有（installTranslator 只记指针）。
-// 本仓文案全是硬编码中文，要翻的只有第三方控件串，故不问系统语言、一律 zh_CN
-void InstallTranslations(QApplication& app) {
-  static QTranslator qt_translator;
-  static QTranslator saribbon_translator;
-  // Qt 自带控件文案；目录 Windows 侧由 windeployqt 拷到 exe 旁
-  const QString qt_qm = QLibraryInfo::location(QLibraryInfo::TranslationsPath) +
-                        QStringLiteral("/qt_zh_CN.qm");
-  if (qt_translator.load(qt_qm)) {
-    app.installTranslator(&qt_translator);
-    LOG_INFO("MAIN", "已装载 Qt 中文翻译: {}", qt_qm.toStdString());
-  } else {
-    LOG_WARN("MAIN", "Qt 中文翻译装载失败，标准对话框按钮将显示英文: {}",
-             qt_qm.toStdString());
-  }
-
-  // 功能区文案：构建期编进资源；LinguistTools 缺席时不存在，降级不拦启动
-  const QString saribbon_qm =
-      QStringLiteral(":/translations/SARibbon_zh_CN.qm");
-  if (saribbon_translator.load(saribbon_qm)) {
-    app.installTranslator(&saribbon_translator);
-    LOG_INFO("MAIN", "已装载功能区中文翻译: {}", saribbon_qm.toStdString());
-  } else {
-    LOG_WARN("MAIN", "功能区中文翻译装载失败，功能区自带文案将显示英文");
-  }
-}
-
 // 单实例激活。「可删」——不需要单实例时整段拿掉（窗口尺寸在 MainWindow 里）
 void AttachHostFeatures(SingleInstance& instance, MainWindow& window) {
   instance.setActivationWindow(reinterpret_cast<void*>(window.winId()));
@@ -185,6 +106,21 @@ void AttachHostFeatures(SingleInstance& instance, MainWindow& window) {
                      window.raise();
                      window.activateWindow();
                    });
+}
+
+// 引导装配（可删）：建控制器（挂 app）与桥接，并接到窗口上。桥接是顶层控件、
+// 要活到进程结束（外部脚本按 "tourBridge" 寻址），所有权交回调用方
+std::unique_ptr<TourBridge> SetupTour(MainWindow& window) {
+  auto* controller = new TourController(qApp);
+  auto bridge = std::make_unique<TourBridge>(controller->overlay());
+
+  // 接线要等窗口建好：viewport 与主题靠 findChild 找窗口里的控件
+  controller->setViewport(&window);
+  TourTopic* topic = controller->addTopic(BuildTemplateTourTopic(&window));
+  auto* menu = new TourMenu(controller, &window);
+  // 菜单文字写的是「模板导览」，必须显式传主题，不能靠位置关系
+  menu->attachMenu(&window, topic);
+  return bridge;
 }
 
 // UI 测试的接线（录制/回放菜单，或直接回放）。
@@ -231,11 +167,10 @@ void SetupUiTesting(MainWindow& window) {
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  QApplication app(argc, argv);
-  SetupAppMetadata(app);
+  Application app(argc, argv);
   const LaunchOptions& opts = LaunchOptions::instance();
 
-  // ========================= 单实例（可删）=========================
+  // ========================= 单实例检测 =========================
   SingleInstance single_instance(QCoreApplication::applicationName(),
                                  QString::fromLatin1(APP_MUTEX_NAME));
   if (const auto exit_code = HandleAlreadyRunning(single_instance, opts)) {
@@ -247,20 +182,8 @@ int main(int argc, char* argv[]) {
   }
 
   // ========================= 基础设施 =========================
-  // 顺序：配置 → 样式/字体 → 覆盖注入 → Logger → GEH → 崩溃捕获
+  // 顺序：配置 → 覆盖注入 → Logger → GEH → 崩溃捕获
   {
-    // 样式两条路线互斥（APP_UI_ROUTE）：fluent 不加载任何 QSS——样式表一
-    // 生效，命中控件就走 QStyleSheetStyle，Fluent 绘制被整个绕过；qss 由
-    // ApplyStyleSheet 装底座 + 项目两层。字体两条路都要设
-#ifdef APP_UI_FLUENT
-    QApplication::setStyle(new FluentUI3Style);
-#else
-    ApplyStyleSheet(app, {QStringLiteral(":/resources/styles/default.qss")});
-#endif
-    QFont app_font = app.font();
-    app_font.setFamily(QStringLiteral("Microsoft YaHei"));
-    app.setFont(app_font);
-
     ConfigManager::instance();
     const QStringList bad_overrides =
         ApplyConfigOverrides(opts.config_overrides);
@@ -275,6 +198,10 @@ int main(int argc, char* argv[]) {
     // 本次运行的命令行进日志：事后排查先看这行，就知道进程是怎么被拉起来的
     // （--set 覆盖了什么、是不是回放模式，都在这条记录里）
     LOG_INFO("MAIN", "命令行: {}", CommandLineText().toStdString());
+    // 翻译装载失败项：装载时日志还没起，故攒到这里补记
+    for (const QString& problem : app.translationProblems()) {
+      LOG_WARN("MAIN", "{}", problem.toStdString());
+    }
 #ifdef APP_UI_FLUENT
     LOG_INFO("MAIN", "界面路线：fluent（FluentUI3Style + Frameless 标题栏）");
 #elif defined(APP_ENABLE_RIBBON)
@@ -307,26 +234,24 @@ int main(int argc, char* argv[]) {
     crash::Init(app_info);
   }
 
-  // ========================= 翻译（可删）=========================
-  InstallTranslations(app);
-
   // ========================= 工具模式与崩溃报告提示 =================
-  // 导出崩溃报告：无界面，跑完即退出。演练用的"触发测试崩溃"在主窗口
-  // 的工具面板/菜单里（MainWindow::onMakeCrash）
+  // 导出崩溃报告：无界面，跑完即退出。退出码契约（export_crash_report.bat
+  // 依赖它）：0 = 成功（含"本来就没有报告"），1 = 失败
   if (opts.export_report) {
-    return RunCrashReportExport(opts.export_report_dir);
+    const crash::ExportResult result = crash::ExportTo(opts.export_report_dir);
+    if (!result.ok()) {
+      LOG_WARN("MAIN", "导出崩溃报告失败: {}", result.error.toStdString());
+      return 1;
+    }
+    LOG_INFO("MAIN", "导出崩溃报告 {} 份到 {}", result.exported,
+             result.target_dir.toStdString());
+    return 0;
   }
 
   // 崩溃那一刻没机会提示，只能等这次启动补上
   if (!opts.export_report && opts.ui_test_script.isEmpty()) {
-    MaybePromptCrashReport();
+    PromptPendingCrashReportIfAny();
   }
-
-  // ========================= 功能引导（可删）=========================
-  // 桥接建在登录前：外部脚本第一步常跑在登录框上，那时主窗口还不存在。
-  // 桥接是无 Qt 父级的顶层窗口，用 unique_ptr 持有（控制器挂在 app 下）
-  auto* tour_controller = new TourController(&app);
-  auto tour_bridge = std::make_unique<TourBridge>(tour_controller->overlay());
 
   // ========================= 登录 =========================
   if (opts.ui_test_script.isEmpty() &&
@@ -350,13 +275,8 @@ int main(int argc, char* argv[]) {
   w.show();
 
   // ========================= 窗口之后的接线 =========================
-  // 引导要 findChild 主窗口里的控件，只能等窗口建好后再接
-  tour_controller->setViewport(&w);
-  TourTopic* tour_topic = tour_controller->addTopic(BuildTemplateTourTopic(&w));
-  auto* tour_menu = new TourMenu(tour_controller, &w);
-  // 菜单文字写的是「模板导览」，必须显式传主题，不能靠位置关系
-  tour_menu->attachMenu(&w, tour_topic);
-
+  // 桥接要活到进程结束，这里接住就是它的寿命
+  auto tour_bridge = SetupTour(w);
   AttachHostFeatures(single_instance, w);
   SetupUiTesting(w);
 

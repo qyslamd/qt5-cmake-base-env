@@ -5,9 +5,8 @@
 // crash::ExportPendingReports 的纯函数形态，验证落盘内容与"交付后不再提示、
 // 但文件不删"的语义。
 #include <cstring>
-#include <memory>
-
 #include <gtest/gtest.h>
+#include <memory>
 
 #include <QDirIterator>
 #include <QFile>
@@ -18,7 +17,7 @@
 #include <QVector>
 
 #include "client/crash_report_database.h"
-#include "crashhandler/crash_bootstrap.h"
+#include "crashhandler/crash.h"
 
 namespace {
 

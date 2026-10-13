@@ -4,7 +4,7 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 
-#include "log_output_panel.h"
+#include "widgets/log_output_panel.h"
 
 LogWindow::LogWindow(QWidget* parent) : QDialog(parent) {
   initUi();

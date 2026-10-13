@@ -4,7 +4,7 @@
 #include <QString>
 #include <QVector>
 
-#include "crashhandler/crash_bootstrap.h"
+#include "crashhandler/crash.h"
 
 namespace crash {
 namespace detail {
@@ -19,8 +19,8 @@ QVector<PendingReport> ListPendingReports(const QString& db_dir);
 
 // 导出并交付（与 crash::ExportPendingReports 同一契约）
 ExportResult ExportPendingReports(const QString& db_dir,
-                                 const QString& target_dir,
-                                 const AppInfo& info);
+                                  const QString& target_dir,
+                                  const AppInfo& info);
 
 }  // namespace detail
 }  // namespace crash

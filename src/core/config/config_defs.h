@@ -46,7 +46,7 @@ constexpr int kConfigWindowDefaultHeight = 768;
 
 // ===== 崩溃捕获配置组 =====
 // 后端三选一，运行时读取、重启生效（三个实现都编译在程序里，见
-// crash_bootstrap.h 的 Backend）
+// crash.h 的 Backend）
 constexpr const char* kConfigCrashBackend = "crash/backend";
 constexpr const char* kCrashBackendCrashpad = "crashpad";
 constexpr const char* kCrashBackendBuiltin = "builtin";

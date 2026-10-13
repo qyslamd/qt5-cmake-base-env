@@ -13,7 +13,7 @@
 // 而不是拆成两个各管一半
 //
 // 与各崩溃后端的职责边界（后端是运行时配置 crash/backend，本类在 init() 里
-// 自己读它决定崩溃信号接不接，见 crash_bootstrap.h）：
+// 自己读它决定崩溃信号接不接，见 crash.h）：
 //   - builtin（自研）：崩溃信号实际由 CrashHandler 接管——它在本类之后注册，
 //     Windows 侧更是 VEH 先响应，本类只是二线兜底，照常注册
 //   - crashpad：崩溃信号必须让给 crashpad_handler 的进程外捕获，本类只留

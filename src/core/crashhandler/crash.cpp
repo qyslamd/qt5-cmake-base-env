@@ -1,8 +1,9 @@
-#include "crashhandler/crash_bootstrap.h"
+#include "crashhandler/crash.h"
 
 #include <memory>
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QStandardPaths>
 
@@ -126,6 +127,34 @@ QVector<PendingReport> ListPendingReports(const QString& db_dir) {
     return {};
   }
   return detail::ListPendingReports(db_dir);
+}
+
+QString DefaultExportDir() {
+  // 桌面 → 文档 → 主目录：客户机上"桌面"最容易被找到，但无桌面环境（或精简
+  // 系统）可能没有它，逐级退到一定存在的目录
+  const QStandardPaths::StandardLocation locations[] = {
+      QStandardPaths::DesktopLocation, QStandardPaths::DocumentsLocation,
+      QStandardPaths::HomeLocation};
+  QString base;
+  for (QStandardPaths::StandardLocation location : locations) {
+    const QString path = QStandardPaths::writableLocation(location);
+    if (!path.isEmpty() && QDir(path).exists()) {
+      base = path;
+      break;
+    }
+  }
+  if (base.isEmpty()) {
+    base = QDir::homePath();
+  }
+
+  const QString stamp =
+      QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
+  return base + QStringLiteral("/CrashReport-") + stamp;
+}
+
+ExportResult ExportTo(const QString& target_dir) {
+  const QString dir = target_dir.isEmpty() ? DefaultExportDir() : target_dir;
+  return ExportPendingReports(DatabaseDir(), dir, CurrentAppInfo());
 }
 
 ExportResult ExportPendingReports(const QString& db_dir,
