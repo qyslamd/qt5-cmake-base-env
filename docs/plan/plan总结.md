@@ -381,6 +381,12 @@ organization/application 两层）不是 `std::filesystem` 能复刻的；核心
 - **样式**：`TourCard` 的自绘曾无条件盖住 QSS → 外观只有 QSS 一个出处；
   `TourStyle` 必须并入**应用级**样式表（实操模式下气泡被 reparent、离开首页子树）；
   `Q_INIT_RESOURCE` 必须在全局作用域；静态库里的 qrc 符号要有人显式引用一次
+  - **并入的时机有两条顺序约束**（2026-10-13 实测）：① 在宿主设完应用样式表
+    之后（它是"追加"）；② **早于任何窗口级样式表**——`ensureApplied()` 做的是
+    重设应用表，排在主窗口的 SARibbon 主题之后会让**功能区主题整个失效**
+    （现象是功能区没样式；把引导从"登录前"挪到"窗口之后"时踩到过）。本仓由
+    main 在 `Application` 构造之后、任何窗口之前显式调一次，引导控件本身仍
+    在登录之后才建
 - **funq 桥接（对外契约，脚本与用例按名字寻址，不能改名）**：① 必须是可见的
   QWidget（`call_slot` 走 `qobject_cast<QWidget*>`，且 `client.widget()` 默认等
   visible）；② 必须是独立顶层控件——脚本按 `tourBridge` **单段路径**寻址它，

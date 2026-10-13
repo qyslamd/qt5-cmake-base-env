@@ -133,7 +133,6 @@ void MainWindow::initRibbon() {
   panel_tool->addLargeAction(log_action_);
   panel_tool->addLargeAction(settings_action_);
   panel_tool->addLargeAction(make_crash_action_);
-  panel_tool->addLargeAction(make_crash_action_);
 
   SARibbonPanel* panel_help = home->addPanel(QStringLiteral("帮助"));
   panel_help->setObjectName(QStringLiteral("ribbonPanelHelp"));

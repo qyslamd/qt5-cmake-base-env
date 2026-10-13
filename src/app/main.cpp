@@ -8,6 +8,7 @@
 #include <tour_bridge.h>
 #include <tour_controller.h>
 #include <tour_menu.h>
+#include <tour_style.h>
 
 #include <cstdio>
 #include <memory>
@@ -168,6 +169,9 @@ void SetupUiTesting(MainWindow& window) {
 
 int main(int argc, char* argv[]) {
   Application app(argc, argv);
+  // 引导样式并入应用级样式表——必须在任何窗口之前：它做的是"重设应用表"，
+  // 排在窗口级样式表（主窗口的 SARibbon 主题）之后会让主题失效（实测）
+  TourStyle::ensureApplied();
   const LaunchOptions& opts = LaunchOptions::instance();
 
   // ========================= 单实例检测 =========================

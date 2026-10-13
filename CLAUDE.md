@@ -153,7 +153,7 @@ scripts/build_ninja.bat -t relwithdebinfo -m demo_app -p
 
 ## 调试和定位问题
 1. 该项目是一个Qt的GUI程序。大模型Agent工具无法运行查看GUI，手段之一是通过**增加日志**。我是用了spdlog封装了 `LOG_INFO`、`LOG_DEBUG`等，必要的时候添加上日志！
-2. 另外，该项目引入了funq（一个通过共享库注入的TCP传输json命令的python测试框架）。必要时候可以在工作区的`temp`目录下编写python脚本来读取属性或者截图。
+2. 另外，该项目引入了funq（一个通过共享库注入的TCP传输json命令的python测试框架）。必要时候可以在工作区的`temp`目录下编写python脚本来读取属性或者"看界面"：**看界面要用按 oid 抓单个控件**（`client.send_command("grab", oid=widget.oid)`），比整屏截图有用得多——窗口被压住也拍得到，而属性只能证明"设了"、像素才能证明"生效了"。配方见 `docs/guide/funq注入式UI测试.md` 的「让 AI Agent 看见界面」
 
 ## 第三方依赖
 第三方库清单与版本见顶层 `CMakeLists.txt` 及各模块的 `CMakeLists.txt`（`find_package` / 静态编译配置），此处不再赘述。

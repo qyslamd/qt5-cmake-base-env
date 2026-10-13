@@ -213,6 +213,41 @@ objectName，路径本身已经稳定，这份表存在的意义只是缩短写�
 - **用完把状态复位**：用例改过的属性（标签页索引、下拉框选项等）要在 `finally`
   里设回去，否则后续用例看到的是被改过的界面。
 
+## 让 AI Agent 看见界面：按 oid 抓单个控件
+
+Agent 看不到 GUI。日志能回答"发生了什么"，属性查询能回答"某个控件的状态是什么"，
+但**回答不了"长什么样"**——样式表有没有生效、主题颜色对不对、布局挤没挤，只有像素
+能回答。实测过一个例子：样式表属性读出来是好的（主窗口 `styleSheet` 7056 字符），
+而屏幕上功能区就是没主题——**属性说"设了"，像素才说"生效了"**。
+
+`client.take_screenshot()` **抓的是整屏**（服务端 `grab` 不带 `oid` 的分支），窗口
+被别的窗口压着、或者不在最前，拍到的就不是它。真正有用的是**按 oid 抓单个控件**：
+服务端支持 `oid` 参数（`Player::grab`，Qt5 走 `QPixmap::grabWidget`），客户端没有
+包这个接口，直接发命令即可：
+
+```python
+import base64
+
+from funq.client import FunqClient
+
+client = FunqClient(host="localhost", port=9000)          # 服务端见「跑测试」那套
+win = client.widget(path="MainWindow", timeout=30.0)      # 模型上的 .oid 就是对象 id
+data = client.send_command("grab", oid=win.oid, format="PNG")
+with open("shot.png", "wb") as fh:
+    fh.write(base64.standard_b64decode(data["data"]))
+```
+
+几条实测要点：
+
+- 抓的是**该控件自身渲染的位图，与窗口层级无关**——被压住也拍得到。这正是它比整屏
+  截图有用的地方
+- 只拍这棵子树。**独立顶层窗口不在其中**：对话框、引导遮罩、被 reparent 成顶层的气泡，
+  要各自按路径抓
+- 前置与其它 funq 客户端一样：被测程序已注入并在跑（`funq-server-demo.bat`），客户端
+  侧 `PYTHONPATH` 挂 `3rdparty/funq-master/client`
+- 同目录的 `tests/funq_app/probe_widgets.py` 是互补的另一个探针：那边列路径、查属性，
+  这边看像素
+
 ## 排错
 
 **残留进程会连锁出怪问题。** 用例启动失败时 funq 的清理路径会抛
@@ -245,6 +280,20 @@ Linux 侧走不到「库被占用删不掉」那一段——允许删除正在�
 **构建类型必须一致。** Debug 的 `libFunq.dll` 链 `Qt5Cored.dll`，注入 Debug 的
 靶子才有同一套 Qt 运行时；拿 Release 的库注入 Debug 的程序会在一个进程里加载
 两套 Qt。
+
+**暂存文件名分构建类型、但不分架构，两个架构会互相覆盖。** `stage_funq_injector`
+把注入库拷进源码树的**共享**暂存目录，名字是 `libFunq-<构建类型>.<ext>`——x86 与
+x64 的同名构建类型（都叫 relwithdebinfo）**撞名**。先编 x64 再编 x86，暂存的就是
+64 位那份；x86 的 runner 去注入它就失败，报的却是：
+
+```text
+Failed to inject DLL! LoadLibraryW() returned c_ulong(0). The last error is 0x0
+([WinError 0] 操作成功完成)。Maybe x86/x64 mismatch between python.exe and Qt DLLs?
+```
+
+（实测：先编 `build/ninja-relwithdebinfo-x64`，再跑 x86 的 `funq-server-demo.bat`。）
+处理：**换架构前先按目标架构编一次**（重新暂存），或删掉暂存目录里那份让它重建。
+判据是读 PE 头的 Machine（`0x14c` = x86、`0x8664` = x64）与靶子比一下。
 
 **位数这条要对齐三方，而且错的一方不报错、只表现为超时。** 靶子、注入库、以及
 **执注入的那个进程**——Windows 上是跑 `runner_win.py` 的 **Python**，它自己调

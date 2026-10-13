@@ -637,6 +637,12 @@
 
 ### 修复
 
+- **qss 路线下功能区丢了 SARibbon 主题**：`TourStyle::ensureApplied()` 干的是
+  "重设应用级样式表"，迁移 `Application` 时引导从"登录前"挪到了 `w.show()` 之后，
+  于是应用表的最后一次设置跑到了主窗口主题（窗口级样式表）后面，把它挤掉。修法
+  是回到旧时序：main 在 `Application` 构造之后、任何窗口之前显式调一次
+  （引导的**控件**仍在登录之后建）。两条顺序约束已写进 `tour_style.cpp` 注释与
+  `docs/plan/plan总结.md`。顺带修掉功能区「工具」面板里「触发测试崩溃」挂了两遍
 - **fluent 路线下登录框是"没有底的浮空控件"**：登录框走的是「无边框 + 透明背景
   （`WA_TranslucentBackground`，为阴影留透明区）+ QSS 画的圆角白卡片 + 阴影」
   这套，而 fluent 路线不加载任何 QSS——卡片没有底，只剩一圈阴影（Windows 上还
