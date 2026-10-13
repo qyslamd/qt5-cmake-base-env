@@ -12,17 +12,17 @@ executable = @TARGET_EXE@
 cwd = @TARGET_DIR@
 funq_port = 0
 aliases = @TARGET_ALIAS@
-# **args 留空是核对过的结论，不是省事**：本仓 demo_app 只认
-# --play/--slow/--export-report/--export-dir/--crash（见 src/app/launch_options.h），
-# 没有一个能帮上夹具的忙——产品线上那套 --fake-devices / --config /
-# --no-crash-prompt 是产品自己的开关，这里没有对应物，照抄只会让应用报
-# "未知参数"然后退出（QCommandLineParser 遇到未知参数直接结束进程）。
-#
-# 一条已知的脆弱点记在这儿：**启动时的崩溃报告提示**
-# （src/app/main.cpp 的 MaybePromptCrashReport）在主窗口与登录框之前弹一个
-# 模态框，只要 %LOCALAPPDATA% 下攒着一份待导出的崩溃报告，这条用例就会卡在
-# 它上面，报出来的却是"找不到 MainWindow"。产品线为此加了 --no-crash-prompt
-# 开关，本仓没有——攒着报告时先手工清掉那个目录，或给应用补一个同类开关。
+args = --set crash/backend=none --set login/enabled=false
+# args 用 --set 注入两个配置覆盖（funq 按 shlex.split 拆分，值不带空格无需
+# 引号），都只对本次运行生效、不落盘：
+#   login/enabled=false  登录框不出现，MainWindow 启动即建——用例不必先过登录，
+#                        也免去首登强制改密对 users.json 的副作用
+#   crash/backend=none   启动不装崩溃后端，待处理的崩溃报告恒按"没有报告"
+#                        处理，MaybePromptCrashReport 的模态框就不会出现——
+#                        不加这条，%LOCALAPPDATA% 下攒着报告时用例会卡在那个
+#                        框上，报出来的却是"找不到 MainWindow"（踩过的坑）
+# 要演练登录流程本身，把这两条删掉即可：funq_app_case.py 的 ensure_logged_in
+# 是兜底，探到登录框仍会照常登进去。
 executable_stdout = NULL
 executable_stderr = NULL
 screenshot_on_error = 0

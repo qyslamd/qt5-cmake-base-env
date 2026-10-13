@@ -1,7 +1,8 @@
 """funq 客户端示例：把 demo_app 从登录一路驱动到设置对话框。
 
-带登录框的构建走完整七步；带 APP_ENABLE_AUTH=OFF 的构建没有登录对话框，
-脚本探测到之后跳过登录那三步，从主窗口继续（第 5 步起）。
+登录开着（默认）走完整七步；登录在配置里关掉（login/enabled=false）或被
+命令行 --set 关掉时没有登录对话框，脚本探测到之后跳过登录那三步，从主窗口
+继续（第 5 步起）。
 
 这是 funq 的「client 侧」。它不启动被测程序、不碰它的进程，只往一条 TCP
 连接上发消息。被驱动的那一端要先用另一个终端跑起来：
@@ -193,9 +194,9 @@ def main():
           % opts.dwell)
     guide = Tour(client, dwell=opts.dwell)
 
-    # 登录这三步只在带登录框的构建里成立：程序可能带 APP_ENABLE_AUTH=OFF 编，
-    # 那样根本没有登录对话框、主窗口启动即建。判据只能问界面——脚本是经 TCP
-    # 连过来的，看不到对方的编译开关
+    # 登录这三步只在登录开着时成立：它可以在配置（login/enabled）或命令行
+    # （--set）里关掉，那样根本没有登录对话框、主窗口启动即建。判据只能问
+    # 界面——脚本是经 TCP 连过来的，看不到对方的配置与命令行
     if exists(client, LOGIN_USERNAME):
         banner(2, "看一眼登录界面上有什么")
         print("登录对话框在 funq 眼里长这样：")
@@ -224,11 +225,11 @@ def main():
         client.widget(path=LOGIN_PASSWORD).set_property("text", GOOD_PASSWORD)
         client.widget(path=LOGIN_BUTTON).click()
     else:
-        banner(2, "没有登录框的构建：跳过登录三步")
-        print("目标程序带 APP_ENABLE_AUTH=OFF 编：没有登录对话框，启动即建主窗口，")
-        print("所以「输错密码 → 看提示文字 → 登录后才建主窗口」这几条断言在这里")
-        print("无从谈起，直接往下走。")
-        print("（判据是问界面有没有 %s，不是读对方的编译开关。）"
+        banner(2, "登录已关闭：跳过登录三步")
+        print("目标程序的登录是关着的（配置 login/enabled=false，或命令行 --set）：")
+        print("没有登录对话框，启动即建主窗口，所以「输错密码 → 看提示文字 →")
+        print("登录后才建主窗口」这几条断言在这里无从谈起，直接往下走。")
+        print("（判据是问界面有没有 %s，不读对方的配置与命令行。）"
               % LOGIN_USERNAME)
 
     # 两条路的汇合点：带登录时主窗口刚由登录按钮创建，不带时启动就有，都在

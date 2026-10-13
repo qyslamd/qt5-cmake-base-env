@@ -1,20 +1,13 @@
-"""本仓 funq 用例的基类：起完应用先把登录过掉。
+"""本仓 funq 用例的基类。
 
-`APP_ENABLE_AUTH=ON` 的构建里，主窗口在登录成功之前**根本不存在**——不管
-登录的话每条用例都会报"找不到 MainWindow"，而报错现场（路径找不到）离真正
-的原因（还没登录）很远。
+正常路径下用例不需要关心登录：funq.conf 的 args 带
+`--set login/enabled=false`，登录框不出现、MainWindow 启动即建，也免去了
+首登强制改密对 users.json 的副作用。
 
-判据是**问界面有没有 `loginDialog`**，不读编译开关：夹具经 TCP 连过来，读
-不到对方的编译开关（与 examples/funq-scripts 的演示脚本同一处置）。探一次
-就够——"这个构建有没有登录框"是构建的属性，不会因为用例之间重起程序而变。
-
-首登强制改密也在这儿过掉，按**原值**填：默认管理员带着 must_change 标记
-（见 src/core/auth/user_manager.cpp 的 kDefaultAdmin），不替操作员定新密码。
-
-**副作用要说清楚**：用户库落在 `QStandardPaths::AppDataLocation` 下
-（`%LOCALAPPDATA%/<组织>/<程序名>/users.json`），产品侧没有把这个目录做成
-可配的开关，所以这轮跑完会把开发机那份用户的 must_change 翻成 false。开发机
-上想复原就删掉那个 users.json——下次运行会重新建出 admin/123。
+ensure_logged_in 在这儿是**兜底**：有人把 funq.conf 里那条 --set 删掉、想
+演练登录流程本身时，它探到 loginDialog 仍会照常登进去（admin/123），并按
+原值过掉首登强制改密。判据是**问界面有没有 loginDialog**，不读对方任何
+配置或命令行——夹具经 TCP 连过来，读不到。
 """
 
 import time
@@ -66,7 +59,12 @@ def _fill(client, path, text):
 
 
 def ensure_logged_in(client):
-    """有登录框就登进去；顺带过掉首登强制改密。没有登录框直接返回。"""
+    """有登录框就登进去；顺带过掉首登强制改密。没有登录框直接返回。
+
+    正常路径（funq.conf 带 --set login/enabled=false）下登录框不存在，
+    这里一步就返回；探一次就够——登录开不开是启动配置的属性，不会因为
+    用例之间重起程序而变。
+    """
     global _has_login, _first_login_checked
     if _has_login is None:
         _has_login = exists(client, LOGIN_DIALOG, timeout=3.0)

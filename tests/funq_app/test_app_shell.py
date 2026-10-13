@@ -8,8 +8,9 @@
 """
 
 import os
+import time
 
-from funq_app_case import DemoAppFunqTestCase
+from funq_app_case import DemoAppFunqTestCase, exists
 
 # 两条入口形态的 objectName。**不拼完整路径**：中间那几级是 Qt 与 SARibbon
 # 的内部容器名（见 demo_app.alias 里的说明），拼死了等于把用例绑到第三方实现
@@ -80,6 +81,33 @@ class AppShellTest(DemoAppFunqTestCase):
         self.funq.widget(alias="log_close").click()
         window.wait_for_properties({"visible": False}, timeout=5.0)
         self.assertFalse(window.properties()["visible"])
+
+    def test_settings_dialog_shows_restart_banner(self):
+        """设置对话框顶部有「需重启生效」横幅。
+
+        登录、崩溃捕获后端、日志文件这些只在启动时读一次，这件事要讲在
+        界面明处。断言横幅可见即可——文案措辞允许改，改了不该红用例。
+        """
+        # 模态对话框会卡住 trigger，所以一律不阻塞地触发
+        self.funq.action(alias="action_settings").trigger(blocking=False)
+        dialog = self.funq.widget(alias="settings_dialog", timeout=10.0)
+        self.assertTrue(dialog.properties()["visible"])
+
+        banner = self.funq.widget(
+            path="MainWindow::settingsDialog::settingsRestartBanner")
+        self.assertTrue(banner.properties()["visible"])
+
+        self.funq.widget(alias="settings_close").click()
+        # 设置对话框是栈上的模态对象，关掉即析构——再问它的属性会报
+        # NotRegisteredObject（与日志窗口"建一次反复显隐"不同），所以"关掉
+        # 与否"要用路径在不在来判断
+        deadline = time.time() + 5.0
+        while exists(self.funq, "MainWindow::settingsDialog", timeout=0.2) \
+                and time.time() < deadline:
+            time.sleep(0.1)
+        self.assertFalse(
+            exists(self.funq, "MainWindow::settingsDialog"),
+            "设置对话框关掉之后不该再找得到")
 
     def test_entry_points_match_the_build(self):
         """入口形态恰好是一种，且和构建配置对得上。
