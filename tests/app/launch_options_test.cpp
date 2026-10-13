@@ -31,7 +31,6 @@ TEST(LaunchOptionsTest, DefaultsAreEmpty) {
   EXPECT_TRUE(opts.slow_text.isEmpty());
   EXPECT_FALSE(opts.export_report);
   EXPECT_TRUE(opts.export_report_dir.isEmpty());
-  EXPECT_FALSE(opts.crash_test);
   EXPECT_TRUE(opts.config_overrides.isEmpty());
 }
 
@@ -87,8 +86,4 @@ TEST(LaunchOptionsTest, ExportDirAcceptsEqualsForm) {
   const LaunchOptions opts =
       ParseCommandLine(Args({"demo_app", "--export-dir=/tmp/crash-out"}));
   EXPECT_EQ(opts.export_report_dir, QStringLiteral("/tmp/crash-out"));
-}
-
-TEST(LaunchOptionsTest, CrashTestFlag) {
-  EXPECT_TRUE(ParseCommandLine(Args({"demo_app", "--crash"})).crash_test);
 }

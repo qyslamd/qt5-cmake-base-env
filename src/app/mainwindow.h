@@ -38,6 +38,7 @@ class MainWindow : public MainWindowBase {
   void onShowLogWindow();
   void onShowSettings();
   void onShowAbout();
+  void onMakeCrash();
 
  private:
   // 三步走：建动作（两种形态共用）→ 挂到功能区或菜单栏 → 铺中央控件
@@ -59,6 +60,7 @@ class MainWindow : public MainWindowBase {
   // 分开建、分开挂，谁先谁后都说得清
   QAction* quit_action_ = nullptr;
   QAction* log_action_ = nullptr;
+  QAction* make_crash_action_ = nullptr;
   QAction* settings_action_ = nullptr;
   QAction* about_action_ = nullptr;
 

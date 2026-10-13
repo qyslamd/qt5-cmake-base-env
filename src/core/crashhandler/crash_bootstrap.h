@@ -31,15 +31,19 @@ enum class Backend {
   kNone,      // 不装捕获，只记应用元信息
 };
 
-// 初始化崩溃捕获，按 backend 装对应的实现。每次进程只调一次，后端随之定死
+// 初始化崩溃捕获：自己读配置 crash/backend 选后端、自己定位
+// crashpad_handler（可执行文件旁），调用方只带应用元信息。每次进程只调一次，
+// 后端随之定死（GlobalExceptionHandler 也读同一个键，两者判定天然一致）
 //
 // 崩溃文件统一落在：
 //   Windows: %LOCALAPPDATA%/<Org>/<App>/crash/
 //   Linux:   ~/.local/share/<Org>/<App>/crash/
 //
-// handler_path 只在 kCrashpad 下使用，指向 crashpad_handler(.exe)；其余后端
-// 忽略。返回 true 表示初始化成功，失败不影响主流程。
-bool Init(const QString& handler_path, const AppInfo& info, Backend backend);
+// 返回 true 表示初始化成功，失败不影响主流程。
+bool Init(const AppInfo& info);
+
+// 本次运行选定的后端；Init 之前为 kCrashpad
+Backend CurrentBackend();
 
 // 本应用实际使用的崩溃数据库目录（与 Init 用的是同一个）
 QString DatabaseDir();

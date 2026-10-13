@@ -2,6 +2,13 @@
 
 #include <QCommandLineOption>
 #include <QCommandLineParser>
+#include <QCoreApplication>
+
+const LaunchOptions& LaunchOptions::instance() {
+  static const LaunchOptions opts =
+      ParseCommandLine(QCoreApplication::arguments());
+  return opts;
+}
 
 LaunchOptions ParseCommandLine(const QStringList& arguments) {
   QCommandLineParser parser;
@@ -39,12 +46,6 @@ LaunchOptions ParseCommandLine(const QStringList& arguments) {
       QStringLiteral("目录"));
   parser.addOption(export_dir_option);
 
-  // 售后演练用：客户机器上也能走一遍"崩溃 → 捕获 → 导出"整条链路
-  const QCommandLineOption crash_option(
-      QStringLiteral("crash"),
-      QStringLiteral("主动触发一次崩溃（用于验证崩溃捕获与回传链路）"));
-  parser.addOption(crash_option);
-
   // 可重复的配置覆盖（见 launch_options.h 的说明）。values() 收集全部出现
   const QCommandLineOption set_option(
       QStringLiteral("set"),
@@ -64,6 +65,5 @@ LaunchOptions ParseCommandLine(const QStringList& arguments) {
   opts.export_report = parser.isSet(export_option);
   opts.export_report_dir = parser.value(export_dir_option);
   opts.config_overrides = parser.values(set_option);
-  opts.crash_test = parser.isSet(crash_option);
   return opts;
 }

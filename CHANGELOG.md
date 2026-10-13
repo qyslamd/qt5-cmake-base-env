@@ -394,9 +394,10 @@
 
 ### 变更
 
-- **`--crash` 演练参数改为常编**：`APP_ENABLE_CRASH_TEST` 编译开关下线，
-  发布包也带上 --crash——售后可在客户机器上走通"崩溃 → 捕获 → 导出 →
-  符号化"整条演练（与 export_crash_report.bat 配套）
+- **测试崩溃从命令行参数改为主窗口动作**：`APP_ENABLE_CRASH_TEST` 编译开关与
+  `--crash` 参数一并下线，「工具」面板/菜单新增"触发测试崩溃"
+  （`MainWindow::onMakeCrash`）——售后在客户机器上走通"崩溃 → 捕获 → 导出 →
+  符号化"演练时不再依赖命令行（与 export_crash_report.bat 配套）
 - **命令行可临时覆盖配置（`--set key=value`，可重复）**：优先级高于 INI 与
   注册默认值，仅本次运行生效、不落盘——funq 客户端与 AI agent 脚本不必改
   用户的配置文件就能换行为（例：`--set login/enabled=false --set

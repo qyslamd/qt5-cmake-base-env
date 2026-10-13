@@ -22,6 +22,7 @@ page_hint = MainWindow::QWidget::pagePlaceholderHint
 action_quit = MainWindow::actionQuit
 action_log_window = MainWindow::actionLogWindow
 action_settings = MainWindow::actionSettings
+action_make_crash = MainWindow::actionMakeCrash
 action_about = MainWindow::actionAbout
 
 # 日志窗口按需创建（点「日志窗口」才建），所以这条路径在触发之前不存在

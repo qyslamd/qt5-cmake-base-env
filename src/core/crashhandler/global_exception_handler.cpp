@@ -5,6 +5,8 @@
 
 #include <QDebug>
 
+#include "config/config_defs.h"
+#include "config/config_manager.h"
 #include "logger/logger.h"
 
 #ifdef Q_OS_WIN
@@ -51,10 +53,18 @@ GlobalExceptionHandler::~GlobalExceptionHandler() {
   }
 }
 
-void GlobalExceptionHandler::init(bool enable_crash_signals) {
+void GlobalExceptionHandler::init() {
   if (initialized_) {
     return;
   }
+
+  // 后端运行时配置（crash/backend）；非法值按非 builtin 处理，与
+  // crash::Init 的回落一致
+  const QString backend = ConfigManager::instance().get<QString>(
+      QString::fromLatin1(kConfigCrashBackend),
+      QString::fromLatin1(kCrashBackendCrashpad));
+  const bool enable_crash_signals =
+      backend == QLatin1String(kCrashBackendBuiltin);
 
   s_signals_ = kTermSignals;
   if (enable_crash_signals) {

@@ -93,6 +93,13 @@ void MainWindow::createActions() {
   log_action_->setObjectName(QStringLiteral("actionLogWindow"));
   connect(log_action_, &QAction::triggered, this, &MainWindow::onShowLogWindow);
 
+  make_crash_action_ =
+      new QAction(QIcon(":/resources/icons/svg/make_crash.svg"),
+                  QStringLiteral("触发测试崩溃(&C)"), this);
+  make_crash_action_->setObjectName(QStringLiteral("actionMakeCrash"));
+  connect(make_crash_action_, &QAction::triggered, this,
+          &MainWindow::onMakeCrash);
+
   settings_action_ = new QAction(QIcon(":/resources/icons/svg/settings.svg"),
                                  QStringLiteral("设置(&S)"), this);
   settings_action_->setObjectName(QStringLiteral("actionSettings"));
@@ -125,6 +132,8 @@ void MainWindow::initRibbon() {
   panel_tool->setObjectName(QStringLiteral("ribbonPanelTool"));
   panel_tool->addLargeAction(log_action_);
   panel_tool->addLargeAction(settings_action_);
+  panel_tool->addLargeAction(make_crash_action_);
+  panel_tool->addLargeAction(make_crash_action_);
 
   SARibbonPanel* panel_help = home->addPanel(QStringLiteral("帮助"));
   panel_help->setObjectName(QStringLiteral("ribbonPanelHelp"));
@@ -145,6 +154,8 @@ void MainWindow::initMenuBar() {
   tool_menu->setObjectName(QStringLiteral("menuTool"));
   tool_menu->addAction(log_action_);
   tool_menu->addAction(settings_action_);
+  tool_menu->addAction(make_crash_action_);
+  tool_menu->addAction(make_crash_action_);
 
   auto* help_menu = menuBar()->addMenu(QStringLiteral("帮助(&H)"));
   help_menu->setObjectName(QStringLiteral("menuHelp"));
@@ -209,4 +220,12 @@ void MainWindow::onShowSettings() {
 void MainWindow::onShowAbout() {
   AboutDialog dialog(this);
   dialog.exec();
+}
+
+void MainWindow::onMakeCrash() {
+  // 演练崩溃点：空指针写。写在成员函数里而不另抽独立函数，是为了让崩溃栈
+  // 里出现本函数的帧——演练要验证"符号能恢复出行号"，帧落在 libc 里就什么
+  // 都验不出来。volatile 保证这次写内存不被优化掉
+  volatile int* null_pointer = nullptr;
+  *null_pointer = 42;
 }

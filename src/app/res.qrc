@@ -23,5 +23,6 @@
         <file>resources/icons/svg/quit.svg</file>
         <file>resources/icons/svg/check.svg</file>
         <file>resources/icons/svg/radio_dot.svg</file>
+        <file>resources/icons/svg/make_crash.svg</file>
     </qresource>
 </RCC>

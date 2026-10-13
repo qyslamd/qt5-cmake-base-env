@@ -54,13 +54,14 @@ class AppShellTest(DemoAppFunqTestCase):
             self.assertTrue(props["text"].strip(), alias)
 
     def test_actions_are_addressable(self):
-        """四个动作都带 objectName。
+        """五个动作都带 objectName。
 
         名字是引导与 funq 共用的锚点（见 mainwindow.cpp 的 createActions）：
         没有它 funq 只能拿"类名-序号"定位，那种名字改一次界面就变。
         """
         for alias in ("action_quit", "action_log_window",
-                      "action_settings", "action_about"):
+                      "action_settings", "action_make_crash",
+                      "action_about"):
             action = self.funq.action(alias=alias)
             self.assertTrue(action.properties()["enabled"], alias)
 

@@ -2,15 +2,35 @@
 
 #include <memory>
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QStandardPaths>
 
+#include "config/config_defs.h"
+#include "config/config_manager.h"
 #include "crashhandler/crash_handler.h"
 #include "crashhandler/crashpad_bootstrap.h"
+#include "logger/logger.h"
 
 namespace crash {
 
 namespace {
+
+// crash/backend 值 → 枚举；空/非法回落 crashpad 并告警，配置写坏不拦启动
+Backend ParseBackend(const QString& value) {
+  if (value.isEmpty() || value == QLatin1String(kCrashBackendCrashpad)) {
+    return Backend::kCrashpad;
+  }
+  if (value == QLatin1String(kCrashBackendBuiltin)) {
+    return Backend::kBuiltin;
+  }
+  if (value == QLatin1String(kCrashBackendNone)) {
+    return Backend::kNone;
+  }
+  LOG_WARN("CRASH", "crash/backend 配置非法：{}，回落 crashpad",
+           value.toStdString());
+  return Backend::kCrashpad;
+}
 
 QString ResolveDumpDir() {
   const QString base =
@@ -45,27 +65,58 @@ QString DatabaseDir() {
 
 const AppInfo& CurrentAppInfo() { return g_app_info; }
 
-bool Init(const QString& handler_path, const AppInfo& info, Backend backend) {
+Backend CurrentBackend() { return g_backend; }
+
+bool Init(const AppInfo& info) {
   g_app_info = info;
+  const Backend backend = ParseBackend(ConfigManager::instance().get<QString>(
+      QString::fromLatin1(kConfigCrashBackend),
+      QString::fromLatin1(kCrashBackendCrashpad)));
   g_backend = backend;
   const QString db_dir = DatabaseDir();
 
+  bool ok = false;
   switch (backend) {
-    case Backend::kCrashpad:
-      return detail::InitCrashpad(db_dir, handler_path, info);
+    case Backend::kCrashpad: {
+      // handler 与主程序同目录（构建系统保证落位）
+      const QString exe_dir = QCoreApplication::applicationDirPath();
+#ifdef Q_OS_WIN
+      const QString handler_path =
+          exe_dir + QStringLiteral("/crashpad_handler.exe");
+#else
+      const QString handler_path =
+          exe_dir + QStringLiteral("/crashpad_handler");
+#endif
+      ok = detail::InitCrashpad(db_dir, handler_path, info);
+      break;
+    }
     case Backend::kBuiltin:
       g_crash_handler = CrashHandler::create();
       if (g_crash_handler == nullptr) {
-        return false;
+        break;
       }
       g_crash_handler->setDumpPath(db_dir);
-      return g_crash_handler->init();
+      ok = g_crash_handler->init();
+      break;
     case Backend::kNone:
       // 没有后端要装，但应用元信息与数据库目录照记（导出接口要读它们，
       // 只是那两处会按"没有报告"处理）。返回 true = 本次没有失败
-      return true;
+      ok = true;
+      break;
   }
-  return true;
+
+  const char* name = backend == Backend::kCrashpad  ? "Crashpad"
+                     : backend == Backend::kBuiltin ? "自研"
+                                                    : "none";
+  if (backend == Backend::kNone) {
+    LOG_INFO("CRASH", "未启用崩溃捕获（crash/backend=none）");
+  } else if (ok) {
+    LOG_INFO("CRASH", "崩溃捕获模块初始化完成（{}）", name);
+  } else {
+    LOG_WARN("CRASH", "崩溃捕获初始化失败（{}），本次运行不会生成崩溃报告",
+             name);
+  }
+  return ok;
 }
 
 QVector<PendingReport> ListPendingReports(const QString& db_dir) {
