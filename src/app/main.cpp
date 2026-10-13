@@ -15,8 +15,8 @@
 //    ├─ 功能引导（控制器 + 桥接）─ 必须在登录之前
 //    │    外部脚本的第一步常常跑在登录对话框上，那时主窗口还不存在
 //    ├─ 登录
-//    ├─ 初始化三步（会话 → 配置 → 主窗口）
-//    ├─ 主窗口之后接线（引导的 viewport/主题/菜单、单实例激活、退出保存）
+//    ├─ 初始化会话 → 主窗口（尺寸由窗口自己从配置恢复）
+//    ├─ 主窗口之后接线（引导的 viewport/主题/菜单、单实例激活）
 //    └─ app.exec() → 清理
 //
 // 对象所有权的约定（三种并存是有意的，别随手改）：
@@ -49,27 +49,21 @@
 #include <QFont>
 #include <QIcon>
 #include <QLibraryInfo>
-#include <QSize>
 #include <QString>
 #include <QTimer>
 #include <QTranslator>
 #include <QVector>
-#include <QWidget>
 
 #include "AppInfo.h"
 #include "AppVersion.h"
-#ifdef APP_ENABLE_AUTH
 #include "auth/auth_service.h"
-#endif
 #include "common/single_instance.h"
 #include "config/config_defs.h"
 #include "config/config_manager.h"
 #include "crashhandler/crash_bootstrap.h"
 #include "crashhandler/global_exception_handler.h"
 #include "dialogs/crash_report_dialog.h"
-#ifdef APP_ENABLE_AUTH
 #include "dialogs/login_dialog.h"
-#endif
 #include "launch_options.h"
 #include "logger/logger.h"
 #include "mainwindow.h"
@@ -138,7 +132,6 @@ void MaybePromptCrashReport() {
   dialog.exec();
 }
 
-#ifdef APP_ENABLE_CRASH_TEST
 // 主动崩溃。独立成函数是为了让崩溃栈里出现本函数的帧——演练要验证"符号能
 // 恢复出行号"，帧落在 libc 里就什么都验不出来。volatile 保证这次写内存不被
 // 优化掉
@@ -146,7 +139,41 @@ void TriggerTestCrash() {
   volatile int* null_pointer = nullptr;
   *null_pointer = 42;
 }
-#endif
+
+// crash/backend 的字符串值 → 后端枚举。空串与非法值回落默认（crashpad）：
+// 配置写坏不该拦启动
+crash::Backend ParseCrashBackend(const QString& value) {
+  if (value.isEmpty() || value == QLatin1String(kCrashBackendCrashpad)) {
+    return crash::Backend::kCrashpad;
+  }
+  if (value == QLatin1String(kCrashBackendBuiltin)) {
+    return crash::Backend::kBuiltin;
+  }
+  if (value == QLatin1String(kCrashBackendNone)) {
+    return crash::Backend::kNone;
+  }
+  LOG_WARN("MAIN", "crash/backend 配置非法：{}，回落 crashpad",
+           value.toStdString());
+  return crash::Backend::kCrashpad;
+}
+
+// 应用 --set 注入的配置覆盖。必须在 Logger::init 之前调（log/level 这类键是
+// init 时读的，覆盖要赶在它前面），而那时日志还没起——坏条目攒着返回，由
+// 调用方等 Logger 起来后统一告警
+QStringList ApplyConfigOverrides(const QStringList& raw_overrides) {
+  QStringList bad;
+  auto& cfg = ConfigManager::instance();
+  for (const QString& item : raw_overrides) {
+    const qsizetype eq = item.indexOf(QLatin1Char('='));
+    const QString key = eq > 0 ? item.left(eq).trimmed() : QString();
+    if (key.isEmpty()) {
+      bad << item;
+      continue;
+    }
+    cfg.setOverride(key, item.mid(eq + 1));
+  }
+  return bad;
+}
 
 // 已有实例时的处理。返回非空表示应当直接退出，值就是退出码
 std::optional<int> HandleAlreadyRunning(SingleInstance& instance,
@@ -190,46 +217,18 @@ std::optional<int> HandleAlreadyRunning(SingleInstance& instance,
   return 2;
 }
 
-// 初始化三步的第一步：把当前用户会话准备好。
-// 前两步各成函数、与主窗口构造分开，顺序在调用处一眼可见——模板使用者要插
-// 自己的耗时初始化，就插在它们与 MainWindow 之间
-void InitializeSession() {
-#ifdef APP_ENABLE_AUTH
-  const User current_user = AuthService::instance().currentUser();
-  LOG_INFO("MAIN", "用户会话已建立: {}", current_user.user_name_.toStdString());
-#else
-  LOG_INFO("MAIN", "未启用登录认证（APP_ENABLE_AUTH=OFF），无用户会话");
-#endif
-}
-
-// 初始化三步的第二步：读回上次的窗口尺寸并钳制，防止损坏的 INI
-// 产生不可用窗口
-QSize LoadWindowSize() {
-  const int saved_width = ConfigManager::instance().get<int>(
-      QString::fromLatin1(kConfigWindowWidth), kConfigWindowDefaultWidth);
-  const int saved_height = ConfigManager::instance().get<int>(
-      QString::fromLatin1(kConfigWindowHeight), kConfigWindowDefaultHeight);
-  return QSize(qBound(640, saved_width, 4096), qBound(480, saved_height, 2160));
-}
-
-void SaveWindowSize(const QWidget& window) {
-  auto& cfg = ConfigManager::instance();
-  cfg.set<int>(QString::fromLatin1(kConfigWindowWidth), window.width());
-  cfg.set<int>(QString::fromLatin1(kConfigWindowHeight), window.height());
-  cfg.sync();
-}
-
-// 装载中文翻译。两个 QTranslator 由调用方持有——installTranslator 只记指针，
-// 对象一析构那指针就悬空，所以不能在这里建成局部对象。
+// 装载中文翻译。两个 QTranslator 用函数内静态对象持有：installTranslator 只记
+// 指针，栈对象出函数就悬空，静态对象活到进程结束、指针始终有效。
 //
 // 界面语言是写死的：本仓自己的文案全是硬编码中文（规矩是不用 tr()），需要翻
 // 译的只有第三方控件的自带串。所以这里不问系统语言，一律 zh_CN——否则中文
 // 界面里会混进一段英文。
-void InstallTranslations(QApplication& app, QTranslator& qt_translator,
-                         QTranslator& saribbon_translator) {
+void InstallTranslations(QApplication& app) {
   // Qt 自带控件的文案（QMessageBox / QFileDialog 的按钮等）。目录问
   // QLibraryInfo：Windows 下是安装目录旁的 translations/（windeployqt
   // 已拷过去），Linux 下是 /usr/share/qt5/translations
+  static QTranslator qt_translator;
+  static QTranslator saribbon_translator;
   const QString qt_qm = QLibraryInfo::location(QLibraryInfo::TranslationsPath) +
                         QStringLiteral("/qt_zh_CN.qm");
   if (qt_translator.load(qt_qm)) {
@@ -254,8 +253,8 @@ void InstallTranslations(QApplication& app, QTranslator& qt_translator,
   }
 }
 
-// 窗口已显示之后的收尾接线：单实例激活 + 退出前落盘。
-// 「可删」——不需要单实例或不需要记住窗口尺寸时整段拿掉
+// 窗口已显示之后的收尾接线：单实例激活。
+// 「可删」——不需要单实例时整段拿掉（窗口尺寸的记忆在 MainWindow 里）
 void AttachHostFeatures(SingleInstance& instance, MainWindow& window) {
   // 第二实例请求激活：Windows 在 SingleInstance 内走 HWND 置前，
   // 其余平台依赖本信号完成 Qt 层的显示与激活
@@ -266,10 +265,6 @@ void AttachHostFeatures(SingleInstance& instance, MainWindow& window) {
                      window.raise();
                      window.activateWindow();
                    });
-
-  // 退出前保存窗口尺寸并立即落盘
-  QObject::connect(qApp, &QCoreApplication::aboutToQuit,
-                   [&window]() { SaveWindowSize(window); });
 }
 
 // UI 测试的接线（录制/回放菜单，或直接回放）。
@@ -320,14 +315,9 @@ void SetupUiTesting(MainWindow& window, const LaunchOptions& opts) {
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  // ========================= 1. 应用与参数 =========================
   QApplication app(argc, argv);
   SetupAppMetadata(app);
-  // 命令行解析独立成文件（src/app/launch_options.*）：它是全流程里唯一一处
-  // 纯解析、既不碰界面也不参与启动顺序的逻辑
   const LaunchOptions opts = ParseCommandLine(QCoreApplication::arguments());
-
-  // ========================= 2. 单实例（可删）=========================
   SingleInstance single_instance(QCoreApplication::applicationName(),
                                  QString::fromLatin1(APP_MUTEX_NAME));
   if (const auto exit_code = HandleAlreadyRunning(single_instance, opts)) {
@@ -341,10 +331,7 @@ int main(int argc, char* argv[]) {
 
   // ========================= 3. 基础设施 =========================
   // 顺序有约束：配置要先于日志（日志读配置），异常/崩溃捕获要晚于日志
-  // （它们要把消息写进日志）。
-  //
-  // 这几步刻意不抽成函数：crash_handler 一旦离开作用域就会析构、顺带撤掉
-  // 崩溃捕获，抽出去反而埋雷
+  // （它们要把消息写进日志）；崩溃后端配置在两者之间读出
   {
     // 全局样式：两条界面路线互斥（APP_UI_ROUTE，见顶层与
     // src/app/CMakeLists.txt）
@@ -368,6 +355,10 @@ int main(int argc, char* argv[]) {
     app.setFont(app_font);
 
     ConfigManager::instance();
+    // 命令行覆盖（--set key=value）：先于一切业务 get 注入，本次运行内
+    // get 全部读到覆盖值，不落盘——外部驱动不必改用户的配置文件
+    const QStringList bad_overrides =
+        ApplyConfigOverrides(opts.config_overrides);
 
 #ifdef APP_ENABLE_RIBBON
     // 功能区（SARibbon）的图标资源注册。要早于主窗口构造，否则第一帧没有图标
@@ -385,24 +376,35 @@ int main(int argc, char* argv[]) {
     LOG_INFO("MAIN", "界面路线：qss（底座 + 项目层样式表）");
 #endif
 
-    // 信号捕获 + Qt 消息重定向。崩溃类信号要不要接，随崩溃后端而变
-    // （APP_CRASH_BACKEND）：
+    // --set 的结果汇报（注入在 ConfigManager::instance() 后就做了，那时
+    // 日志还没起）
+    if (!opts.config_overrides.isEmpty()) {
+      LOG_INFO("MAIN", "命令行覆盖配置 {} 项（--set，仅本次运行生效）：{}",
+               opts.config_overrides.size(),
+               opts.config_overrides.join(QStringLiteral(", ")).toStdString());
+      for (const QString& bad : bad_overrides) {
+        LOG_WARN("MAIN", "--set 条目非法，已忽略：{}", bad.toStdString());
+      }
+    }
+
+    // 崩溃捕获后端：运行时配置（crash/backend，重启生效），三个实现都编在
+    // 程序里，这里只挑一个装。必须在 GEH 与崩溃捕获初始化之前读出
+    const crash::Backend backend =
+        ParseCrashBackend(ConfigManager::instance().get<QString>(
+            QString::fromLatin1(kConfigCrashBackend),
+            QString::fromLatin1(kCrashBackendCrashpad)));
+
+    // 信号捕获 + Qt 消息重定向。崩溃类信号接不接随本次选择的后端：
     //   crashpad —— 必须让出：crashpad_handler 靠进程外机制捕获崩溃，若这里
     //               用 std::signal 抢先接住 SIGSEGV/SIGABRT，handler 收不到
     //               通知，dump 不会生成。只留 SIGINT/SIGTERM
     //   builtin  —— 照常注册：CrashHandler 在本模块之后注册，Windows 侧更是
     //               VEH 先响应，两者不冲突
     //   none     —— 也传 false：本仓不装捕获，崩溃信号留给使用者自己的方案
-#ifdef APP_ENABLE_CRASH_CAPTURE
-    GlobalExceptionHandler::instance().init(/*enable_crash_signals=*/true);
-#else
-    GlobalExceptionHandler::instance().init(/*enable_crash_signals=*/false);
-#endif
+    GlobalExceptionHandler::instance().init(
+        /*enable_crash_signals=*/backend == crash::Backend::kBuiltin);
 
-    // 崩溃捕获：后端由 APP_CRASH_BACKEND 编译期三选一
-    //   crashpad —— crashpad_handler 独立进程 + minidump
-    //   builtin  —— 自研（信号 / SEH + .log + .dmp，进程内解析符号）
-    //   none     —— 不装捕获，这里只记元信息
+    // 崩溃捕获：后端由上面的配置决定
     //
     // handler 生命周期由 crash::Init 内部维护（文件作用域静态对象），
     // 不需要在这里持有；数据库目录也由内部按 QStandardPaths 解析
@@ -423,33 +425,25 @@ int main(int argc, char* argv[]) {
                                     QString::fromLatin1(getProjectGitCommit()),
                                     QString::fromLatin1(APP_BUILD_TYPE)};
 
-#if defined(APP_ENABLE_CRASHPAD)
-      if (crash::Init(handler_path, app_info)) {
-        LOG_INFO("MAIN", "崩溃捕获模块初始化完成（Crashpad）");
+      if (crash::Init(handler_path, app_info, backend)) {
+        switch (backend) {
+          case crash::Backend::kCrashpad:
+            LOG_INFO("MAIN", "崩溃捕获模块初始化完成（Crashpad）");
+            break;
+          case crash::Backend::kBuiltin:
+            LOG_INFO("MAIN", "崩溃捕获模块初始化完成（自研）");
+            break;
+          case crash::Backend::kNone:
+            LOG_INFO("MAIN", "未启用崩溃捕获（crash/backend=none）");
+            break;
+        }
       } else {
         LOG_WARN("MAIN", "崩溃捕获初始化失败，本次运行不会生成崩溃报告");
       }
-#elif defined(APP_ENABLE_CRASH_CAPTURE)
-      if (crash::Init(handler_path, app_info)) {
-        LOG_INFO("MAIN", "崩溃捕获模块初始化完成（自研）");
-      } else {
-        LOG_WARN("MAIN", "崩溃捕获初始化失败，本次运行不会生成崩溃报告");
-      }
-#else
-      // none：调用 Init 只为把应用元信息记进 core，没有后端要装
-      crash::Init(handler_path, app_info);
-      LOG_INFO("MAIN", "未启用崩溃捕获（APP_CRASH_BACKEND=none）");
-#endif
     }
   }
 
-  // ========================= 3.5 应用翻译（可删）=========================
-  // 必须早于任何界面构造：SARibbon 的文案多数在构造期就取走了（标题栏、窗口
-  // 按钮都在 SARibbonMainWindow 的构造里建），晚一步就只有后建的部件是中文。
-  // 两个 translator 必须活在 main 的作用域里，出了这个作用域就悬空
-  QTranslator qt_translator;
-  QTranslator saribbon_translator;
-  InstallTranslations(app, qt_translator, saribbon_translator);
+  InstallTranslations(app);
 
   // ========================= 3.6 工具模式与崩溃报告提示 =================
   // 导出崩溃报告：无界面，跑完即退出（售后兜底与自动化演练都走这里）
@@ -457,12 +451,10 @@ int main(int argc, char* argv[]) {
     return RunCrashReportExport(opts.export_report_dir);
   }
 
-#ifdef APP_ENABLE_CRASH_TEST
   if (opts.crash_test) {
     LOG_INFO("MAIN", "触发测试崩溃（--crash）");
     TriggerTestCrash();
   }
-#endif
 
   // 上次崩溃的报告：客户不会自己去 %LOCALAPPDATA% 里翻，这里主动提示导出。
   // 崩溃那一刻进程正在死、没有提示的机会，所以只能等下次启动
@@ -481,11 +473,8 @@ int main(int argc, char* argv[]) {
   auto tour_bridge = std::make_unique<TourBridge>(tour_controller->overlay());
 
   // ========================= 5. 登录 =========================
-  // 登录成功前不创建主窗口。回放模式跳过登录：录制入口在主窗口菜单里，
-  // 也就是录制总是从「已登录」状态开始；回放只有从同一状态起步，脚本里
-  // 记录的控件才存在
-#ifdef APP_ENABLE_AUTH
-  if (opts.ui_test_script.isEmpty()) {
+  if (opts.ui_test_script.isEmpty() &&
+      ConfigManager::instance().get(kConfigLoginEnabled, true)) {
     LoginDialog login;
     if (login.exec() != QDialog::Accepted) {
       LOG_INFO("MAIN", "未登录，退出程序");
@@ -493,26 +482,15 @@ int main(int argc, char* argv[]) {
       Logger::shutdown();
       return 0;
     }
-    LOG_INFO("MAIN", "登录成功，当前用户: {}",
+    LOG_INFO("MAIN", "登录成功，用户会话已建立,当前用户: {}",
              AuthService::instance().currentUser().user_name_.toStdString());
   } else {
     LOG_INFO("MAIN", "UI 测试回放模式，跳过登录: {}",
              opts.ui_test_script.toStdString());
   }
-#else
-  // 没编认证：登录这一关整个不存在，直接进主窗口。回放模式的日志留一句，
-  // 便于与带认证的构建对照（回放本来也跳过登录）
-  LOG_INFO("MAIN", "未启用登录认证（APP_ENABLE_AUTH=OFF），直接进入主界面");
-#endif
 
-  // ========================= 6. 初始化与主窗口 =========================
-  // 三步按原顺序执行。顺序有约束：会话与配置都先于主窗口构造——要把耗时
-  // 初始化插进来，就插在这两步与 MainWindow 之间
-  InitializeSession();
-  const QSize window_size = LoadWindowSize();
-
+  // ========================= 主窗口 =========================
   MainWindow w;
-  w.resize(window_size);
   w.show();
 
   // ========================= 7. 窗口之后的接线 =========================

@@ -1,18 +1,12 @@
 #include "crashhandler/crash_bootstrap.h"
 
-#ifdef APP_ENABLE_CRASH_CAPTURE
 #include <memory>
-#endif
 
 #include <QDir>
 #include <QStandardPaths>
 
-#if defined(APP_ENABLE_CRASHPAD)
-#include "crashhandler/crashpad_bootstrap.h"
-#elif defined(APP_ENABLE_CRASH_CAPTURE)
 #include "crashhandler/crash_handler.h"
-#endif
-// none：两个后端都不编，也就不 include 任何后端头
+#include "crashhandler/crashpad_bootstrap.h"
 
 namespace crash {
 
@@ -32,11 +26,13 @@ QString ResolveDumpDir() {
 QString g_db_dir;
 AppInfo g_app_info;
 
-#ifdef APP_ENABLE_CRASH_CAPTURE
+// 本次运行选定的后端。查询接口据此决定读真库还是按"没有报告"处理；默认
+// kCrashpad，让单元测试不经过 Init 也能直接演练导出
+Backend g_backend = Backend::kCrashpad;
+
 // 自研方案：handler 对象必须活到进程结束，否则析构时会把信号处理器撤掉。
 // 用文件作用域静态变量持有，随进程退出自动析构
 std::unique_ptr<CrashHandler> g_crash_handler;
-#endif
 
 }  // namespace
 
@@ -49,50 +45,49 @@ QString DatabaseDir() {
 
 const AppInfo& CurrentAppInfo() { return g_app_info; }
 
-bool Init(const QString& handler_path, const AppInfo& info) {
+bool Init(const QString& handler_path, const AppInfo& info, Backend backend) {
   g_app_info = info;
+  g_backend = backend;
   const QString db_dir = DatabaseDir();
 
-#if defined(APP_ENABLE_CRASHPAD)
-  return detail::InitCrashpad(db_dir, handler_path, info);
-#elif defined(APP_ENABLE_CRASH_CAPTURE)
-  Q_UNUSED(handler_path);
-
-  g_crash_handler = CrashHandler::create();
-  if (!g_crash_handler) {
-    return false;
+  switch (backend) {
+    case Backend::kCrashpad:
+      return detail::InitCrashpad(db_dir, handler_path, info);
+    case Backend::kBuiltin:
+      g_crash_handler = CrashHandler::create();
+      if (g_crash_handler == nullptr) {
+        return false;
+      }
+      g_crash_handler->setDumpPath(db_dir);
+      return g_crash_handler->init();
+    case Backend::kNone:
+      // 没有后端要装，但应用元信息与数据库目录照记（导出接口要读它们，
+      // 只是那两处会按"没有报告"处理）。返回 true = 本次没有失败
+      return true;
   }
-  g_crash_handler->setDumpPath(db_dir);
-  return g_crash_handler->init();
-#else
-  // none：没有后端要装，但应用元信息与数据库目录照记（导出接口要读它们，
-  // 只是那两处会返回"没有报告"）。返回 true = 本次没有失败
-  Q_UNUSED(handler_path);
   return true;
-#endif
 }
 
 QVector<PendingReport> ListPendingReports(const QString& db_dir) {
-#ifdef APP_ENABLE_CRASHPAD
+  if (g_backend != Backend::kCrashpad) {
+    // 自研/关闭模式没有 crashpad 报告库
+    Q_UNUSED(db_dir);
+    return {};
+  }
   return detail::ListPendingReports(db_dir);
-#else
-  Q_UNUSED(db_dir);
-  return {};
-#endif
 }
 
 ExportResult ExportPendingReports(const QString& db_dir,
                                   const QString& target_dir,
                                   const AppInfo& info) {
-#ifdef APP_ENABLE_CRASHPAD
+  if (g_backend != Backend::kCrashpad) {
+    // 自研/关闭模式没有报告库：不是错误，就是"没有报告"
+    Q_UNUSED(db_dir);
+    Q_UNUSED(target_dir);
+    Q_UNUSED(info);
+    return ExportResult{};
+  }
   return detail::ExportPendingReports(db_dir, target_dir, info);
-#else
-  Q_UNUSED(db_dir);
-  Q_UNUSED(target_dir);
-  Q_UNUSED(info);
-  // 自研模式没有报告库：不是错误，就是"没有报告"
-  return ExportResult{};
-#endif
 }
 
 }  // namespace crash

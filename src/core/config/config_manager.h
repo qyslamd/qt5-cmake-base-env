@@ -3,6 +3,7 @@
 
 #include <memory>
 
+#include <QHash>
 #include <QMap>
 #include <QObject>
 #include <QSettings>
@@ -25,6 +26,12 @@ class ConfigManager : public QObject {
   template <typename T>
   void set(const QString& key, const T& value);
 
+  // 注入一次性覆盖：get 优先读它（高于 INI 与注册默认值），不落盘、进程内
+  // 有效。供命令行 --set 使用——外部驱动（funq 客户端 / 测试脚本）不改用户
+  // 的配置文件就能临时换行为。注意 set() 不感知覆盖层，覆盖期间请勿对同键
+  // 调 set（写盘判定会被覆盖值干扰）
+  void setOverride(const QString& key, const QVariant& value);
+
   // 导入导出（JSON）
   bool exportToJson(const QString& file_path) const;
   bool importFromJson(const QString& file_path, bool override_existing = true);
@@ -46,6 +53,7 @@ class ConfigManager : public QObject {
 
   std::unique_ptr<QSettings> settings_;
   QMap<QString, QVariant> default_values_;
+  QHash<QString, QVariant> overrides_;
 };
 
 template <typename T>

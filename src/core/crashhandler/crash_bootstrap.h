@@ -23,19 +23,23 @@ struct PendingReport {
   qint64 size = 0;        // 报告文件字节数
 };
 
-// 初始化崩溃捕获。后端由 CMake 的 APP_CRASH_BACKEND 编译期三选一，
-// 代码侧看到的是两个宏：
-//   APP_ENABLE_CRASHPAD        → Crashpad（进程外捕获，生成 minidump）
-//   APP_ENABLE_CRASH_CAPTURE   → 自研（信号 / SEH，写 .log + .dmp）
-//   两个都没定义（none）        → 不装捕获，本函数只记应用元信息
+// 崩溃捕获后端。三个实现都编译在程序里，运行时按配置（crash/backend，
+// 重启生效）挑一个装
+enum class Backend {
+  kCrashpad,  // 进程外捕获（crashpad_handler 独立进程 + minidump），默认
+  kBuiltin,   // 自研（信号 / SEH，写 .log + .dmp，进程内解析符号）
+  kNone,      // 不装捕获，只记应用元信息
+};
+
+// 初始化崩溃捕获，按 backend 装对应的实现。每次进程只调一次，后端随之定死
 //
 // 崩溃文件统一落在：
 //   Windows: %LOCALAPPDATA%/<Org>/<App>/crash/
 //   Linux:   ~/.local/share/<Org>/<App>/crash/
 //
-// handlerPath 只在 Crashpad 模式下使用，指向 crashpad_handler(.exe)；
-// 自研模式忽略。返回 true 表示初始化成功，失败不影响主流程。
-bool Init(const QString& handler_path, const AppInfo& info);
+// handler_path 只在 kCrashpad 下使用，指向 crashpad_handler(.exe)；其余后端
+// 忽略。返回 true 表示初始化成功，失败不影响主流程。
+bool Init(const QString& handler_path, const AppInfo& info, Backend backend);
 
 // 本应用实际使用的崩溃数据库目录（与 Init 用的是同一个）
 QString DatabaseDir();
@@ -43,8 +47,8 @@ QString DatabaseDir();
 // Init 时记录的应用元信息；未初始化时字段为空
 const AppInfo& CurrentAppInfo();
 
-// 列出待处理的崩溃报告。库打不开（首次运行）或平台不支持时返回空表——
-// 这不是错误，是"没有报告"。
+// 列出待处理的崩溃报告。库打不开（首次运行）时返回空表——这不是错误，
+// 是"没有报告"。仅 kCrashpad 后端有报告库，其余后端恒返回空表
 QVector<PendingReport> ListPendingReports(const QString& db_dir);
 
 struct ExportResult {
@@ -57,6 +61,7 @@ struct ExportResult {
 
 // 导出全部待处理报告到 target_dir：每份一个 <uuid>.dmp，外加一份人可读的
 // summary.txt。拷贝并校验通过的报告转入 completed（不删除，见设计文档 D5）。
+// 仅 kCrashpad 后端有报告库，其余后端返回"成功、零份"。
 //
 // db_dir / target_dir / info 全部由调用方给出，就是为了让单元测试指向临时目录，
 // 不碰开发者本机真实的崩溃库。

@@ -29,9 +29,3 @@ add_unit_test(
     QT_MODULES Core
     LABELS APP
 )
-
-# 被测代码里的 --crash 由这个宏控制是否注册，测试得跟着同一个开关走
-if(APP_ENABLE_CRASH_TEST)
-    target_compile_definitions(test_app_launch_options
-        PRIVATE APP_ENABLE_CRASH_TEST)
-endif()

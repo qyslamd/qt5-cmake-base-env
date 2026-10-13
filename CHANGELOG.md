@@ -10,6 +10,10 @@
 
 ### 新增
 
+- **设置对话框顶部"需重启生效"横幅**：登录、崩溃捕获后端、日志文件这些
+  启动时读一次的设置改完要重启，横幅常驻分页区上方讲明这件事；日志级别
+  与格式实时生效（logger 订阅 configChanged），故文案写"部分设置"并列举例。
+  样式在项目层 QSS（`#settingsRestartBanner`），C++ 零 setStyleSheet
 - **三个示例在 qss 路线下挂上底座样式表**（`fft_demo` / `funq_target` /
   `tour_demo`）：`APP_UI_ROUTE` 不是 fluent 时链 `${APP_TARGET_PREFIX}_style`
   并注入 `APP_UI_QSS` 宏，main 里调 `ApplyStyleSheet(app)`——它们没有自己的
@@ -390,6 +394,24 @@
 
 ### 变更
 
+- **`--crash` 演练参数改为常编**：`APP_ENABLE_CRASH_TEST` 编译开关下线，
+  发布包也带上 --crash——售后可在客户机器上走通"崩溃 → 捕获 → 导出 →
+  符号化"整条演练（与 export_crash_report.bat 配套）
+- **命令行可临时覆盖配置（`--set key=value`，可重复）**：优先级高于 INI 与
+  注册默认值，仅本次运行生效、不落盘——funq 客户端与 AI agent 脚本不必改
+  用户的配置文件就能换行为（例：`--set login/enabled=false --set
+  crash/backend=none`）。`ConfigManager` 新增覆盖层 `setOverride()`，坏条目
+  告警忽略、不拦启动
+- **崩溃捕获后端改为运行时切换**：`APP_CRASH_BACKEND` 编译开关下线，crashpad /
+  自研 / 关闭三个后端**全部编进程序**，启动时按 INI 的 `crash/backend` 装
+  一个，重启生效（默认 crashpad；非法值回落默认并告警）。设置对话框「通用」
+  页新增后端下拉；`crash::Init` 增加 `Backend` 参数，报告查询/导出接口跟随
+  本次选定的后端（非 crashpad 后端恒返回"没有报告"）。crashpad_handler.exe
+  因此随包必带，打包与符号归档不再有 HAS_CRASHPAD 条件
+- **登录认证改为运行时开关**：`APP_ENABLE_AUTH` 编译开关下线，auth 源码与
+  登录三个对话框全部常编，登录与否由 INI 的 `login/enabled`（默认开）在启动
+  时决定；设置对话框「通用」页可开关。原先靠 `APP_ENABLE_AUTH=OFF` 构建绕过
+  登录的部署，升级后需在 INI 里写 `login/enabled=false`
 - **补丁生成器入库（`patches/tools/`）**：`patches/` 下 16 个补丁原先只有两条链
   留有生成脚本，且它们散在 `temp/` 里、把仓库路径写死成 `D:/trae_workspace/...`。
   连同 `temp/` 的清理一起收进仓库：`make_saribbon_patches.py`（SARibbon 四条 +

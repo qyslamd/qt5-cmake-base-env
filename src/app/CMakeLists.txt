@@ -33,6 +33,14 @@ set(TARGET_SRCS
     dialogs/crash_report_dialog.h
     dialogs/settings_dialog.cpp
     dialogs/settings_dialog.h
+    dialogs/add_edit_user_dialog.cpp
+    dialogs/add_edit_user_dialog.h
+    dialogs/change_password_dialog.cpp
+    dialogs/change_password_dialog.h
+    dialogs/login_dialog.cpp
+    dialogs/login_dialog.h
+    dialogs/user_manage_dialog.cpp
+    dialogs/user_manage_dialog.h
     log_filter_bar.cpp
     log_filter_bar.h
     log_output_panel.cpp
@@ -40,21 +48,6 @@ set(TARGET_SRCS
     widgets/switch_button.cpp
     widgets/switch_button.h
     )
-
-# 登录认证相关的三个对话框：APP_ENABLE_AUTH=OFF 时整块不编（core 侧的 auth/
-# 同理，登录段在 main.cpp 里也由同一个宏守）
-if(APP_ENABLE_AUTH)
-    list(APPEND TARGET_SRCS
-        dialogs/add_edit_user_dialog.cpp
-        dialogs/add_edit_user_dialog.h
-        dialogs/change_password_dialog.cpp
-        dialogs/change_password_dialog.h
-        dialogs/login_dialog.cpp
-        dialogs/login_dialog.h
-        dialogs/user_manage_dialog.cpp
-        dialogs/user_manage_dialog.h
-    )
-endif()
 
 # UI 测试录制/回放（QtTesting）：仅 BUILD_QT_TESTING 打开的构建包含这部分。
 # 开关见顶层 CMakeLists.txt
@@ -157,11 +150,6 @@ else()
     endif()
 endif()
 
-# --crash 测试开关：只影响命令行选项的注册与那一次主动崩溃，见顶层 CMakeLists
-if(APP_ENABLE_CRASH_TEST)
-    target_compile_definitions(${TARGET_NAME} PRIVATE APP_ENABLE_CRASH_TEST)
-endif()
-
 set_target_properties(${TARGET_NAME} PROPERTIES
     AUTOMOC ON
     AUTOUIC ON
@@ -191,7 +179,7 @@ endif()
 # crashpad_handler 必须挨着主程序：main.cpp 按 applicationDirPath() 找它。
 # 只连构建顺序，不拷贝——两者的输出目录都由顶层 CMAKE_RUNTIME_OUTPUT_DIRECTORY
 # 定到同一个 bin/，早先那条 POST_BUILD 拷贝是拿 bin 拷 bin，纯空转
-if(APP_ENABLE_CRASHPAD AND TARGET crashpad_handler)
+if(TARGET crashpad_handler)
     add_dependencies(${TARGET_NAME} crashpad_handler)
 endif()
 
@@ -294,13 +282,6 @@ if(WIN32)
 
     # 生成打包脚本（可独立编译的 .iss + CLI .bat）
     set(ISS_FILE "${CMAKE_SOURCE_DIR}/scripts/make_install_package.iss")
-    # Inno Setup 预处理用：1 = 打包 crashpad_handler.exe，0 = 不打包。
-    # 用数字而不是 ON/OFF——Inno 的 #if 需要数值表达式
-    if(APP_ENABLE_CRASHPAD)
-        set(ISCC_APP_HAS_CRASHPAD "1")
-    else()
-        set(ISCC_APP_HAS_CRASHPAD "0")
-    endif()
     # funq 测试工具是否随包分发。BUILD_FUNQ=ON 就带上整套（客户端 + 服务端 +
     # 注入库 + 位数匹配的 Python），装完即用、用户不必自备解释器
     if(BUILD_FUNQ)
@@ -514,7 +495,7 @@ if(WIN32)
                 -DDEST_DIR="${SYMBOLS_OUTPUT_DIR}"
                 -P "${CMAKE_SOURCE_DIR}/cmake/archive_symbols.cmake"
         )
-        if(APP_ENABLE_CRASHPAD AND TARGET crashpad_handler)
+        if(TARGET crashpad_handler)
             list(APPEND _symbols_commands
                 COMMAND ${CMAKE_COMMAND}
                     -DSRC_EXE="$<TARGET_FILE:crashpad_handler>"
@@ -529,7 +510,7 @@ if(WIN32)
             COMMENT "Archiving symbols to ${SYMBOLS_OUTPUT_DIR}..."
         )
         add_dependencies(make_symbols ${TARGET_NAME})
-        if(APP_ENABLE_CRASHPAD AND TARGET crashpad_handler)
+        if(TARGET crashpad_handler)
             add_dependencies(make_symbols crashpad_handler)
         endif()
     endif()
@@ -651,7 +632,7 @@ else() # 非 Windows：Linux 侧用 AppImage
 
     # 安装规则：打包脚本用 cmake --install 铺 AppDir，也可用于常规 Linux 安装
     install(TARGETS ${TARGET_NAME} RUNTIME DESTINATION bin)
-    if(APP_ENABLE_CRASHPAD AND TARGET crashpad_handler)
+    if(TARGET crashpad_handler)
         # AppImage 打包走 cmake --install 铺 AppDir，handler 也要装进 usr/bin
         install(PROGRAMS "$<TARGET_FILE:crashpad_handler>" DESTINATION bin)
     endif()

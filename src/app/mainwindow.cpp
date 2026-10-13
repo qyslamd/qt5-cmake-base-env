@@ -23,9 +23,28 @@
 #endif
 // clang-format on
 
+#include "config/config_defs.h"
+#include "config/config_manager.h"
 #include "dialogs/about_dialog.h"
 #include "dialogs/settings_dialog.h"
 #include "log_window.h"
+
+namespace {
+QSize LoadWindowSize() {
+  const int saved_width = ConfigManager::instance().get<int>(
+      QString::fromLatin1(kConfigWindowWidth), kConfigWindowDefaultWidth);
+  const int saved_height = ConfigManager::instance().get<int>(
+      QString::fromLatin1(kConfigWindowHeight), kConfigWindowDefaultHeight);
+  return QSize(qBound(640, saved_width, 4096), qBound(480, saved_height, 2160));
+}
+
+void SaveWindowSize(const QWidget& window) {
+  auto& cfg = ConfigManager::instance();
+  cfg.set<int>(QString::fromLatin1(kConfigWindowWidth), window.width());
+  cfg.set<int>(QString::fromLatin1(kConfigWindowHeight), window.height());
+  cfg.sync();
+}
+}  // namespace
 
 MainWindow::MainWindow(QWidget* parent) : MainWindowBase(parent) {
   initUi();
@@ -36,7 +55,11 @@ MainWindow::~MainWindow() {}
 
 void MainWindow::initUi() {
   setWindowTitle(QCoreApplication::applicationName());
+
+  // size
   setMinimumSize(800, 600);
+  const QSize window_size = LoadWindowSize();
+  resize(window_size);
 
   createActions();
 #if defined(APP_UI_FLUENT)
@@ -162,7 +185,11 @@ void MainWindow::initCentralWidget() {
   setCentralWidget(central);
 }
 
-void MainWindow::initSignals() {}
+void MainWindow::initSignals() {
+  // 退出前保存窗口尺寸并立即落盘
+  connect(qApp, &QCoreApplication::aboutToQuit,
+          [this]() { SaveWindowSize(*this); });
+}
 
 void MainWindow::onShowLogWindow() {
   // 按需创建：不使用日志窗口的项目不会付出构造成本

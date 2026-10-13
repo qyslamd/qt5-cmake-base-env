@@ -14,11 +14,6 @@
 #define MyAppMutex "@APP_MUTEX_NAME@"
 #define MyInstallerIcon "@APP_ICON_ICO@"
 
-; Crashpad handler 是否随包分发。CMake 注入 1 或 0：
-;   1 = APP_ENABLE_CRASHPAD=ON 的构建，bin\ 下有 crashpad_handler.exe
-;   0 = 自研崩溃处理，进程内捕获，无外部依赖文件
-#define HasCrashpadHandler @ISCC_APP_HAS_CRASHPAD@
-
 ; funq 测试工具是否随包分发。CMake 注入 1 或 0：
 ;   1 = BUILD_FUNQ=ON 的构建，bin\funq\ 下有整套工具（含位数匹配的 Python）
 ;   0 = 不带，安装包与以前一样
@@ -60,11 +55,10 @@ Name: "installvcruntime"; Description: "安装 VC++ 运行库"; GroupDescription
 [Files]
 ; @TARGET_NAME@ 主程序
 Source: "{#WhereAreFiles}\@TARGET_NAME@.exe"; DestDir: "{app}"; Flags: ignoreversion
-; Crashpad handler：独立进程负责捕获崩溃、生成 minidump。
-; 必须与主程序同目录，CrashpadClient::StartHandler 按相对路径找它
-#if HasCrashpadHandler == 1
+; Crashpad handler：崩溃捕获后端之一（进程外捕获），随包必带——后端是运行时
+; 配置（crash/backend），不是编译期裁剪。必须与主程序同目录，
+; CrashpadClient::StartHandler 按相对路径找它
 Source: "{#WhereAreFiles}\crashpad_handler.exe"; DestDir: "{app}"; Flags: ignoreversion
-#endif
 ; 崩溃报告导出的命令行入口：客户双击即可把报告导出到桌面。主程序是 GUI
 ; 子系统程序，命令行读不到退出码，这个 .bat 用 start /wait 兜住
 Source: "{#WhereAreFiles}\export_crash_report.bat"; DestDir: "{app}"; Flags: ignoreversion

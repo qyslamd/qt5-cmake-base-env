@@ -1,6 +1,7 @@
 # cmake/crashpad/crashpad.cmake
 #
-# Crashpad 一站式引入。由顶层 CMakeLists 在 APP_ENABLE_CRASHPAD=ON 时 include，
+# Crashpad 一站式引入。由顶层 CMakeLists 无条件 include（崩溃后端是运行时
+# 配置，三个实现都常编，见 src/core/crashhandler/crash_bootstrap.h），
 # 不进子项目、不改全局输出目录、不引 crashpad 自带 examples 与单测。
 #
 # 依赖位置：

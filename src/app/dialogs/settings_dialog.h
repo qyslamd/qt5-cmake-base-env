@@ -30,6 +30,7 @@ class SettingsDialog : public QDialog {
   void addCategoryPage(const QString& name, QWidget* page);
 
   // 各功能分组页
+  QWidget* createGeneralPage();
   QWidget* createLogPage();
   QWidget* createLogFormatPage();
 

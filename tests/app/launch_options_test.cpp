@@ -3,14 +3,13 @@
 // 注意 ParseCommandLine 走的是 QCommandLineParser::process()——遇到 --help /
 // --version / 未知参数会直接打印并结束进程。所以这里只喂合法命令行，那几个
 // 输出到终端的路径由人工与演练覆盖。
-#include <initializer_list>
+#include "launch_options.h"
 
 #include <gtest/gtest.h>
+#include <initializer_list>
 
 #include <QString>
 #include <QStringList>
-
-#include "launch_options.h"
 
 namespace {
 
@@ -33,6 +32,19 @@ TEST(LaunchOptionsTest, DefaultsAreEmpty) {
   EXPECT_FALSE(opts.export_report);
   EXPECT_TRUE(opts.export_report_dir.isEmpty());
   EXPECT_FALSE(opts.crash_test);
+  EXPECT_TRUE(opts.config_overrides.isEmpty());
+}
+
+// --set 可重复，values() 按出现顺序收全。原始 "key=value" 串原样保留——
+// 拆解与容错在 main 的 ApplyConfigOverrides 里做
+TEST(LaunchOptionsTest, SetOverridesCollectedInOrder) {
+  const LaunchOptions opts = ParseCommandLine(
+      Args({"demo_app", "--set", "login/enabled=false", "--set",
+            "crash/backend=none", "--play", "smoke.xml"}));
+  ASSERT_EQ(opts.config_overrides.size(), 2);
+  EXPECT_EQ(opts.config_overrides.at(0), QStringLiteral("login/enabled=false"));
+  EXPECT_EQ(opts.config_overrides.at(1), QStringLiteral("crash/backend=none"));
+  EXPECT_EQ(opts.ui_test_script, QStringLiteral("smoke.xml"));
 }
 
 TEST(LaunchOptionsTest, PlayAndSlow) {
@@ -67,17 +79,16 @@ TEST(LaunchOptionsTest, ExportDirAloneDoesNotEnableExport) {
   EXPECT_EQ(opts.export_report_dir, QStringLiteral("/tmp/crash-out"));
 }
 
-// 这条是踩过的坑：曾有实现把 --export-report 做成"取值可选"（靠给默认值传空串），
-// 实测 Qt 只要给了 valueName 就会报 "Missing value after ..." 并结束进程。改成
-// 开关 + --export-dir 之后，带值的选项都由 Qt 校验，两种写法也都支持
+// 这条是踩过的坑：曾有实现把 --export-report
+// 做成"取值可选"（靠给默认值传空串）， 实测 Qt 只要给了 valueName 就会报
+// "Missing value after ..." 并结束进程。改成 开关 + --export-dir
+// 之后，带值的选项都由 Qt 校验，两种写法也都支持
 TEST(LaunchOptionsTest, ExportDirAcceptsEqualsForm) {
   const LaunchOptions opts =
       ParseCommandLine(Args({"demo_app", "--export-dir=/tmp/crash-out"}));
   EXPECT_EQ(opts.export_report_dir, QStringLiteral("/tmp/crash-out"));
 }
 
-#ifdef APP_ENABLE_CRASH_TEST
 TEST(LaunchOptionsTest, CrashTestFlag) {
   EXPECT_TRUE(ParseCommandLine(Args({"demo_app", "--crash"})).crash_test);
 }
-#endif

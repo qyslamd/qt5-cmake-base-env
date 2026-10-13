@@ -3,6 +3,7 @@
 #include <QComboBox>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QLabel>
 #include <QListWidget>
 #include <QPushButton>
@@ -53,9 +54,29 @@ void SettingsDialog::initUi() {
   page_stack_ = new QStackedWidget(this);
   page_stack_->setObjectName(QStringLiteral("settingsPageStack"));
 
+  // "需重启生效"横幅：挂在分页区上方，任何页都看得见。登录、崩溃捕获后端、
+  // 日志文件这几类设置只在启动时读一次；日志级别与格式是实时的（logger 订阅
+  // 了 configChanged），所以文案写"部分设置"并列举例
+  auto* restart_banner = new QFrame(this);
+  restart_banner->setObjectName(QStringLiteral("settingsRestartBanner"));
+  auto* banner_layout = new QHBoxLayout(restart_banner);
+  banner_layout->setContentsMargins(16, 8, 16, 8);
+  auto* banner_icon = new QLabel(restart_banner);
+  banner_icon->setPixmap(
+      QIcon(QStringLiteral(":/resources/icons/svg/warning_sign.svg"))
+          .pixmap(16, 16));
+  auto* banner_text = new QLabel(
+      QStringLiteral("部分设置（登录、崩溃捕获后端、日志文件等）修改后，"
+                     "需重启应用才能生效"),
+      restart_banner);
+  banner_layout->addWidget(banner_icon);
+  banner_layout->addWidget(banner_text);
+  banner_layout->addStretch();
+
   auto* right = new QVBoxLayout();
   right->setContentsMargins(0, 0, 0, 0);
   right->setSpacing(0);
+  right->addWidget(restart_banner);
   right->addWidget(page_stack_, 1);
 
   auto* button_row = new QHBoxLayout();
@@ -70,6 +91,7 @@ void SettingsDialog::initUi() {
   root->addWidget(category_list_);
   root->addLayout(right, 1);
 
+  addCategoryPage(QStringLiteral("通用"), createGeneralPage());
   addCategoryPage(QStringLiteral("日志"), createLogPage());
   addCategoryPage(QStringLiteral("日志格式"), createLogFormatPage());
 
@@ -84,6 +106,61 @@ void SettingsDialog::initSignals() {
 void SettingsDialog::addCategoryPage(const QString& name, QWidget* page) {
   page_stack_->addWidget(page);
   category_list_->addItem(name);
+}
+
+QWidget* SettingsDialog::createGeneralPage() {
+  auto* page = new QWidget(this);
+  page->setObjectName(QStringLiteral("settingsPageGeneral"));
+  auto* layout = new QVBoxLayout(page);
+  layout->setContentsMargins(20, 16, 20, 16);
+  layout->setSpacing(12);
+
+  addPageHeader(layout, QStringLiteral("通用"), QStringLiteral("通用设置"));
+
+  auto* card = createSettingsCard(page, QStringLiteral("登录"));
+  addCheckBoxRow(
+      card, QStringLiteral("启用登录认证"), QStringLiteral("启用登录认证功能"),
+      QString::fromLatin1(kConfigLoginEnabled), kConfigLoginDefaultEnabled);
+  addCheckBoxRow(card, QStringLiteral("记住用户名"),
+                 QStringLiteral("登录时自动填充用户名"),
+                 QString::fromLatin1(kConfigLoginRememberUsername),
+                 kConfigLoginDefaultRememberUsername);
+  addCheckBoxRow(card, QStringLiteral("记住密码"),
+                 QStringLiteral("登录时自动填充密码"),
+                 QString::fromLatin1(kConfigLoginRememberPassword),
+                 kConfigLoginDefaultRememberPassword);
+  layout->addWidget(card);
+
+  // 崩溃捕获后端：三个实现都编在程序里，这里只挑启动时装哪个。存字符串值，
+  // 与 main.cpp 的 ParseCrashBackend 共用 config_defs.h 的常量；重启生效
+  auto* crash_card = createSettingsCard(page, QStringLiteral("崩溃"));
+  auto* backend_right =
+      addSettingRow(crash_card, QStringLiteral("捕获后端"),
+                    QStringLiteral("进程外 Crashpad / 进程内自研 / 关闭，"
+                                   "重启后生效"));
+  auto* backend_combo = new QComboBox(crash_card);
+  backend_combo->addItem(QStringLiteral("Crashpad（推荐）"),
+                         QString::fromLatin1(kCrashBackendCrashpad));
+  backend_combo->addItem(QStringLiteral("自研（进程内）"),
+                         QString::fromLatin1(kCrashBackendBuiltin));
+  backend_combo->addItem(QStringLiteral("关闭"),
+                         QString::fromLatin1(kCrashBackendNone));
+  const QString current_backend = ConfigManager::instance().get<QString>(
+      QString::fromLatin1(kConfigCrashBackend),
+      QString::fromLatin1(kCrashBackendCrashpad));
+  const int backend_index = backend_combo->findData(current_backend);
+  backend_combo->setCurrentIndex(backend_index < 0 ? 0 : backend_index);
+  connect(backend_combo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+          this, [backend_combo](int index) {
+            ConfigManager::instance().set<QString>(
+                QString::fromLatin1(kConfigCrashBackend),
+                backend_combo->itemData(index).toString());
+          });
+  backend_right->addWidget(backend_combo);
+  layout->addWidget(crash_card);
+
+  layout->addStretch();
+  return page;
 }
 
 QWidget* SettingsDialog::createLogPage() {

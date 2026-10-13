@@ -39,13 +39,20 @@ LaunchOptions ParseCommandLine(const QStringList& arguments) {
       QStringLiteral("目录"));
   parser.addOption(export_dir_option);
 
-#ifdef APP_ENABLE_CRASH_TEST
-  // 只在开启崩溃测试的构建里存在：发布包不该带一个能让程序主动崩掉的开关
+  // 售后演练用：客户机器上也能走一遍"崩溃 → 捕获 → 导出"整条链路
   const QCommandLineOption crash_option(
       QStringLiteral("crash"),
       QStringLiteral("主动触发一次崩溃（用于验证崩溃捕获与回传链路）"));
   parser.addOption(crash_option);
-#endif
+
+  // 可重复的配置覆盖（见 launch_options.h 的说明）。values() 收集全部出现
+  const QCommandLineOption set_option(
+      QStringLiteral("set"),
+      QStringLiteral("覆盖一项配置（key=value，可重复），仅本次运行生效、"
+                     "不写入配置文件。例：--set login/enabled=false "
+                     "--set crash/backend=none"),
+      QStringLiteral("key=value"));
+  parser.addOption(set_option);
 
   parser.process(arguments);
 
@@ -56,8 +63,7 @@ LaunchOptions ParseCommandLine(const QStringList& arguments) {
 
   opts.export_report = parser.isSet(export_option);
   opts.export_report_dir = parser.value(export_dir_option);
-#ifdef APP_ENABLE_CRASH_TEST
+  opts.config_overrides = parser.values(set_option);
   opts.crash_test = parser.isSet(crash_option);
-#endif
   return opts;
 }

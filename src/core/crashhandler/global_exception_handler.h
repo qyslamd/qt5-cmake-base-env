@@ -12,7 +12,8 @@
 // 两件事共用同一次 init()/shutdown()（装与卸成对），所以放在一个类里，
 // 而不是拆成两个各管一半
 //
-// 与各崩溃后端的职责边界（这就是 init() 那个开关的由来，见 APP_CRASH_BACKEND）：
+// 与各崩溃后端的职责边界（这就是 init() 那个开关的由来；后端是运行时配置
+// crash/backend，见 crash_bootstrap.h）：
 //   - builtin（自研）：崩溃信号实际由 CrashHandler 接管——它在本类之后注册，
 //     Windows 侧更是 VEH 先响应，本类只是二线兜底，照常注册
 //   - crashpad：崩溃信号必须让给 crashpad_handler 的进程外捕获，本类只留

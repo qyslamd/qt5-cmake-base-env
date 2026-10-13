@@ -50,16 +50,27 @@ void ConfigManager::initDefaultValues() {
       kConfigWindowDefaultWidth;
   default_values_[QString::fromLatin1(kConfigWindowHeight)] =
       kConfigWindowDefaultHeight;
+
+  default_values_[QString::fromLatin1(kConfigCrashBackend)] =
+      QString::fromLatin1(kCrashBackendCrashpad);
 }
 
 QVariant ConfigManager::getDefaultValue(const QString& key) const {
   return default_values_.value(key, QVariant());
 }
 
+void ConfigManager::setOverride(const QString& key, const QVariant& value) {
+  overrides_.insert(key, value);
+}
+
 template <>
 QVariant ConfigManager::get<QVariant>(const QString& key,
                                       const QVariant& defaultValue) const {
-  // 已注册的默认值优先；未注册时才用调用方显式默认值
+  // 覆盖层（--set）最优先；然后是已注册的默认值；未注册时才用调用方显式默认值
+  const auto it = overrides_.constFind(key);
+  if (it != overrides_.constEnd()) {
+    return it.value();
+  }
   QVariant default_val = getDefaultValue(key);
   if (!default_val.isValid()) {
     default_val = defaultValue;

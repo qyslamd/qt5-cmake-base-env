@@ -159,6 +159,11 @@ QToolButton#loginCloseBtn:hover {
 #settingsDialog {
   background: #fafbfc;
 }
+/* 顶部"需重启生效"横幅：登录、崩溃捕获后端、日志文件等启动时读一次的设置 */
+#settingsRestartBanner {
+  background: #fdf6e3;
+  border-bottom: 1px solid #eee3c4;
+}
 /* 左侧分类导航 */
 #settingsCategoryList {
   background: #f0f0f0;
