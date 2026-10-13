@@ -469,31 +469,6 @@ if(BUILD_TESTS)
 endif()
 
 #-------------------------------------------------------------------------------
-# 代码统计脚本（cloc）
-#-------------------------------------------------------------------------------
-
-if(WIN32)
-    find_program(CLOC_EXECUTABLE
-        NAMES cloc cloc-2.06
-        HINTS ${CMAKE_SOURCE_DIR}/3rdparty/cloc-2.06
-    )
-    if(NOT CLOC_EXECUTABLE)
-        message(WARNING "cloc executable not found! Put cloc-2.06.exe in 3rdparty/cloc-2.06/")
-    else()
-        configure_file(
-            "${CMAKE_SOURCE_DIR}/cmake/template/code_stats.bat.in"
-            "${CMAKE_SOURCE_DIR}/scripts/code_stats.bat"
-            @ONLY
-        )
-        configure_file(
-            "${CMAKE_SOURCE_DIR}/cmake/template/code_stats.ps1.in"
-            "${CMAKE_SOURCE_DIR}/scripts/code_stats.ps1"
-            @ONLY
-        )
-    endif()
-endif()
-
-#-------------------------------------------------------------------------------
 # clang 静态分析与格式化脚本
 #
 # 自带那份（3rdparty/clang）一路优先，不走 find_program 的 HINTS：它只在缓存没
