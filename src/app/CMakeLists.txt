@@ -188,31 +188,11 @@ if(WIN32)
 endif()
 
 #=======================================
-# Crashpad 模式下拷贝 crashpad_handler 到可执行文件旁
-# 自研方案不需要：捕获逻辑在进程内，无外部依赖文件
-if(APP_ENABLE_CRASHPAD)
-    if(WIN32)
-        add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "$<TARGET_FILE:crashpad_handler>"
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/crashpad_handler.exe"
-            COMMENT "拷贝 crashpad_handler.exe"
-        )
-        # PDB 一并拷过去，用户机器上能用 VS 直接打开 dump
-        add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "$<TARGET_PDB_FILE:crashpad_handler>"
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/crashpad_handler.pdb"
-            COMMENT "拷贝 crashpad_handler.pdb"
-        )
-    elseif(UNIX AND NOT APPLE)
-        add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "$<TARGET_FILE:crashpad_handler>"
-                "$<TARGET_FILE_DIR:${TARGET_NAME}>/crashpad_handler"
-            COMMENT "拷贝 crashpad_handler"
-        )
-    endif()
+# crashpad_handler 必须挨着主程序：main.cpp 按 applicationDirPath() 找它。
+# 只连构建顺序，不拷贝——两者的输出目录都由顶层 CMAKE_RUNTIME_OUTPUT_DIRECTORY
+# 定到同一个 bin/，早先那条 POST_BUILD 拷贝是拿 bin 拷 bin，纯空转
+if(APP_ENABLE_CRASHPAD AND TARGET crashpad_handler)
+    add_dependencies(${TARGET_NAME} crashpad_handler)
 endif()
 
 #=======================================
