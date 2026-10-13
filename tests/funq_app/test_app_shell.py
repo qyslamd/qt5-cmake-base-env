@@ -110,6 +110,28 @@ class AppShellTest(DemoAppFunqTestCase):
             exists(self.funq, "MainWindow::settingsDialog"),
             "设置对话框关掉之后不该再找得到")
 
+    def test_about_dialog_shows_current_command_line(self):
+        """「关于」里显示的是**本次运行**的命令行，且可选中复制。
+
+        断言两条：可执行文件名在（argv[0] 一定在命令行里），以及夹具经
+        funq.conf 传进来的 --set 原样出现——后者正是"显示实参而非参数清单"
+        的判据。可选中 = 能复制去终端复现。
+        """
+        # 模态对话框会卡住 trigger，所以一律不阻塞地触发
+        self.funq.action(alias="action_about").trigger(blocking=False)
+        self.funq.widget(alias="about_dialog", timeout=10.0)
+
+        props = self.funq.widget(alias="about_command_line").properties()
+        text = props["text"]
+        self.assertIn("demo_app", text, "命令行里没有可执行文件名：%r" % text)
+        self.assertIn("--set crash/backend=none", text,
+                      "命令行里没有夹具传的实参：%r" % text)
+        # 可选中 = 能复制去终端用；枚举值见 Qt::TextInteractionFlag
+        self.assertTrue(props["textInteractionFlags"] & 0x1,
+                        "命令行文本不可选中：%r" % props["textInteractionFlags"])
+        self.funq.widget(path="MainWindow::aboutDialog::QDialogButtonBox"
+                              "::QPushButton").click()
+
     def test_entry_points_match_the_build(self):
         """入口形态恰好是一种，且和构建配置对得上。
 

@@ -12,7 +12,7 @@ message(STATUS "CMake version: ${CMAKE_VERSION}")
 set(PROJECT_NAME_STR "QtCMakeAppDemo")
 
 # 组织名：决定 %LOCALAPPDATA% 数据目录层级，以及安装包的发行者与安装目录
-set(APP_ORG_NAME "Enpht")
+set(APP_ORG_NAME "ZYH")
 
 # 应用名：与组织名共同决定数据目录、单实例键与窗口标题；改名不迁移旧数据
 set(APP_APP_NAME "${PROJECT_NAME_STR}")

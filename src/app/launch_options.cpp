@@ -10,6 +10,22 @@ const LaunchOptions& LaunchOptions::instance() {
   return opts;
 }
 
+QString CommandLineText() {
+  // 本次运行的实际命令行（argv[0] + 全部实参，原样）。含空格的参数补引号，
+  // 贴回终端仍是一条能用的命令
+  const QStringList arguments = QCoreApplication::arguments();
+  QStringList parts;
+  parts.reserve(arguments.size());
+  for (const QString& argument : arguments) {
+    if (argument.contains(QLatin1Char(' '))) {
+      parts << QStringLiteral("\"%1\"").arg(argument);
+    } else {
+      parts << argument;
+    }
+  }
+  return parts.join(QLatin1Char(' '));
+}
+
 LaunchOptions ParseCommandLine(const QStringList& arguments) {
   QCommandLineParser parser;
   parser.setApplicationDescription(

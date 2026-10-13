@@ -33,6 +33,10 @@ log_close = MainWindow::logWindow::logCloseButton
 settings_dialog = MainWindow::settingsDialog
 settings_close = MainWindow::settingsDialog::settingsCloseButton
 
+# 关于对话框与其中的"本次运行的命令行"（模态，触发动作后出现）
+about_dialog = MainWindow::aboutDialog
+about_command_line = MainWindow::aboutDialog::aboutCommandLine
+
 # 功能区面板。中间那截 objSARibbonStackedContainerWidget 是 SARibbon 自己的
 # 内部容器名，不是本仓起的；BUILD_RIBBON=OFF 的构建里整条都不存在
 ribbon_home = MainWindow::SARibbonBar::objSARibbonStackedContainerWidget::ribbonHomeCategory

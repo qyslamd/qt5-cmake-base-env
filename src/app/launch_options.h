@@ -42,4 +42,8 @@ struct LaunchOptions {
 // 结束进程，未知参数也会报错退出——这是刻意的，见上面 struct 的注释。
 LaunchOptions ParseCommandLine(const QStringList& arguments);
 
+// 本次运行的实际命令行（argv[0] + 全部实参，原样），供界面展示与日志记录。
+// 与"支持哪些参数"无关——那是 -h/--help 的事
+QString CommandLineText();
+
 #endif  // FILE_APP_LAUNCH_OPTIONS_H_

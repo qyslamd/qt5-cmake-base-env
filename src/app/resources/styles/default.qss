@@ -139,6 +139,15 @@ QToolButton#loginCloseBtn:hover {
   color: #999999;
   font-size: 12px;
 }
+/* 本次运行的命令行：只读，文本可选中复制（字体在代码里取系统等宽） */
+#aboutCommandLineTitle {
+  color: #1a237e;
+  font-size: 13px;
+  font-weight: 600;
+}
+#aboutCommandLine {
+  color: #444444;
+}
 
 /* ========== CrashReportDialog（崩溃报告） ========== */
 /* 按钮走底座层的 role=primary/secondary，这里只给本体与两段文字 */

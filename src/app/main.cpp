@@ -272,6 +272,9 @@ int main(int argc, char* argv[]) {
 
     Logger::init();
     LOG_INFO("MAIN", "应用程序启动，版本: {}", getProjectVersionAll());
+    // 本次运行的命令行进日志：事后排查先看这行，就知道进程是怎么被拉起来的
+    // （--set 覆盖了什么、是不是回放模式，都在这条记录里）
+    LOG_INFO("MAIN", "命令行: {}", CommandLineText().toStdString());
 #ifdef APP_UI_FLUENT
     LOG_INFO("MAIN", "界面路线：fluent（FluentUI3Style + Frameless 标题栏）");
 #elif defined(APP_ENABLE_RIBBON)
