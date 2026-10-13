@@ -1,0 +1,10 @@
+<RCC>
+  <qresource prefix="/">
+    <!-- 底座层的勾图按它期望的路径登记：那份 svg 只登记在 src/app/res.qrc，
+         示例是独立 exe 拿不到，不登记复选框勾选态就没有勾 -->
+    <file alias="resources/icons/svg/check.svg">../../src/app/resources/icons/svg/check.svg</file>
+  </qresource>
+  <qresource prefix="/new_login_dialog">
+    <file>login_window.qss</file>
+  </qresource>
+</RCC>

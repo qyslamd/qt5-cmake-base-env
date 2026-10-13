@@ -1,0 +1,91 @@
+/* 本示例的项目层：只写挂在自己 objectName 上的规则。
+ * 底座层（输入框、工具按钮、复选框的基本外观）由 src/style 提供，这里覆盖它
+ * 或补它没有的。字号/字重/字距是版式，在代码里，不在这里写。 */
+
+/* 右栏白底（设计稿），左栏是自绘的角色面板 */
+#loginRightPanel {
+  background: #ffffff;
+}
+
+/* 星标、标题、副标题、字段标签：只给颜色 */
+#loginSparkle,
+#loginTitle {
+  color: #1a1a2e;
+}
+#loginSubtitle {
+  color: #888888;
+}
+#loginEmailLabel,
+#loginPasswordLabel {
+  color: #333333;
+}
+
+/* 输入框：设计稿是下划线式，先清掉底座的圆角框（背景 + 四边 border +
+ * border-radius）再只留下边线。padding 也在这一层——底座已经声明过它，
+ * 留一半在代码里会和 setTextMargins 叠加 */
+#loginEmail,
+#loginPassword {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  border-bottom: 1.5px solid #e0e0e0;
+  padding: 6px 0;
+  color: #1a1a2e;
+}
+#loginPassword {
+  padding-right: 32px; /* 给眼睛按钮让位 */
+}
+#loginEmail:focus,
+#loginPassword:focus {
+  border-bottom-color: #5b21b6;
+}
+
+/* 眼睛按钮：无边框字形。底座的 QToolButton 有 padding 与 hover 灰底，
+ * 都要逐个盖掉 */
+#loginTogglePwd {
+  border: none;
+  background: transparent;
+  padding: 0 4px;
+  color: #666666;
+}
+#loginTogglePwd:hover {
+  background: transparent;
+  color: #333333;
+}
+
+/* 记住密码：勾选态要紫色（设计稿是 accent-color: #5b21b6）。底座的 :checked
+ * 是蓝底，而 #id 具体度更高、Qt 又逐属性合并，所以各状态都要写出来；勾图
+ * 不写，沿用底座的 image（示例已按底座期望的路径登记 check.svg） */
+#loginRemember {
+  color: #555555;
+}
+#loginRemember::indicator {
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid #cbd2dd;
+  border-radius: 4px;
+  background: #ffffff;
+}
+#loginRemember::indicator:hover {
+  border-color: #5b21b6;
+}
+#loginRemember::indicator:checked {
+  background: #5b21b6;
+  border-color: #5b21b6;
+}
+#loginRemember::indicator:checked:hover {
+  background: #7c3aed;
+  border-color: #7c3aed;
+}
+#loginRemember::indicator:disabled {
+  background: #f0f0f0;
+  border-color: #e0e0e0;
+}
+
+/* 错误提示：红字来自底座的角色规则（QLabel[role="error"]），这里只加横幅的壳 */
+#loginError {
+  padding: 10px 14px;
+  background: rgba(220, 38, 38, 0.08);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  border-radius: 10px;
+}
