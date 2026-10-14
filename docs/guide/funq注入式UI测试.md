@@ -248,6 +248,18 @@ with open("shot.png", "wb") as fh:
 - 同目录的 `tests/funq_app/probe_widgets.py` 是互补的另一个探针：那边列路径、查属性，
   这边看像素
 
+### 现成的探针：`scripts/funq/`
+
+按上述配方攒了一套开箱可用的（用法与踩坑见 `scripts/funq/README.md`）：
+
+- `run_demo_app_funq.py`——起 demo_app + 注入，`--` 之后的参数透传（按 PE
+  位数自动挑 32/64 位解释器，省掉"注不进去"那类误导性报错）
+- `probe_login_flow.py` / `probe_login_anim.py` / `probe_tv_interaction.py` /
+  `probe_eye_button.py`——登录端到端、左栏动画、电视交互五档、眼睛按钮两态
+- `probe_hover.py`——**验 hover**：funq 没有鼠标移动命令，只能挪真实光标；
+  两个坑（窗口要先置顶、坐标要用 `ClientToScreen` 的客户区原点叠加）已固化
+  在里面
+
 ## 排错
 
 **残留进程会连锁出怪问题。** 用例启动失败时 funq 的清理路径会抛
