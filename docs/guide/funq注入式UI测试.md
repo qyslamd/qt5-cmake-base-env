@@ -306,6 +306,16 @@ Failed to inject DLL! LoadLibraryW() returned c_ulong(0). The last error is 0x0
 relwithdebinfo 构建里这条用例每个方法都 `ERROR`，然后挂到 ctest 的 180 秒超时——
 看着像卡死，实际是注入从未成功。
 
+**同一条三方对齐还有第二种症状（2026-10-14 实测）：立刻抛
+`LoadLibraryW() returned 0`，不是超时。** 手写 runner 起靶子时顺手拿了
+`3rdparty/python-3.8.8-embed-amd64`（64 位）去注 x86 的靶子：远线程里的
+`LoadLibraryW` 装不下 64 位注入库，返回 0，报的是上面暂存名那条的同款文本。它的
+提示 "Maybe x86/x64 mismatch between python.exe and Qt DLLs?" 有误导——Qt DLL
+没毛病，是 **runner 的 Python 与靶子位数不齐**。处置：仓库自带两份 embed，
+`python-3.8.8-embed-amd64`（64 位）与 `python-3.8.8-embed-win32`（32 位），x86
+靶子用 win32 那份当 runner；只有**执注入的 runner** 要跟靶子同位数，客户端是纯
+TCP，64 位照常用。
+
 用**嵌入式（embeddable）**分发包当这个 Python 时多一步：它自带 `pythonNN._pth`，
 而这个文件一旦存在，解释器就进**隔离模式——`PYTHONPATH` 会被整个忽略**（`funq_attach`
 脚本正是靠 PYTHONPATH 挂 funq 的两个包，所以到这儿就断了）。写 `import site` 也救不
