@@ -13,7 +13,7 @@
 #include <QVBoxLayout>
 
 #include "auth/auth_service.h"
-#include "change_password_dialog.h"
+#include "dialogs/change_password_dialog.h"
 #include "character_panel.h"
 #include "config/config_defs.h"
 #include "config/config_manager.h"
@@ -64,7 +64,6 @@ void LoginWindow::initUi() {
   root->setContentsMargins(0, 0, 0, 0);
   root->setSpacing(0);
 
-  // CharacterPanel 自己装默认 animator；要换成别的策略由装配层接手
   left_ = new CharacterPanel(this);
   left_->setObjectName(QStringLiteral("loginLeftPanel"));
   left_->setMinimumWidth(440);
