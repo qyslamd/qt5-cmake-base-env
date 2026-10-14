@@ -17,6 +17,7 @@
 #include "character_panel.h"
 #include "config/config_defs.h"
 #include "config/config_manager.h"
+#include "dialogs/login/login_animator_factory.h"
 #include "hover_button.h"  // 来自 ${APP_TARGET_PREFIX}_controls
 
 namespace {
@@ -64,7 +65,9 @@ void LoginWindow::initUi() {
   root->setContentsMargins(0, 0, 0, 0);
   root->setSpacing(0);
 
+  // 左栏：面板自带默认策略，这里按 login/animation 换成配置指定的那支
   left_ = new CharacterPanel(this);
+  left_->setAnimator(CreateLoginAnimator());
   left_->setObjectName(QStringLiteral("loginLeftPanel"));
   left_->setMinimumWidth(440);
   left_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);

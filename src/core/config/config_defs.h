@@ -57,6 +57,13 @@ constexpr const char* kConfigLoginEnabled = "login/enabled";
 constexpr const char* kConfigLoginRememberUsername = "login/remember_username";
 constexpr const char* kConfigLoginRememberPassword = "login/remember_password";
 
+// 左栏动画策略四选一（工厂认这四个值，未知值回落 default）
+constexpr const char* kConfigLoginAnimation = "login/animation";
+constexpr const char* kLoginAnimationDefault = "default";
+constexpr const char* kLoginAnimationStatic = "static";
+constexpr const char* kLoginAnimationTv = "tv";
+constexpr const char* kLoginAnimationRocket = "rocket";
+
 constexpr bool kConfigLoginDefaultEnabled = true;
 constexpr bool kConfigLoginDefaultRememberUsername = false;
 constexpr bool kConfigLoginDefaultRememberPassword = false;

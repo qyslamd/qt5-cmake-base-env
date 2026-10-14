@@ -53,6 +53,9 @@ void ConfigManager::initDefaultValues() {
 
   default_values_[QString::fromLatin1(kConfigCrashBackend)] =
       QString::fromLatin1(kCrashBackendCrashpad);
+
+  default_values_[QString::fromLatin1(kConfigLoginAnimation)] =
+      QString::fromLatin1(kLoginAnimationDefault);
 }
 
 QVariant ConfigManager::getDefaultValue(const QString& key) const {

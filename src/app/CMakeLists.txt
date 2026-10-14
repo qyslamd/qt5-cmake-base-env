@@ -48,6 +48,13 @@ set(TARGET_SRCS
     dialogs/login/default_character_animator.h
     dialogs/login/static_character_animator.cpp
     dialogs/login/static_character_animator.h
+    dialogs/login/login_animator_factory.cpp
+    dialogs/login/login_animator_factory.h
+    dialogs/login/ascii/ascii_scene_animator.h
+    dialogs/login/ascii/tv_static.cpp
+    dialogs/login/ascii/tv_static.h
+    dialogs/login/ascii/rocket.cpp
+    dialogs/login/ascii/rocket.h
     dialogs/user_manage_dialog.cpp
     dialogs/user_manage_dialog.h
     widgets/log_filter_bar.cpp
