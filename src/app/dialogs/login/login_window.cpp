@@ -13,10 +13,10 @@
 #include <QVBoxLayout>
 
 #include "auth/auth_service.h"
-#include "dialogs/change_password_dialog.h"
 #include "character_panel.h"
 #include "config/config_defs.h"
 #include "config/config_manager.h"
+#include "dialogs/change_password_dialog.h"
 #include "dialogs/login/login_animator_factory.h"
 #include "hover_button.h"  // 来自 ${APP_TARGET_PREFIX}_controls
 
@@ -41,7 +41,8 @@ LoginWindow::LoginWindow(QWidget* parent) : QDialog(parent) {
   setObjectName(QStringLiteral("loginDialog"));
   setWindowTitle(QStringLiteral("登录"));
   setMinimumSize(900, 580);
-  resize(1100, 700);
+  // 初始就按最小尺寸开，别一上来占掉半个屏
+  resize(minimumSize());
   initUi();
   initSignals();
 
