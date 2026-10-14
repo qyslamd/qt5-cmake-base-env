@@ -6,10 +6,10 @@
 class QCheckBox;
 class QLabel;
 class QLineEdit;
-class QToolButton;
 
 class CharacterPanel;
 class HoverButton;
+class PasswordEyeButton;
 
 // 登录窗口：左侧角色动画面板 + 右侧表单。只做业务 + 组合，左栏动画不在此
 // 感知。交互过程中产生的"动作/事件"通过信号出口，由 initSignals 接到
@@ -54,15 +54,13 @@ class LoginWindow : public QDialog {
 
   QLineEdit* username_ = nullptr;
   QLineEdit* password_ = nullptr;
-  QToolButton* eye_btn_ = nullptr;
+  PasswordEyeButton* eye_btn_ = nullptr;
   QCheckBox* remember_ = nullptr;
   HoverButton* login_btn_ = nullptr;
 
   QLabel* username_label_ = nullptr;
   QLabel* pwd_label_ = nullptr;
   QLabel* err_label_ = nullptr;
-
-  bool show_pwd_ = false;
 };
 
 #endif  // FILE_APP_DIALOGS_LOGIN_WINDOW_H_

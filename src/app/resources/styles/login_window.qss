@@ -40,17 +40,12 @@
   border-bottom-color: #5b21b6;
 }
 
-/* 眼睛按钮：无边框字形。底座的 QToolButton 有 padding 与 hover 灰底，
- * 都要逐个盖掉 */
+/* 眼睛按钮：自绘（无边框字形），只给两个颜色——hover 由控件自己切换
+ * （样式表的 :hover 里写 qproperty- 不会重刷，实测无效），底座也没有
+ * QAbstractButton 的通用规则要盖 */
 #loginTogglePwd {
-  border: none;
-  background: transparent;
-  padding: 0 4px;
-  color: #666666;
-}
-#loginTogglePwd:hover {
-  background: transparent;
-  color: #333333;
+  qproperty-eyeColor: #666666;
+  qproperty-hoverEyeColor: #333333;
 }
 
 /* 记住密码：勾选态要紫色（设计稿是 accent-color: #5b21b6）。底座的 :checked

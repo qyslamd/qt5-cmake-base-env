@@ -9,7 +9,6 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
-#include <QToolButton>
 #include <QVBoxLayout>
 
 #include "auth/auth_service.h"
@@ -18,7 +17,8 @@
 #include "config/config_manager.h"
 #include "dialogs/change_password_dialog.h"
 #include "dialogs/login/login_animator_factory.h"
-#include "hover_button.h"  // 来自 ${APP_TARGET_PREFIX}_controls
+#include "hover_button.h"         // 来自 ${APP_TARGET_PREFIX}_controls
+#include "password_eye_button.h"  // 同上
 
 namespace {
 
@@ -166,11 +166,8 @@ void LoginWindow::initUi() {
     ApplyFont(password_, 14);
     hl->addWidget(password_, 1);
 
-    eye_btn_ = new QToolButton(wrap);
+    eye_btn_ = new PasswordEyeButton(wrap);
     eye_btn_->setObjectName(QStringLiteral("loginTogglePwd"));
-    eye_btn_->setCursor(Qt::PointingHandCursor);
-    eye_btn_->setText(QStringLiteral("◉"));
-    ApplyFont(eye_btn_, 16);
     hl->addWidget(eye_btn_, 0, Qt::AlignVCenter);
 
     form->addWidget(wrap);
@@ -245,12 +242,10 @@ void LoginWindow::initSignals() {
     password_->installEventFilter(w);
   }
 
-  // 眼睛切换
-  connect(eye_btn_, &QToolButton::clicked, this, [this]() {
-    show_pwd_ = !show_pwd_;
-    password_->setEchoMode(show_pwd_ ? QLineEdit::Normal : QLineEdit::Password);
-    eye_btn_->setText(show_pwd_ ? QStringLiteral("◎") : QStringLiteral("◉"));
-    emit passwordVisibilityChanged(show_pwd_);
+  // 眼睛切换：状态在按钮上（checked = 密码可见），窗口不再自己记
+  connect(eye_btn_, &QAbstractButton::toggled, this, [this](bool visible) {
+    password_->setEchoMode(visible ? QLineEdit::Normal : QLineEdit::Password);
+    emit passwordVisibilityChanged(visible);
   });
 
   connect(login_btn_, &QAbstractButton::clicked, this,

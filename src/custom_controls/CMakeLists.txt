@@ -5,6 +5,8 @@ set(TARGET_SRCS
     switch_button.h
     hover_button.cpp
     hover_button.h
+    password_eye_button.cpp
+    password_eye_button.h
 )
 
 set(CONTROL_RESOURCES custom_control_res.qrc)
