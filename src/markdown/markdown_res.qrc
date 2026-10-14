@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/markdown">
+        <file alias="markdown_default.css">resources/markdown_default.css</file>
+    </qresource>
+</RCC>
