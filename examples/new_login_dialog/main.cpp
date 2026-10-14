@@ -2,7 +2,7 @@
 #include <QFont>
 
 #ifndef APP_UI_FLUENT
-#include <style.h>  // 只在 qss 路线编得到
+#include <style_sheet.h>  // 只在 qss 路线编得到
 #else
 #include <fluentui3style.h>  // 只在 fluent 路线编得到
 #endif

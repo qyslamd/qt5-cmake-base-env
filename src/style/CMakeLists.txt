@@ -1,8 +1,8 @@
 set(TARGET_NAME ${APP_TARGET_PREFIX}_style)
 
 set(TARGET_SRCS
-    style.cpp
-    style.h
+    style_sheet.cpp
+    style_sheet.h
 )
 
 # 资源用 qt5_add_resources 显式生成，不同时开 AUTORCC——两套机制并存时看不出

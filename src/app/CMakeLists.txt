@@ -47,8 +47,6 @@ set(TARGET_SRCS
     widgets/log_filter_bar.h
     widgets/log_output_panel.cpp
     widgets/log_output_panel.h
-    widgets/switch_button.cpp
-    widgets/switch_button.h
     )
 
 # UI 测试录制/回放（QtTesting）：仅 BUILD_QT_TESTING 打开的构建包含这部分。
@@ -110,6 +108,7 @@ target_include_directories(${TARGET_NAME}
 target_link_libraries(${TARGET_NAME} PRIVATE
     ${APP_TARGET_PREFIX}_tour
     ${APP_TARGET_PREFIX}_core
+    ${APP_TARGET_PREFIX}_controls
     qcustomplot
     Qt5::Widgets
     Qt5::Core

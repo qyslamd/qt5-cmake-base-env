@@ -1,5 +1,7 @@
 #include "settings_dialog.h"
 
+#include <switch_button.h>
+
 #include <QComboBox>
 #include <QFrame>
 #include <QHBoxLayout>
@@ -14,7 +16,7 @@
 
 #include "config/config_defs.h"
 #include "config/config_manager.h"
-#include "widgets/switch_button.h"
+
 
 namespace {
 

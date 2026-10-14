@@ -3,7 +3,7 @@
 #ifdef APP_UI_FLUENT
 #include <fluentui3style.h>
 #else
-#include <style.h>
+#include <style_sheet.h>
 #endif
 
 #include <QFont>

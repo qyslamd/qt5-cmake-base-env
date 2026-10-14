@@ -26,7 +26,7 @@
 #include <QWidget>
 
 #ifndef APP_UI_FLUENT
-#include <style.h>
+#include <style_sheet.h>
 #endif
 
 #include "funq_target_window.h"

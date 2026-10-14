@@ -1,7 +1,7 @@
 #include <QApplication>
 
 #ifndef APP_UI_FLUENT
-#include <style.h>
+#include <style_sheet.h>
 #endif
 
 #include "demo_widget.h"
