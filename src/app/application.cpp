@@ -34,7 +34,9 @@ void Application::setupStyle() {
 #ifdef APP_UI_FLUENT
   setStyle(new FluentUI3Style);
 #else
-  ApplyStyleSheet(*this, {QStringLiteral(":/resources/styles/default.qss")});
+  ApplyStyleSheet(*this,
+                  {QStringLiteral(":/resources/styles/default.qss"),
+                   QStringLiteral(":/resources/styles/login_window.qss")});
 #endif
   QFont app_font = font();
   app_font.setFamily(QStringLiteral("Microsoft YaHei"));

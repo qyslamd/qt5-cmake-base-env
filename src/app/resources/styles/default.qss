@@ -9,44 +9,9 @@
  * funq 的控件路径、QtTesting 录制的 XML、funq_target.alias 都依赖它。
  */
 
-/* ========== LoginDialog ========== */
-#loginContent {
-  background: white;
-  border-radius: 12px;
-}
-#loginBrand {
-  background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-    stop: 0 #1d8fe1, stop: 1 #625eb1);
-  border-top-left-radius: 12px;
-  border-bottom-left-radius: 12px;
-}
-#loginBrandTitle {
-  color: white;
-  font-size: 22px;
-  font-weight: 600;
-}
-#loginBrandSub {
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 13px;
-}
-#loginBrandHint {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 11px;
-}
-#loginFormTitle {
-  font-size: 18px;
-  font-weight: 600;
-  color: #1F1F1F;
-}
-QToolButton#loginCloseBtn {
-  background: transparent;
-  border: none;
-  color: #999999;
-  font-size: 18px;
-}
-QToolButton#loginCloseBtn:hover {
-  color: #333333;
-}
+/* ========== LoginWindow（角色面板 + 表单）==========
+ * 登录窗的规则在 login_window.qss，由 Application 装载；这里不再有旧
+ * LoginDialog 的卡片/品牌区规则 */
 
 /* ========== ChangePasswordDialog ========== */
 #changePasswordDialog {

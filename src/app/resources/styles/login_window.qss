@@ -15,7 +15,7 @@
 #loginSubtitle {
   color: #888888;
 }
-#loginEmailLabel,
+#loginUsernameLabel,
 #loginPasswordLabel {
   color: #333333;
 }
@@ -23,7 +23,7 @@
 /* 输入框：设计稿是下划线式，先清掉底座的圆角框（背景 + 四边 border +
  * border-radius）再只留下边线。padding 也在这一层——底座已经声明过它，
  * 留一半在代码里会和 setTextMargins 叠加 */
-#loginEmail,
+#loginUsername,
 #loginPassword {
   border: none;
   border-radius: 0;
@@ -35,7 +35,7 @@
 #loginPassword {
   padding-right: 32px; /* 给眼睛按钮让位 */
 }
-#loginEmail:focus,
+#loginUsername:focus,
 #loginPassword:focus {
   border-bottom-color: #5b21b6;
 }

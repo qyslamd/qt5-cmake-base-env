@@ -1,6 +1,7 @@
 <RCC>
     <qresource prefix="/">
         <file>resources/styles/default.qss</file>
+        <file>resources/styles/login_window.qss</file>
         <file>resources/icons/png/icons8_rfid_signal_16.png</file>
         <file>resources/icons/png/icons8_rfid_signal_32.png</file>
         <file>resources/icons/png/icons8_rfid_signal_48.png</file>

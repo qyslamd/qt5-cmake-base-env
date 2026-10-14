@@ -30,7 +30,7 @@
 #include "crashhandler/crash.h"
 #include "crashhandler/global_exception_handler.h"
 #include "dialogs/crash_report_dialog.h"
-#include "dialogs/login_dialog.h"
+#include "dialogs/login_window.h"
 #include "launch_options.h"
 #include "logger/logger.h"
 #include "mainwindow.h"
@@ -260,7 +260,7 @@ int main(int argc, char* argv[]) {
   // ========================= 登录 =========================
   if (opts.ui_test_script.isEmpty() &&
       ConfigManager::instance().get(kConfigLoginEnabled, true)) {
-    LoginDialog login;
+    LoginWindow login;
     if (login.exec() != QDialog::Accepted) {
       LOG_INFO("MAIN", "未登录，退出程序");
       GlobalExceptionHandler::instance().shutdown();

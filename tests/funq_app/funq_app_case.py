@@ -14,13 +14,14 @@ import time
 
 from funq.testcase import FunqTestCase
 
-# 登录框的控件路径。**中间那两级不能省**：funq 的 objectpath 把祖先链上每
-# 一级都拼进来（登录框是 loginDialog::loginContent::loginForm 里的）
+# 登录框的控件路径。**中间那几级不能省**：funq 的 objectpath 把祖先链上每
+# 一级都拼进来（登录窗是 loginDialog::loginRightPanel::loginFormHost 里的，
+# 密码框还多一层 loginFieldWrap——那是给眼睛按钮排版的容器）
 LOGIN_DIALOG = "loginDialog"
-LOGIN_FORM = LOGIN_DIALOG + "::loginContent::loginForm"
+LOGIN_FORM = LOGIN_DIALOG + "::loginRightPanel::loginFormHost"
 LOGIN_USERNAME = LOGIN_FORM + "::loginUsername"
-LOGIN_PASSWORD = LOGIN_FORM + "::loginPassword"
-LOGIN_BUTTON = LOGIN_FORM + "::loginButton"
+LOGIN_PASSWORD = LOGIN_FORM + "::loginFieldWrap::loginPassword"
+LOGIN_BUTTON = LOGIN_FORM + "::loginSubmit"
 CHANGE_PASSWORD_DIALOG = "changePasswordDialog"
 CHANGE_PASSWORD_OLD = CHANGE_PASSWORD_DIALOG + "::changePasswordOld"
 CHANGE_PASSWORD_NEW = CHANGE_PASSWORD_DIALOG + "::changePasswordNew"

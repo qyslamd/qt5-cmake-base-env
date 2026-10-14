@@ -39,8 +39,15 @@ set(TARGET_SRCS
     dialogs/add_edit_user_dialog.h
     dialogs/change_password_dialog.cpp
     dialogs/change_password_dialog.h
-    dialogs/login_dialog.cpp
-    dialogs/login_dialog.h
+    dialogs/login_window.cpp
+    dialogs/login_window.h
+    dialogs/character_animator.h
+    dialogs/character_panel.cpp
+    dialogs/character_panel.h
+    dialogs/default_character_animator.cpp
+    dialogs/default_character_animator.h
+    dialogs/static_character_animator.cpp
+    dialogs/static_character_animator.h
     dialogs/user_manage_dialog.cpp
     dialogs/user_manage_dialog.h
     widgets/log_filter_bar.cpp
