@@ -11,12 +11,13 @@ add_executable(${TARGET_NAME} WIN32 ${ALL_SRCS})
 
 # 两条路线各自的应用样式：qss 路线 = 底座层（src/style）+ 本示例的项目层
 # （login_window.qss，由 ApplyStyleSheet 一并装上）；fluent 路线交给
-# FluentUI3Style，不加载任何 QSS
-if(NOT APP_UI_ROUTE STREQUAL "fluent")
-    target_link_libraries(${TARGET_NAME} PRIVATE ${APP_TARGET_PREFIX}_style)
-    target_compile_definitions(${TARGET_NAME} PRIVATE APP_UI_QSS)
-else()
+# FluentUI3Style，不加载任何 QSS。本示例是唯一真用 Fluent 的示例
+# （main.cpp 要 new FluentUI3Style），所以 fluent 路线连库一起链
+if(APP_UI_ROUTE STREQUAL "fluent")
     target_link_libraries(${TARGET_NAME} PRIVATE FluentUI3Style)
+    target_compile_definitions(${TARGET_NAME} PRIVATE APP_UI_FLUENT)
+else()
+    target_link_libraries(${TARGET_NAME} PRIVATE ${APP_TARGET_PREFIX}_style)
 endif()
 
 set_target_properties(${TARGET_NAME} PROPERTIES

@@ -63,8 +63,8 @@ Source: "{#WhereAreFiles}\crashpad_handler.exe"; DestDir: "{app}"; Flags: ignore
 ; 子系统程序，命令行读不到退出码，这个 .bat 用 start /wait 兜住
 Source: "{#WhereAreFiles}\export_crash_report.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#WhereAreFiles}\Qt5*.dll"; DestDir: "{app}"; Flags: ignoreversion
-; FluentUI3Style：第二条界面路线（APP_UI_ROUTE=fluent）的 QProxyStyle。qss 路线
-; 下它没被进程链接、装着也不加载，但随包带上省得做两套 .iss；BUILD_FLUENT_UI=OFF
+; FluentUI3Style：fluent 界面路线（目标的 APP_UI_ROUTE）的 QProxyStyle。qss 路线
+; 下它没被进程链接、装着也不加载，但随包带上省得做路线分支；BUILD_FLUENT_UI=OFF
 ; 的构建根本没有这个文件，故 skipifsourcedoesntexist
 Source: "{#WhereAreFiles}\FluentUI3Style.dll"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#WhereAreFiles}\@ISCC_VC_REDIST@"; DestDir: "{app}"; Flags: ignoreversion

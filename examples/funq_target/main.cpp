@@ -25,7 +25,7 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
-#ifdef APP_UI_QSS
+#ifndef APP_UI_FLUENT
 #include <style.h>
 #endif
 
@@ -34,7 +34,7 @@
 int main(int argc, char* argv[]) {
   QApplication app(argc, argv);
 
-#ifdef APP_UI_QSS
+#ifndef APP_UI_FLUENT
   // 底座层样式表（靶子没有项目层；样式底座不是业务模块，不违背下面那条
   // "依赖越薄越好"——它没有开关，也不拉业务依赖）
   ApplyStyleSheet(app);

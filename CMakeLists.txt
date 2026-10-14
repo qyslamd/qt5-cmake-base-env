@@ -80,9 +80,16 @@ option(BUILD_FUNQ "构建 funq GUI 测试库（注入式，产物供测试运行
 option(BUILD_RIBBON "启用 SARibbon Ribbon 界面（主窗口的功能区菜单）" ON)
 option(BUILD_FLUENT_UI "构建 FluentUI3Style 界面库（第二条界面路线）" ON)
 
-# 主界面二选一，同进程互斥：qss（样式表 + SARibbon）/ fluent（FluentUI3Style）
-set(APP_UI_ROUTE "qss" CACHE STRING "主界面路线：qss / fluent")
-set_property(CACHE APP_UI_ROUTE PROPERTY STRINGS qss fluent)
+# 主界面二选一，同进程互斥：qss（样式表 + SARibbon）/ fluent（FluentUI3Style）。
+# 普通变量（非缓存）：子目录可覆盖（如 src/app 自己走 fluent），local.cmake
+# 可覆盖（不入库的本地切换）。缓存里若还留着下沉前的 -DAPP_UI_ROUTE=fluent，
+# 会被这里的同名普通变量静默遮蔽，所以下面要提醒清掉
+if(DEFINED CACHE{APP_UI_ROUTE})
+    message(WARNING
+        "APP_UI_ROUTE 已下沉为普通变量（子目录/local.cmake 里 set 覆盖），"
+        "缓存值 '${APP_UI_ROUTE}' 不再生效。执行 cmake -U APP_UI_ROUTE 清掉本条提示")
+endif()
+set(APP_UI_ROUTE "qss")
 if(NOT APP_UI_ROUTE STREQUAL "qss" AND NOT APP_UI_ROUTE STREQUAL "fluent")
     message(FATAL_ERROR
         "APP_UI_ROUTE 只能是 qss 或 fluent（当前：${APP_UI_ROUTE}）")

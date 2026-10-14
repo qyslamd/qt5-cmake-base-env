@@ -79,12 +79,15 @@ configure 时自动解压，无需另行下载。仓库不含 git submodule，�
 
 ## 界面路线：两条，二选一
 
-界面备了两条互斥的路，由顶层 `APP_UI_ROUTE` 选：
+界面备了两条互斥的路，由 `APP_UI_ROUTE` 选。它是**普通变量**（不是缓存项）：
+顶层默认 `qss`，要换路线在 `local.cmake` 里 `set(APP_UI_ROUTE fluent)`（不入库），
+或在某个目标的 CMakeLists 里覆盖（只影响该目标，如 demo_app 走 fluent、示例走
+qss 可以同目录混编）：
 
 | 路线 | 外观来源 | 窗口壳 | 怎么构建 |
 |------|----------|--------|----------|
 | `qss`（默认） | 底座层 `src/style/resources/styles/base/*.qss`（拷自 `qt-libui` 仓库，两侧不再同步）+ 项目层 `src/app/resources/styles/default.qss`，由 `ApplyStyleSheet()` 拼接 | SARibbon 功能区（`BUILD_RIBBON=OFF` 时退回普通菜单栏） | `scripts\build_ninja.bat -t relwithdebinfo -a x86` |
-| `fluent` | `FluentUI3Style`（WinUI3/Fluent 的 `QProxyStyle`，**不加载任何 QSS**） | QWindowKit 无边框 + Fluent 标题栏 | 独立构建目录：`cmake -S . --preset ninja-relwithdebinfo-x86 -B build/ninja-relwithdebinfo-x86-fluent -DAPP_UI_ROUTE=fluent` 然后 `cmake --build build/ninja-relwithdebinfo-x86-fluent` |
+| `fluent` | `FluentUI3Style`（WinUI3/Fluent 的 `QProxyStyle`，**不加载任何 QSS**） | QWindowKit 无边框 + Fluent 标题栏 | 同左（改 `local.cmake` 后重新 configure） |
 
 两者**不能混用**：同一个进程里 `setStyleSheet` 一生效，命中规则的控件就会绕过
 `QProxyStyle`；同一个顶层窗口也只能装一个 QWindowKit window agent。启动日志里

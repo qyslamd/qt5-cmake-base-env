@@ -1,7 +1,7 @@
 #include <QApplication>
 #include <QFont>
 
-#ifdef APP_UI_QSS
+#ifndef APP_UI_FLUENT
 #include <style.h>  // 只在 qss 路线编得到
 #else
 #include <fluentui3style.h>  // 只在 fluent 路线编得到
@@ -12,7 +12,7 @@
 int main(int argc, char* argv[]) {
   QApplication app(argc, argv);
 
-#ifdef APP_UI_QSS
+#ifndef APP_UI_FLUENT
   ApplyStyleSheet(app, {QStringLiteral(":/new_login_dialog/login_window.qss")});
 #else
   app.setStyle(new FluentUI3Style);

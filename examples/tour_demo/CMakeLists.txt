@@ -14,12 +14,13 @@ target_link_libraries(${TARGET_NAME} PRIVATE
     ${APP_TARGET_PREFIX}_tour
 )
 
-# 界面路线是 qss 时链上底座样式表（src/style）——示例正好当"看样式表效果"的
-# 靶场：它们没有自己的项目层，看到的就是纯底座层。fluent 路线不链（那条路
-# 不加载任何 QSS）
-if(NOT APP_UI_ROUTE STREQUAL "fluent")
+# 宏归一口径：fluent 才有宏（APP_UI_FLUENT），qss 是缺省无宏。本示例的 fluent
+# 分支是空操作（维持系统默认样式），只注宏、不链 FluentUI3Style；qss 缺省路
+# 链底座样式表（src/style）——示例没有自己的项目层，看到的就是纯底座层
+if(APP_UI_ROUTE STREQUAL "fluent")
+    target_compile_definitions(${TARGET_NAME} PRIVATE APP_UI_FLUENT)
+else()
     target_link_libraries(${TARGET_NAME} PRIVATE ${APP_TARGET_PREFIX}_style)
-    target_compile_definitions(${TARGET_NAME} PRIVATE APP_UI_QSS)
 endif()
 
 set_target_properties(${TARGET_NAME} PROPERTIES

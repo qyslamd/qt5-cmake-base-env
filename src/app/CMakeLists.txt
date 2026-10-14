@@ -122,7 +122,8 @@ if(BUILD_QT_TESTING)
     target_compile_definitions(${TARGET_NAME} PRIVATE APP_ENABLE_QT_TESTING)
 endif()
 
-# 界面路线（APP_UI_ROUTE，见顶层）决定主窗口长什么样，两条路互斥：
+# 界面路线（APP_UI_ROUTE，默认 qss，子目录/local.cmake 可覆盖）决定主窗口
+# 长什么样，两条路互斥：
 #
 #   qss（默认）：Ribbon 开就 SARibbonMainWindow + 功能区，否则 QMainWindow +
 #               普通菜单栏；样式来自项目层 QSS
@@ -133,7 +134,8 @@ endif()
 # （SARibbon 与 Frameless 各自都要装）。所以这里是 if/else 而不是各自追加——
 # fluent 下不链 SARibbonBar、也不注入 APP_ENABLE_RIBBON，mainwindow.h 的基类
 # 与 mainwindow.cpp 的入口形态都据这两个宏分叉
-if(APP_UI_ROUTE STREQUAL "fluent")
+set(APP_DEMO_UI_ROUTE "${APP_UI_ROUTE}")
+if(APP_DEMO_UI_ROUTE STREQUAL "fluent")
     if(NOT BUILD_FLUENT_UI)
         message(FATAL_ERROR
             "APP_UI_ROUTE=fluent 需要 BUILD_FLUENT_UI=ON（见顶层「构建开关区」）")
@@ -144,6 +146,7 @@ if(APP_UI_ROUTE STREQUAL "fluent")
     )
     target_compile_definitions(${TARGET_NAME} PRIVATE APP_UI_FLUENT)
 else()
+    set(APP_DEMO_UI_ROUTE "qss")  # 非法值自然落到 qss 分支，发布的也归一成 qss
     # 底座层（src/style 的 base/*.qss + 箭头图 + ApplyStyleSheet）
     target_link_libraries(${TARGET_NAME} PRIVATE ${APP_TARGET_PREFIX}_style)
     if(BUILD_RIBBON)
@@ -151,6 +154,10 @@ else()
         target_compile_definitions(${TARGET_NAME} PRIVATE APP_ENABLE_RIBBON)
     endif()
 endif()
+
+# 把 demo_app 实际路线发布给兄弟目录（tests/funq_app 的 FUNQ_RIBBON 判据用）。
+# 全局属性跨目录可见——PARENT_SCOPE 得 src/app -> src -> 顶层逐层链
+set_property(GLOBAL PROPERTY APP_DEMO_UI_ROUTE "${APP_DEMO_UI_ROUTE}")
 
 set_target_properties(${TARGET_NAME} PROPERTIES
     AUTOMOC ON

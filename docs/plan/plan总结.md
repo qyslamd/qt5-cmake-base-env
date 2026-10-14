@@ -268,8 +268,11 @@ Windows 用 `cdb -z <dmp> -y <归档符号目录>`；Linux 用 lldb 直读 minid
 3. 因此选路必须在构建/启动期定死，不能逐窗口混用
 
 **落地形态**：`BUILD_FLUENT_UI`（编不编那条路）+ `APP_UI_ROUTE`（demo_app 走哪条）
-+ 宏 `APP_UI_FLUENT`（管基类与链库）。两条路都编、都打包；fluent 用独立构建目录
-（`-DAPP_UI_ROUTE=fluent`），不动默认目录的缓存。
++ 宏 `APP_UI_FLUENT`（管基类与链库）。两条路都编、都打包。~~fluent 用独立构建目录
+（`-DAPP_UI_ROUTE=fluent`），不动默认目录的缓存~~ 2026-10-14 更新：路线开关
+下沉为普通变量（顶层默认 qss，`local.cmake`/子目录覆盖，单构建目录可混编；
+`-D` 已失效），宏归一只留 `APP_UI_FLUENT`，`FUNQ_RIBBON` 判据随 demo_app 实际
+路线——见 `界面路线开关下沉到目标设计.md`。
 
 **依赖对账**：新库自带的 qwindowkit / kissfft **一份都不用重复编**——靠上游的
 `if(NOT TARGET ...)` 门禁复用本仓那份。两条顺序约束都是硬的：

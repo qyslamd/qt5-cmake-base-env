@@ -24,7 +24,7 @@ scripts/build_ninja.bat -t relwithdebinfo -m demo_app -p
 - 自动配置VS2019 x64编译环境
 - 使用Ninja生成器构建
 - 工具链用仓库自带的那几份：`3rdparty/cmake/bin/cmake.exe` 与 `3rdparty/ninja.exe`（要求 ≥ 1.10.0，不用 VS2019 自带的那份），预设已固定指向它们
-- 界面有两条路线，`APP_UI_ROUTE` 二选一（默认 `qss`：项目层样式表 + SARibbon；`fluent`：FluentUI3Style + Frameless，不加载 QSS）。fluent 要独立构建目录：`cmake -S . --preset ninja-relwithdebinfo-x86 -B build/ninja-relwithdebinfo-x86-fluent -DAPP_UI_ROUTE=fluent`。设计与决策见 `docs/plan/plan总结.md`
+- 界面有两条路线，`APP_UI_ROUTE` 二选一（默认 `qss`：项目层样式表 + SARibbon；`fluent`：FluentUI3Style + Frameless，不加载 QSS）。它是**普通变量**（非缓存项）：换路线在 `local.cmake` 里 `set(APP_UI_ROUTE fluent)`，或在某目标的 CMakeLists 里覆盖——demo_app 走 fluent、示例走 qss 可同目录混编；`-DAPP_UI_ROUTE` 已无效（configure 会出 WARNING）。设计与决策见 `docs/plan/plan总结.md` 与 `docs/plan/界面路线开关下沉到目标设计.md`
 - 构建输出目录：`build/ninja-debug/`（debug）、`build/ninja-relwithdebinfo/`（relwithdebinfo）、`build/ninja-release/`（release）
 - 支持两种参数模式：旧模式（位置参数 `build_ninja.bat debug deploy`）和新模式（显式参数 `-t <type> -m <target> -d/-p`），详见 `scripts/build_ninja.bat -h`
 - 可执行文件输出到：`build/ninja-debug/bin/`
@@ -131,7 +131,7 @@ scripts/build_ninja.bat -t relwithdebinfo -m demo_app -p
    - 提交信息的开始和结束不能有 @ 符号
 16. **头文件顺序有要求的，必须要在包含头文件的地方关掉clang-format**，不然容易被clang-format自动调整头文件顺序导致出问题
 17. **发布一律用 `relwithdebinfo` 配置**（`scripts/build_ninja.bat -t relwithdebinfo -p`），不要用 `release`。Release 不带 `/Zi`、构建不产 PDB，崩溃日志的调用栈只能给出裸地址。每次发布的 exe 与对应 PDB 必须一并归档，否则 minidump 事后无法解析。详见 `docs/guide/发布指南.md` 与 `docs/guide/构建配置与崩溃排查.md`
-18. 需要从头构建时，**优先只删构建目录下的 `CMakeCache.txt`，不要删整个构建目录**——引入 crashpad、FluentUIStyle 这些之后构建目录是 700 MB 级，全量重编很慢。但删之前要确认没有手工 `-D` 覆盖（例如 `APP_UI_ROUTE=fluent`）：这类覆盖**只存在缓存里**，删了就静默回到默认值；想长期保留的覆盖写进 `local.cmake`（每次 configure 重新生效，且不入库）。另注意删缓存虽比重编便宜，仍会重跑编译器探测、`find_package`、qmsetup 的 configure 期安装与 crashpad 的 configure
+18. 需要从头构建时，**优先只删构建目录下的 `CMakeCache.txt`，不要删整个构建目录**——引入 crashpad、FluentUIStyle 这些之后构建目录是 700 MB 级，全量重编很慢。但删之前要确认没有手工 `-D` 覆盖（例如 `BUILD_RIBBON=OFF`）：这类覆盖**只存在缓存里**，删了就静默回到默认值；想长期保留的覆盖写进 `local.cmake`（每次 configure 重新生效，且不入库）。另注意删缓存虽比重编便宜，仍会重跑编译器探测、`find_package`、qmsetup 的 configure 期安装与 crashpad 的 configure
 19. **改了 `CMakeLists.txt` 里某个 `option()` 的默认值后，已有构建目录不会跟随**（缓存值优先，且没有任何提示）。判据：改了没生效先 `grep <变量名> <构建目录>/CMakeCache.txt`；要让新默认值生效，用 `cmake -B <构建目录> -U <变量名>`（需 vcvars 环境）或删掉那条缓存项——手工删时注释行必须一起删（注释后面跟空行会让 CMake 报 `Parse error ... Offending entry`）
 20. 代码注释必须言简意赅。只写意图，不要写emoji，也无需引用docs目录下的文档，不必为了写注释而注释，一定要简洁，如果非要写一大段注释，那我认为就是代码没写好！！！
 21. **提交前，改动的 C++ 文件必须先过 clang-format**（用仓库自带的 `3rdparty/clang/clang-format.exe`，或直接跑 `scripts\clang_format.bat`——它默认就处理改动过的文件；不在 PATH 上）。仓库风格（`.clang-format`）与手写折行不一致时，人工编辑保存会产生纯格式的噪声 diff。**与规则 12 不冲突**：clang-tidy 默认不跑，clang-format 是提交前的必做项

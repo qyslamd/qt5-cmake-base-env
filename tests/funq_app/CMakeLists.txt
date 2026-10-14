@@ -99,10 +99,12 @@ set(FUNQ_TEST_ENV
     "FUNQ_SERVER_DIR=${FUNQ_SERVER_DIR}"
     "FUNQ_QT_BIN=${QT_BIN_DIR}")
 
-# 功能区那几条用例只在打开功能区的构建里有意义（BUILD_RIBBON 可关，见顶层
-# 的 option）。用环境变量而不是 genex：set_tests_properties 的 ENVIRONMENT
-# 对生成器表达式的支持随 CMake 版本而变，一个 if() 更省事也更清楚
-if(BUILD_RIBBON)
+# 功能区那几条用例只在 demo_app 真的有功能区时有意义：qss 路线由 BUILD_RIBBON
+# 决定，fluent 路线（src/app 发布的 APP_DEMO_UI_ROUTE）一定没有。用环境变量而
+# 不是 genex：set_tests_properties 的 ENVIRONMENT 对生成器表达式的支持随 CMake
+# 版本而变，一个 if() 更省事也更清楚
+get_property(app_demo_route GLOBAL PROPERTY APP_DEMO_UI_ROUTE)
+if(BUILD_RIBBON AND NOT app_demo_route STREQUAL "fluent")
     list(APPEND FUNQ_TEST_ENV "FUNQ_RIBBON=1")
 endif()
 
