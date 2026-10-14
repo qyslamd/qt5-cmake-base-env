@@ -62,6 +62,11 @@ LaunchOptions ParseCommandLine(const QStringList& arguments) {
       QStringLiteral("目录"));
   parser.addOption(export_dir_option);
 
+  const QCommandLineOption doc_option(
+      QStringLiteral("doc"), QStringLiteral("启动时打开这份 Markdown 文档"),
+      QStringLiteral("文件"));
+  parser.addOption(doc_option);
+
   // 可重复的配置覆盖（见 launch_options.h 的说明）。values() 收集全部出现
   const QCommandLineOption set_option(
       QStringLiteral("set"),
@@ -80,6 +85,7 @@ LaunchOptions ParseCommandLine(const QStringList& arguments) {
 
   opts.export_report = parser.isSet(export_option);
   opts.export_report_dir = parser.value(export_dir_option);
+  opts.doc_path = parser.value(doc_option);
   opts.config_overrides = parser.values(set_option);
   return opts;
 }

@@ -26,6 +26,9 @@ struct LaunchOptions {
   // 做不到（这条由 tests/app/launch_options_test.cpp 钉住）
   bool export_report = false;
   QString export_report_dir;
+  // --doc <文件>：启动即打开这份 Markdown 文档。给脚本与 funq 探针一个不点
+  // 菜单就能开文档的入口
+  QString doc_path;
   // --set key=value 的原始条目（可重复）。留原始串的原因同 slow_text：解析
   // 与告警要等 Logger::init 之后才有日志可用，放到 main 里做。
   // 语义：同名键覆盖 INI 与注册默认值，仅本次运行生效、不落盘——外部驱动

@@ -31,7 +31,20 @@ TEST(LaunchOptionsTest, DefaultsAreEmpty) {
   EXPECT_TRUE(opts.slow_text.isEmpty());
   EXPECT_FALSE(opts.export_report);
   EXPECT_TRUE(opts.export_report_dir.isEmpty());
+  EXPECT_TRUE(opts.doc_path.isEmpty());
   EXPECT_TRUE(opts.config_overrides.isEmpty());
+}
+
+// --doc：启动即打开这份 Markdown 文档（scripts/funq 的探针靠它开图）。
+// 路径只用 ASCII：上面的 Args() 是 fromLatin1 建的串，喂中文会先乱在测试里
+TEST(LaunchOptionsTest, DocPath) {
+  const LaunchOptions opts = ParseCommandLine(
+      Args({"demo_app", "--doc", "docs/guide/template-guide.md"}));
+  EXPECT_EQ(opts.doc_path, QStringLiteral("docs/guide/template-guide.md"));
+
+  const LaunchOptions equals_form =
+      ParseCommandLine(Args({"demo_app", "--doc=temp/a.md"}));
+  EXPECT_EQ(equals_form.doc_path, QStringLiteral("temp/a.md"));
 }
 
 // --set 可重复，values() 按出现顺序收全。原始 "key=value" 串原样保留——

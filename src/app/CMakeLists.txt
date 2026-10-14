@@ -125,6 +125,7 @@ target_link_libraries(${TARGET_NAME} PRIVATE
     ${APP_TARGET_PREFIX}_tour
     ${APP_TARGET_PREFIX}_core
     ${APP_TARGET_PREFIX}_controls
+    ${APP_TARGET_PREFIX}_markdown
     qcustomplot
     Qt5::Widgets
     Qt5::Core

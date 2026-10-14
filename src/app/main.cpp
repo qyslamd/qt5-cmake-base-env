@@ -34,6 +34,7 @@
 #include "launch_options.h"
 #include "logger/logger.h"
 #include "mainwindow.h"
+#include "markdown_window.h"
 #include "tour_app_topics.h"
 
 #ifdef APP_ENABLE_QT_TESTING
@@ -283,6 +284,14 @@ int main(int argc, char* argv[]) {
   auto tour_bridge = SetupTour(w);
   AttachHostFeatures(single_instance, w);
   SetupUiTesting(w);
+
+  // --doc：启动即把这份文档开出来（脚本与 funq 探针的入口，不必点菜单）。
+  // 窗口挂主窗口做父级，随主窗口一起销毁；unique_ptr 先于 w 析构，不会双删
+  std::unique_ptr<MarkdownWindow> doc_window;
+  if (!opts.doc_path.isEmpty()) {
+    doc_window = std::make_unique<MarkdownWindow>(&w);
+    doc_window->OpenFile(opts.doc_path);
+  }
 
   // ========================= 主循环与清理 =========================
   const int ret = app.exec();

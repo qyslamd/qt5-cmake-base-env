@@ -23,6 +23,7 @@ using MainWindowBase = QMainWindow;
 class QAction;
 class LogWindow;
 class FluentWindowFrame;
+class MarkdownWindow;
 
 // 主窗口骨架：入口（功能区或菜单栏）+ 占位中央控件，不承载具体业务。
 // 模板使用者可自由替换中央控件与入口结构，日志窗口、设置、关于均为独立类，
@@ -39,6 +40,7 @@ class MainWindow : public MainWindowBase {
   void onShowSettings();
   void onShowAbout();
   void onMakeCrash();
+  void onOpenMarkdown();
 
  private:
   // 三步走：建动作（两种形态共用）→ 挂到功能区或菜单栏 → 铺中央控件
@@ -63,8 +65,11 @@ class MainWindow : public MainWindowBase {
   QAction* make_crash_action_ = nullptr;
   QAction* settings_action_ = nullptr;
   QAction* about_action_ = nullptr;
+  QAction* markdown_action_ = nullptr;
 
   LogWindow* log_window_ = nullptr;
+  // 查看器只开一个：反复打开菜单项复用同一窗口，位置与尺寸不跳
+  MarkdownWindow* markdown_window_ = nullptr;
 #ifdef APP_UI_FLUENT
   // 窗口壳（QWK 无边框 + Fluent 标题栏）。宿主窗口是它的 QObject 父级
   FluentWindowFrame* fluent_frame_ = nullptr;
