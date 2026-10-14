@@ -304,8 +304,13 @@ void TvStatic::Update(double time) {
   // 雪花每帧都换新，所以按帧号取
   const int k = static_cast<int>(std::floor(t * kFps));
 
-  // 信号抓得多牢：临近锁定、快要丢失时，旋钮咔哒过三档
-  const float lock = SmoothTS(1.6f, 3.4f, u) * (1.0f - SmoothTS(6.6f, 7.8f, u));
+  // 信号抓得多牢：临近锁定、快要丢失时，旋钮咔哒过三档。
+  // 交互覆盖（lock_override >= 0）优先，且自己夹到 [0,1]——调用方给什么
+  // 都不该让下面三处派生量出格
+  float lock = SmoothTS(1.6f, 3.4f, u) * (1.0f - SmoothTS(6.6f, 7.8f, u));
+  if (ctl_.lock_override >= 0.0f) {
+    lock = std::min(1.0f, std::max(0.0f, ctl_.lock_override));
+  }
   const int dialRaw1 = static_cast<int>(std::floor((u - 1.1f) * 8.0f));
   const int dialRaw2 = 3 - static_cast<int>(std::floor((u - 6.4f) * 8.0f));
   int dial = std::min(3, std::min(dialRaw1, dialRaw2));
@@ -315,8 +320,10 @@ void TvStatic::Update(double time) {
 
   const float snow = 1.0f - 0.97f * lock;
 
-  // 未锁定时画面滚动（带着消隐条），扫描线撕裂
-  const float roll = (1.0f - lock) * (1.0f - lock) * (kSH + 2) * 2.5f;
+  // 未锁定时画面滚动（带着消隐条），扫描线撕裂。基础项在 lock 被覆盖成
+  // 常量后是静态偏移，"滚动"这个运动语义只由 roll_extra 提供
+  const float roll =
+      (1.0f - lock) * (1.0f - lock) * (kSH + 2) * 2.5f + ctl_.roll_extra;
   const float tear = (1.0f - lock) * 9.0f;
 
   // 交流声条的中心行，一圈走一遍

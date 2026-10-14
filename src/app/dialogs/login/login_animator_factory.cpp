@@ -6,7 +6,7 @@
 #include "config/config_manager.h"
 #include "dialogs/login/ascii/ascii_scene_animator.h"
 #include "dialogs/login/ascii/rocket.h"
-#include "dialogs/login/ascii/tv_static.h"
+#include "dialogs/login/ascii/tv_static_animator.h"
 #include "dialogs/login/character_animator.h"
 #include "dialogs/login/default_character_animator.h"
 #include "dialogs/login/static_character_animator.h"
@@ -24,7 +24,7 @@ CharacterAnimator* CreateLoginAnimator() {
   }
   if (name == QLatin1String(kLoginAnimationTv)) {
     // 底色同 qt-libui 示例的注册值
-    return new AsciiSceneAnimator<TvStatic>(qRgb(0x0b, 0x08, 0x14));
+    return new TvStaticAnimator(qRgb(0x0b, 0x08, 0x14));
   }
   if (name == QLatin1String(kLoginAnimationRocket)) {
     return new AsciiSceneAnimator<Rocket>(qRgb(0x00, 0x00, 0x00));

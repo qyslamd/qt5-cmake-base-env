@@ -53,6 +53,8 @@ set(TARGET_SRCS
     dialogs/login/ascii/ascii_scene_animator.h
     dialogs/login/ascii/tv_static.cpp
     dialogs/login/ascii/tv_static.h
+    dialogs/login/ascii/tv_static_animator.cpp
+    dialogs/login/ascii/tv_static_animator.h
     dialogs/login/ascii/rocket.cpp
     dialogs/login/ascii/rocket.h
     dialogs/user_manage_dialog.cpp

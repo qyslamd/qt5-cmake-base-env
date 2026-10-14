@@ -22,8 +22,17 @@ class TvStatic {
   static constexpr int kHeight = 26;
   static constexpr int kPaletteN = 1;
 
+  // 交互覆盖量：缺省（-1 / 0）即原样走 10 秒循环。绝对覆盖而非偏置——
+  // 偏置在 lock=0 的雪花相位没有像素后果
+  struct TvControl {
+    float lock_override = -1.0f;  // <0 用循环自己的 lock；>=0 直接采用
+    float roll_extra = 0.0f;      // 叠在 roll 上的行相位，由策略逐帧推进
+  };
+
   TvStatic();
   void Update(double t);
+
+  void SetControl(const TvControl& c) { ctl_ = c; }
 
   const std::vector<QChar>& charBuf() const { return chars_; }
   const std::vector<uint8_t>& colorBuf() const { return colors_; }
@@ -45,6 +54,9 @@ class TvStatic {
   // 每帧输出
   std::vector<QChar> chars_;
   std::vector<uint8_t> colors_;
+
+  // 交互覆盖量，缺省无害
+  TvControl ctl_;
 
   void Init();
   void DrawSetFrame();

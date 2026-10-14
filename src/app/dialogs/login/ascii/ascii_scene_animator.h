@@ -85,8 +85,11 @@ class AsciiSceneAnimator : public CharacterAnimator {
   // 不覆写 reset()：面板只在"换掉本策略"与析构时调它，那时本对象随即销毁，
   // 没有挂起任务要作废；动 elapsed_ 反而会留下未启动的计时器
 
- private:
+ protected:
+  // 子类（如 TvStaticAnimator）要往里写交互控制量
   Scene scene_;
+
+ private:
   QElapsedTimer elapsed_;
   QRgb bg_;
   QColor palette_[Scene::kPaletteN];
