@@ -4,5 +4,11 @@
         <!-- 公式渲染的 JS 载荷（MathJax tex→svg）。纯 JS 与平台无关，入 qrc 免去
              部署时还要跟着拷一份文件；重建配方见 resources/mathjax_svg_entry.mjs -->
         <file alias="mathjax-svg.min.js">resources/mathjax-svg.min.js</file>
+        <!-- Mermaid 渲染的三份 JS 载荷（3.5MB 的官方 bundle + 假 DOM + path 包围盒）。
+             同样是平台无关的纯 JS；重建配方与哈希见
+             resources/extract_mermaid_payload.py -->
+        <file alias="mermaid.js">resources/mermaid.js</file>
+        <file alias="dom_shim.js">resources/dom_shim.js</file>
+        <file alias="path_bbox.js">resources/path_bbox.js</file>
     </qresource>
 </RCC>
