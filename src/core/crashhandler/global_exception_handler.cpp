@@ -162,6 +162,12 @@ void GlobalExceptionHandler::signalHandler(int signal) {
   emit instance().exceptionCaught(
       QString("Signal: %1 (%2)").arg(name).arg(signal), stackTrace);
 
+  // 复位成系统默认处置再重发。不复位的话 raise() 会再次进入本函数——处理器
+  // 递归进自己，进程永远退不出，日志还会被刷爆（实测 10 分钟 269MB，WSLg 里
+  // 留下一堆关不掉的窗口，即挂起事项 #1）。这条路径此前只在崩溃信号上验过，
+  // 那种情况下进程本就无法继续，问题被掩盖；SIGTERM 这类正常终止信号才把它
+  // 暴露出来。signal() 在信号上下文里是安全调用
+  std::signal(signal, SIG_DFL);
   std::raise(signal);
 }
 

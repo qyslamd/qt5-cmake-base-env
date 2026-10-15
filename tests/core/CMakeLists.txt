@@ -23,6 +23,17 @@ add_unit_test(
     NO_GTEST_MAIN
 )
 
+# GEH 的终止信号：收到 SIGINT/SIGTERM 后进程必须真的退出（挂起事项 #1 的回归）。
+# 子进程里 raise 之后父进程断言它死掉——这条判据只有跨进程才成立
+add_unit_test(
+    NAME test_core_geh_term
+    SOURCES global_exception_handler_test.cpp
+    LIBS ${APP_TARGET_PREFIX}_core
+    QT_MODULES Core
+    LABELS CORE
+    NO_GTEST_MAIN
+)
+
 # Crashpad 报告导出：造一份 pending 报告 → 断言导出落盘与交付语义，
 # 不需要真崩溃，也不需要 handler。「真崩一次 → dump 落盘」的端到端验证在
 # 演练里做（见 docs/plan/plan总结.md 的「崩溃报告回传链路」），不进单元测试：
