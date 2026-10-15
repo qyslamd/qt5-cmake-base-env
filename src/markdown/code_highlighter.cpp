@@ -91,10 +91,14 @@ const HighlightRules& RulesFor(const QString& language) {
 
 QSet<QString> KeywordSet(const QString& keywords) {
   QSet<QString> set;
-  const QStringList words =
-      keywords.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+  // 不用 SkipEmptyParts：Qt::SkipEmptyParts 是 5.14 才有的，而 Linux 侧的系统
+  // Qt（Ubuntu 20.04）是 5.12；旧的 QString::SkipEmptyParts 在 5.15 又被弃用。
+  // 空串本就不该进关键字表，顺手滤掉，与 Qt 版本彻底解耦
+  const QStringList words = keywords.split(QLatin1Char(' '));
   for (const QString& word : words) {
-    set.insert(word);
+    if (!word.isEmpty()) {
+      set.insert(word);
+    }
   }
   return set;
 }
