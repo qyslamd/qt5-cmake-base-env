@@ -1,0 +1,21 @@
+Keep qjs-libc out of the default build (and out of the link under MSVC).
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -257,7 +257,7 @@
+ 
+ xoption(QJS_BUILD_LIBC "Build standard library modules as part of the library" OFF)
+ macro(add_qjs_libc_if_needed target)
+-    if(NOT QJS_BUILD_LIBC)
++    if(NOT QJS_BUILD_LIBC AND NOT MSVC)
+         target_link_libraries(${target} PRIVATE qjs-libc)
+     endif()
+ endmacro()
+@@ -337,7 +337,7 @@
+ endif()
+ 
+ if(NOT QJS_BUILD_LIBC)
+-    add_library(qjs-libc STATIC quickjs-libc.c)
++    add_library(qjs-libc STATIC EXCLUDE_FROM_ALL quickjs-libc.c)
+     target_compile_definitions(qjs-libc PRIVATE ${qjs_defines})
+     target_link_libraries(qjs-libc PRIVATE ${qjs_libs} qjs)
+ endif()

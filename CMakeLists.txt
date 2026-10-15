@@ -473,6 +473,16 @@ target_include_directories(md4c PUBLIC
 set_target_properties(md4c PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
 
 #-------------------------------------------------------------------------------
+# quickjs-ng：文档预览里的公式渲染用它跑 MathJax（tex → svg）
+#
+# 解压产物不入 git，两处改动（六个命令行工具、qjs-libc 出 ALL）都在
+# patches/quickjs/ 里，由 cmake/patch_dependencies.cmake 在 configure 阶段应用
+#-------------------------------------------------------------------------------
+# 关掉它的 install 规则，避免污染系统（同 qlitehtml 的处理）
+set(QJS_ENABLE_INSTALL OFF CACHE BOOL "不生成 quickjs-ng 的 install 规则" FORCE)
+add_subdirectory(3rdparty/quickjs-0.17.0)
+
+#-------------------------------------------------------------------------------
 # 本仓库模块
 #-------------------------------------------------------------------------------
 

@@ -20,6 +20,7 @@ set(DEPENDENCY_ARCHIVES
     "qlitehtml-180e3eb.tar.gz"
     "litehtml-0.10.tar.gz"
     "md4c-release-0.5.3.zip"
+    "quickjs-0.17.0.tar.gz"
     "zlib-v1.2.11.tar.gz"
     "mini_chromium-9cdc2a7.tar.gz"
     "crashpad-7b9686b.tar.gz"

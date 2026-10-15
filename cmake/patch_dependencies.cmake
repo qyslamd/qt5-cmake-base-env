@@ -135,5 +135,14 @@ apply_patch_to_dir("${3RDPARTY_DIR}/zlib-v1.2.11"
 apply_patch_to_dir("${3RDPARTY_DIR}/FluentUIStyle-4.0"
     "${PATCHES_DIR}/FluentUIStyle/0001-qt5-only.patch")
 
+# quickjs-ng：本仓只用它的库（公式渲染跑 MathJax），它的六个命令行工具与
+# qjs-libc 在 MSVC 下都编不过——qjs CLI 链接失败（16 个未解析符号），
+# qjs-libc 要 C11 的 stdatomic.h 而 MSVC 2019 没有。上游没有能关掉它们的
+# 开关（只有 add_executable/add_library，不在 option 后面），只能补丁
+apply_patch_to_dir("${3RDPARTY_DIR}/quickjs-0.17.0"
+    "${PATCHES_DIR}/quickjs/0001-drop-cli-tools.patch")
+apply_patch_to_dir("${3RDPARTY_DIR}/quickjs-0.17.0"
+    "${PATCHES_DIR}/quickjs/0002-drop-qjs-libc.patch")
+
 message(STATUS "Patches applied.")
 message(STATUS "")
