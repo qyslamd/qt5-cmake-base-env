@@ -235,7 +235,7 @@ QString UnescapeHtml(const QString& text) {
 // 正文里若出现没闭合的裸 <pre><code>，不加行首锚点就会从那处一直匹配到文档
 // 后面下一个 </code></pre>，把中间整段正文吞成"代码"。md4c 生成的块级代码块
 // 永远从行首开始，锚 ^ 之后只认真块（正则用 Multiline 让 ^ 匹配每行行首）
-QString HighlightCodeBlocks(const QString& html) {
+QString HighlightCodeBlocks(const QString& html, const MermaidSink& mermaid) {
   static const QRegularExpression kPreCode(
       QStringLiteral("^(<pre><code([^>]*)>)([\\s\\S]*?)(</code></pre>)"),
       QRegularExpression::MultilineOption);
@@ -259,6 +259,18 @@ QString HighlightCodeBlocks(const QString& html) {
     // 代码里的 "<" 从 md4c 出来是实体，正文里不会出现字面的 "</code></pre>"，
     // 非贪婪匹配到这里就是代码结束
     const QString code = UnescapeHtml(match.captured(3));
+
+    // mermaid 围栏不出代码块，交给 sink 出图（sink 拿的是实体已还原的源码）；
+    // 渲染不出来再退回代码块，不留白
+    if (mermaid && language == QLatin1String("mermaid")) {
+      const QString image = mermaid(code);
+      if (!image.isEmpty()) {
+        result +=
+            QStringLiteral("<div class=\"mermaid-wrap\">%1</div>").arg(image);
+        continue;
+      }
+    }
+
     const QString highlighted = HighlightCode(code, language);
     if (language.isEmpty()) {
       result += QStringLiteral("<pre><code>%1</code></pre>").arg(highlighted);
@@ -274,7 +286,8 @@ QString HighlightCodeBlocks(const QString& html) {
 
 }  // namespace
 
-QString MarkdownToHtml(const QString& markdown, const FormulaSink& formula) {
+QString MarkdownToHtml(const QString& markdown, const FormulaSink& formula,
+                       const MermaidSink& mermaid) {
   // 公式在 md4c 之前抽出占位符、之后换回渲染结果；没给回调就整段跳过，
   // 一个字符都不动（$…$ 于是原样显示）
   QVector<MathSegment> segments;
@@ -290,5 +303,5 @@ QString MarkdownToHtml(const QString& markdown, const FormulaSink& formula) {
   if (result != 0) {
     return QStringLiteral("<p class=\"error\">Markdown 解析失败</p>");
   }
-  return RestoreMath(HighlightCodeBlocks(html), segments, formula);
+  return RestoreMath(HighlightCodeBlocks(html, mermaid), segments, formula);
 }

@@ -31,3 +31,24 @@ add_unit_test(
     LABELS MARKDOWN
     NO_GTEST_MAIN
 )
+
+# mermaid 的两层后处理是纯字符串→字符串，毫秒级，可逐条断言
+add_unit_test(
+    NAME test_mermaid_svg_cleanup
+    SOURCES mermaid_svg_cleanup_test.cpp
+    LIBS ${APP_TARGET_PREFIX}_markdown
+    QT_MODULES Core
+    LABELS MARKDOWN
+)
+
+# mermaid 端到端：首次要 eval 3.5MB 的 bundle（秒级），默认 10 秒超时会被 ctest
+# 直接杀掉，所以单独放宽——add_unit_test 没有 TIMEOUT 参数，只能在这里补
+add_unit_test(
+    NAME test_mermaid_renderer
+    SOURCES mermaid_renderer_test.cpp
+    LIBS ${APP_TARGET_PREFIX}_markdown
+    QT_MODULES Gui
+    LABELS MARKDOWN
+    NO_GTEST_MAIN
+)
+set_tests_properties(test_mermaid_renderer PROPERTIES TIMEOUT 120)

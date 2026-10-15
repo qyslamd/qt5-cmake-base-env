@@ -64,6 +64,10 @@ a { color: #5b21b6; }
 /* 公式渲染失败时退回显示的原文 */
 .math-src { color: #b91c1c; }
 
+/* mermaid：图已内联为 PNG，居中、别撑破预览宽度 */
+.mermaid-wrap { text-align: center; margin: 12px 0; }
+img.mermaid { max-width: 100%; height: auto; }
+
 /* 代码高亮配色 */
 .kw  { color: #d73a49; font-weight: bold; }
 .str { color: #032f62; }

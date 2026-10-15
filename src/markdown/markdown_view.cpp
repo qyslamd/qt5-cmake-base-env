@@ -9,6 +9,7 @@
 
 #include "formula_renderer.h"
 #include "markdown_to_html.h"
+#include "mermaid_renderer.h"
 #include "qlitehtmlwidget.h"
 
 namespace {
@@ -149,8 +150,9 @@ void MarkdownView::ApplyDocument() {
   }
   html_->setUrl(base);
   // 公式渲染以回调注入：markdown 模块不依赖公式引擎，这里把它接上
-  html_->setHtml(WrapDocument(MarkdownToHtml(markdown_, FormulaToImgTag),
-                              LoadDefaultCss()));
+  html_->setHtml(
+      WrapDocument(MarkdownToHtml(markdown_, FormulaToImgTag, MermaidToImgTag),
+                   LoadDefaultCss()));
 }
 
 void MarkdownView::ShowMessage(const QString& text) {
