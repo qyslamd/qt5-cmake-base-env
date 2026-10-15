@@ -411,21 +411,25 @@ organization/application 两层）不是 `std::filesystem` 能复刻的；核心
 
 记录**已知但未处理**的问题与待办，每条都带证据或复现方式。做完一条就删掉这条。
 
-### 1. SIGTERM 杀不掉应用
+### 1. ~~SIGTERM 杀不掉应用~~（已了结：定位并修复，2026-10-15）
 
 **现象**：WSL 里 `timeout 10 <AppImage>` 启动，超时后进程仍存活——实测有一个实例
 残留 5 分 54 秒，并在 WSLg 桌面上留下无法操作的窗口。
 
-**影响**：用户 Ctrl+C、服务停止、CI 结束作业时进程不会退出。
+**结论**：排除了原先列的可能①——这次是**直接执行可执行文件**（不经 AppImage）
+复现的，根本没有 `AppRun` 可怪。坐实的是可能②：
+`GlobalExceptionHandler::signalHandler` 末尾 `std::raise(signal)` 重发时**没有
+复位处置**，而 POSIX 的信号处理函数是常驻的，raise 于是重入自己 → 递归到栈溢出
+都不退出，日志被刷爆（实测 10 分钟 269MB、299 万行、时间戳全在同一毫秒）。
+用户点窗口关闭按钮发的正是 SIGTERM，所以表现为"窗口关不掉"。
 
-**待分辨的两种可能**（需分别验证，不要直接猜）：① AppImage 的 `AppRun` 包装没有
-把 SIGTERM 转发给子进程；② `GlobalExceptionHandler` 的信号处理没有真正终止进程。
+**修法**（提交 `7fddeb2`）：重发前 `std::signal(signal, SIG_DFL)`。回归用例
+`tests/core/global_exception_handler_test.cpp`（`test_core_geh_term`）：父进程
+拉起子进程 → 子进程装好 GEH 后 raise → 断言它必须在超时内死掉。
 
-**线索**：`src/core/crashhandler/global_exception_handler.*`；GEH 的职责包含
-SIGINT/SIGTERM（见本文件归档的 D6），即这是**声称已覆盖但实际未验证**的能力。
-
-**入手点**：先补一个子进程测试区分上述两种可能——现有
-`tests/core/crashhandler_test.cpp` 的"父进程拉起子进程"骨架可直接复用。
+**判别力在 Linux 一侧**：MSVC 的 CRT 在处理器返回后会终止进程，所以 Windows 上
+不复位也照样退出、用例恒过；只在 POSIX 上能验出这个 bug——这也是它长期没被
+发现的原因（Windows 侧天天在跑，Linux 侧没人掐过进程）。
 
 ### 2. GEH 与 SingleInstance 无测试
 
