@@ -58,6 +58,12 @@ a { color: #5b21b6; }
 /* 打不开文件、解析失败之类的提示 */
 .error { color: #b91c1c; }
 
+/* 公式：行内的随文排；独立的居中成块。公式是 QuickJS 里 MathJax 渲出来的图，
+   宽高按 1x 摆、位图按 2x 画，所以边缘是锐的 */
+.math-display { display: block; margin: 10px auto; }
+/* 公式渲染失败时退回显示的原文 */
+.math-src { color: #b91c1c; }
+
 /* 代码高亮配色 */
 .kw  { color: #d73a49; font-weight: bold; }
 .str { color: #032f62; }

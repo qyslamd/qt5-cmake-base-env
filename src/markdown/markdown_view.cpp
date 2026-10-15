@@ -7,6 +7,7 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
+#include "formula_renderer.h"
 #include "markdown_to_html.h"
 #include "qlitehtmlwidget.h"
 
@@ -28,8 +29,17 @@ const QString& LoadDefaultCss() {
   return kCss;
 }
 
-// 相对路径的图片与链接都走这里：qlitehtml 按基准 URL 解析出本地路径来要数据
+// 相对路径的图片与公式图都走这里：qlitehtml 按基准 URL 解析出路径来要数据
 QByteArray ReadLocalFile(const QUrl& url) {
+  // 公式图是 data URI 内联进来的（formula_renderer 产出），这里解码还原。
+  // 用 data URI 而不是自定义 scheme，是因为后者会被 qlitehtml 当主机名做
+  // 浏览器式扩展（实测 mj://0 → mj://0.0.0.0），回调里对不上号
+  static const QString kPngPrefix = QStringLiteral("data:image/png;base64,");
+  const QString text = url.toString();
+  if (text.startsWith(kPngPrefix)) {
+    return QByteArray::fromBase64(text.mid(kPngPrefix.size()).toLatin1());
+  }
+
   if (!url.isLocalFile()) {
     return {};
   }
@@ -138,7 +148,9 @@ void MarkdownView::ApplyDocument() {
     base.setPath(base.path() + QLatin1Char('/'));
   }
   html_->setUrl(base);
-  html_->setHtml(WrapDocument(MarkdownToHtml(markdown_), LoadDefaultCss()));
+  // 公式渲染以回调注入：markdown 模块不依赖公式引擎，这里把它接上
+  html_->setHtml(WrapDocument(MarkdownToHtml(markdown_, FormulaToImgTag),
+                              LoadDefaultCss()));
 }
 
 void MarkdownView::ShowMessage(const QString& text) {

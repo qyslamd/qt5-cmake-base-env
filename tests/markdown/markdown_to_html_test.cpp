@@ -3,6 +3,8 @@
 #include <gtest/gtest.h>
 
 #include <QString>
+#include <QStringList>
+#include <QVector>
 
 namespace {
 
@@ -58,6 +60,93 @@ TEST(MarkdownToHtmlTest, KeepsRawHtmlButEscapesStrayAngle) {
   const QString html = MarkdownToHtml(QStringLiteral("上行<br>下行 a < b\n"));
   EXPECT_TRUE(html.contains(QStringLiteral("<br>"))) << html.toStdString();
   EXPECT_TRUE(html.contains(QStringLiteral("a &lt; b"))) << html.toStdString();
+}
+
+// ---------- 公式（抽取与回填是纯逻辑，假渲染器就能验，不必起
+// QuickJS）----------
+
+// 记下回调收到的内容，同时返回一个能一眼认出的标记
+struct FormulaProbe {
+  QStringList texes;
+  QVector<bool> displays;
+
+  FormulaSink Sink() {
+    return [this](const QString& tex, bool display) {
+      texes << tex;
+      displays << display;
+      return QStringLiteral("<img data-tex=\"%1\">").arg(tex);
+    };
+  }
+};
+
+TEST(MarkdownToHtmlTest, FormulasGoThroughTheSink) {
+  FormulaProbe probe;
+  const QString html =
+      MarkdownToHtml(QStringLiteral("质能 $E = mc^2$ 收尾\n"), probe.Sink());
+  ASSERT_EQ(probe.texes.size(), 1);
+  EXPECT_EQ(probe.texes.at(0), QStringLiteral("E = mc^2"));
+  EXPECT_FALSE(probe.displays.at(0));
+  EXPECT_TRUE(html.contains(QStringLiteral("<img data-tex=\"E = mc^2\">")))
+      << html.toStdString();
+}
+
+// 单独成行的 $$ 会跨行合并成一段独立公式（tex 里的换行要去掉）
+TEST(MarkdownToHtmlTest, DisplayBlockSpansLines) {
+  FormulaProbe probe;
+  const QString html = MarkdownToHtml(
+      QStringLiteral("$$\n\\int_0^1 x\\,dx\n$$\n"), probe.Sink());
+  ASSERT_EQ(probe.texes.size(), 1);
+  EXPECT_TRUE(probe.displays.at(0));
+  EXPECT_EQ(probe.texes.at(0).trimmed(), QStringLiteral("\\int_0^1 x\\,dx"));
+  EXPECT_FALSE(html.contains(QStringLiteral("$$"))) << html.toStdString();
+}
+
+// 代码里的 $ 是字面量：围栏块、行内代码都不该被当成公式
+TEST(MarkdownToHtmlTest, DollarsInCodeAreNotFormulas) {
+  FormulaProbe probe;
+  const QString html = MarkdownToHtml(
+      QStringLiteral(
+          "```bash\nawk '{ print $1 }'\n```\n\n行内 `$HOME` 与 $x$\n"),
+      probe.Sink());
+  ASSERT_EQ(probe.texes.size(), 1) << "只有末尾的 $x$ 该进回调";
+  EXPECT_EQ(probe.texes.at(0), QStringLiteral("x"));
+  EXPECT_TRUE(html.contains(QStringLiteral("print $1"))) << html.toStdString();
+  EXPECT_TRUE(html.contains(QStringLiteral("$HOME"))) << html.toStdString();
+}
+
+// 正文里的钱不该被配对；转义的 \$ 是字面量
+TEST(MarkdownToHtmlTest, MoneyAndEscapedDollarStayText) {
+  FormulaProbe probe;
+  const QString html = MarkdownToHtml(
+      QStringLiteral("价格在 $5 到 $10 之间，转义 \\$y\\$ 也是字面量\n"),
+      probe.Sink());
+  EXPECT_TRUE(probe.texes.isEmpty()) << html.toStdString();
+  EXPECT_TRUE(html.contains(QStringLiteral("$5 到 $10"))) << html.toStdString();
+  EXPECT_FALSE(html.contains(QStringLiteral("data-tex"))) << html.toStdString();
+}
+
+// 渲染不出来（回调返回空）或调用方没给回调：原文照旧显示，别吞内容
+TEST(MarkdownToHtmlTest, FailedFormulaFallsBackToSource) {
+  const FormulaSink failing = [](const QString&, bool) { return QString(); };
+  const QString html =
+      MarkdownToHtml(QStringLiteral("看 $\\frac{a}{b}$ 这里\n"), failing);
+  EXPECT_TRUE(html.contains(QStringLiteral("math-src"))) << html.toStdString();
+  EXPECT_TRUE(html.contains(QStringLiteral("\\frac{a}{b}")))
+      << html.toStdString();
+
+  const QString untouched = MarkdownToHtml(QStringLiteral("看 $x$ 这里\n"));
+  EXPECT_TRUE(untouched.contains(QStringLiteral("$x$")))
+      << untouched.toStdString();
+}
+
+// 没闭合的块级 $$：按原文吐回去，不能吃掉后面的内容
+TEST(MarkdownToHtmlTest, UnclosedDisplayBlockStaysText) {
+  FormulaProbe probe;
+  const QString html = MarkdownToHtml(
+      QStringLiteral("$$\n孤零零一段\n\n后面还有正文\n"), probe.Sink());
+  EXPECT_TRUE(probe.texes.isEmpty()) << html.toStdString();
+  EXPECT_TRUE(html.contains(QStringLiteral("后面还有正文")))
+      << html.toStdString();
 }
 
 // 回归点：md4c 在 GFM 下放行内联原始 HTML，正文里没闭合的裸 <pre><code> 若不加
