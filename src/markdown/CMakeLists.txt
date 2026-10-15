@@ -5,6 +5,12 @@ set(TARGET_SRCS
     code_highlighter.h
     formula_renderer.cpp
     formula_renderer.h
+    mermaid_css_inliner.cpp
+    mermaid_css_inliner.h
+    mermaid_renderer.cpp
+    mermaid_renderer.h
+    mermaid_svg_cleanup.cpp
+    mermaid_svg_cleanup.h
     markdown_to_html.cpp
     markdown_to_html.h
     markdown_view.cpp
