@@ -18,3 +18,16 @@ add_unit_test(
     QT_MODULES Core
     LABELS MARKDOWN
 )
+
+# 公式渲染的端到端判据：载荷加载 → QuickJS 里 tex→svg → 画成 PNG → <img>。
+# 这条链路以前只能靠 funq 抓像素看，而像素判据没法进 CI、也不好在无显示的
+# 机器上跑；测试自己起 QGuiApplication 并切 offscreen 平台，无头也能验。
+# 要 Gui 是因为 QSvgRenderer 走 QPainter；NO_GTEST_MAIN 是因为要自己建 application
+add_unit_test(
+    NAME test_formula_renderer
+    SOURCES formula_renderer_test.cpp
+    LIBS ${APP_TARGET_PREFIX}_markdown
+    QT_MODULES Gui
+    LABELS MARKDOWN
+    NO_GTEST_MAIN
+)

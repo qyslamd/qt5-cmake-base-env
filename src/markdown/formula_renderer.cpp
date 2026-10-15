@@ -11,6 +11,13 @@
 #include <QRegularExpression>
 #include <QSvgRenderer>
 
+// 静态库里的 qrc 不会自动初始化，而载荷就在里面。Q_INIT_RESOURCE 展开的是
+// extern 声明 + 一次调用，**必须留在文件作用域、且不能放进匿名命名空间**
+// （放进去会绑到匿名空间上，链接期找不到 rcc 生成的全局函数）。
+// 渲染器自己保证一次：不该依赖"先有人建过 MarkdownView"这个前提——单测直接
+// 调 FormulaToImgTag 时就没有视图。重复调用是幂等的
+static void EnsureResourcesInitialized() { Q_INIT_RESOURCE(markdown_res); }
+
 namespace {
 
 JSRuntime* g_runtime = nullptr;
@@ -28,6 +35,7 @@ bool EnsureLoaded() {
     return false;
   }
 
+  EnsureResourcesInitialized();
   QFile file(QStringLiteral(":/markdown/mathjax-svg.min.js"));
   if (!file.open(QIODevice::ReadOnly)) {
     qWarning() << "mathjax payload missing from resources";
