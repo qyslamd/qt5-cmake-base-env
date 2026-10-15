@@ -501,6 +501,12 @@ add_subdirectory(src)
 # funq 的手动分离运行示例（两个终端各起一边），依赖上面建出的 demo_app
 add_subdirectory(examples)
 
+# 示例自己的部署目标排在 make_deploy 之前：两个 windeployqt 都会往同一个 bin/
+# 写文件，并发跑会打架（原因见 examples/fft_demo/CMakeLists.txt）
+if(TARGET make_deploy AND TARGET deploy_fft_demo)
+    add_dependencies(make_deploy deploy_fft_demo)
+endif()
+
 # 单元测试
 if(BUILD_TESTS)
     enable_testing()

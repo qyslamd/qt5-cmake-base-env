@@ -38,3 +38,20 @@ if(MSVC)
 endif()
 
 configure_run_script("run_${TARGET_NAME}")
+
+# 部署：fft_demo 经 QCustomPlot 用到 QtPrintSupport，而 app 侧的 make_deploy 只对
+# demo_app.exe 跑 windeployqt（依赖按导入表收集），收不到这份 DLL。这里单独扫一次，
+# 顶层再把它挂成 make_deploy 的前置——顺序执行，免得两个 windeployqt 同时往 bin/ 写
+if(WIN32 AND EXISTS ${WINDEPLOYQT_EXECUTABLE})
+    add_custom_target(deploy_${TARGET_NAME}
+        COMMAND ${WINDEPLOYQT_EXECUTABLE}
+            --verbose 1
+            --no-angle
+            --no-opengl-sw
+            --no-system-d3d-compiler
+            --compiler-runtime
+            "$<TARGET_FILE:${TARGET_NAME}>"
+        COMMENT "Running windeployqt for ${TARGET_NAME}..."
+    )
+    add_dependencies(deploy_${TARGET_NAME} ${TARGET_NAME})
+endif()

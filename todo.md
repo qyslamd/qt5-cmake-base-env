@@ -52,3 +52,8 @@
       的 `-text` 让两个平台 checkout 出同样的字节（哈希才可比）。
 - [ ] mermaid 的 `theme` 目前固定 `default`：要跟随应用主题（深色/浅色）得把它
       接到配置上，并注意主题 CSS 一变，`InlineSvgCss` 的层叠偏差就会被放大。
+- [x] windows 上 `-p` / `-d` 收集不到 QtPrintSupport.dll —— 已修：它是 QCustomPlot
+      带进 `fft_demo.exe` 的，而 app 侧的 `make_deploy` 只对 `demo_app.exe` 跑
+      windeployqt（依赖按导入表收集，demo_app 不导入它）。现在 `fft_demo` 有自己的
+      `deploy_fft_demo`，顶层把它挂成 `make_deploy` 的前置（顺序执行，避免两个
+      windeployqt 同时往 bin/ 写）。**安装包不受影响**：Inno 脚本只收 demo_app
