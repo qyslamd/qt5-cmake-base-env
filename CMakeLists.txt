@@ -343,6 +343,15 @@ if(BUILD_RIBBON OR BUILD_FLUENT_UI)
     if(Qt5_VERSION VERSION_LESS "5.14")
         message(STATUS
             "Qt ${Qt5_VERSION} < 5.14：跳过 QWindowKit，两条路线的无边框窗口均不可用")
+        # FluentUI 也得一起跳过：它的无边框窗口壳依赖 QWindowKit，没有宿主提供的
+        # 目标它就去编自带的那份，而那份会 find_package(qmsetup REQUIRED)——系统里
+        # 没有，configure 直接失败。Ubuntu 20.04 自带的 Qt 正好是 5.12，走系统 Qt
+        # 的用户必踩（普通变量遮蔽缓存项，不动用户的 cache）
+        if(BUILD_FLUENT_UI)
+            message(STATUS
+                "  同时关闭 BUILD_FLUENT_UI：界面只剩 qss 一条路线")
+            set(BUILD_FLUENT_UI OFF)
+        endif()
     else()
         set(QWINDOWKIT_BUILD_STATIC ON CACHE BOOL "把 QWindowKit 编成静态库" FORCE)
         set(QWINDOWKIT_BUILD_WIDGETS ON CACHE BOOL "编 QWindowKit 的 widgets 模块" FORCE)

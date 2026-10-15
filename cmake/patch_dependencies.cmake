@@ -144,5 +144,11 @@ apply_patch_to_dir("${3RDPARTY_DIR}/quickjs-0.17.0"
 apply_patch_to_dir("${3RDPARTY_DIR}/quickjs-0.17.0"
     "${PATCHES_DIR}/quickjs/0002-drop-qjs-libc.patch")
 
+# qlitehtml：上游按 Qt ≥ 5.14 写，Qt::SkipEmptyParts 与 QFont::setFamilies 都没加
+# 版本守卫，而 Linux 构建指南让人装的正是 Ubuntu 20.04 自带的 Qt 5.12.8——不加守卫
+# 在这套 Qt 上编译直接失败。守卫的写法与 qt-libui 那边的老版本一致
+apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
+    "${PATCHES_DIR}/qlitehtml/0001-qt-5.12-compat.patch")
+
 message(STATUS "Patches applied.")
 message(STATUS "")
