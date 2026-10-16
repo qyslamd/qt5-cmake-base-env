@@ -53,6 +53,27 @@
 - [ ] mermaid 的 `theme` 目前固定 `default`：要跟随应用主题（深色/浅色）得把它
       接到配置上，并注意主题 CSS 一变，`InlineSvgCss` 的层叠偏差就会被放大。
 
+## 暗色主题（2026-10-16 决定暂不做，先记在这）
+
+一份 CSS 只能拿到一半。正文/代码高亮/页面底色是纯 CSS 的事（`MD_MARKDOWN_CSS`
+已经验过：改色不重编），但下面三处在**光栅化那一刻就烧死了**，换 CSS 没用：
+
+- [ ] 公式：MathJax 输出 `stroke="currentColor" fill="currentColor"`（用 node 跑
+      基座载荷实测），而我们是光栅化成 PNG——那一刻没有"当前颜色"可继承，
+      QSvgRenderer 也不认 `currentColor`，落成黑。**暗底上黑字＝看不见。**
+      做法：`FormulaToImgTag(tex, display)` 加颜色参数，把 `currentColor` 换成
+      具体色值再光栅化；**缓存 key 必须带上颜色**（现在按 tex 缓存，明暗两套会串）
+- [ ] mermaid：`theme:'default'` 的调色板烧进 PNG（淡紫方块＋深字），暗色下是
+      一块块亮斑。做法：`initialize` 的 theme 接同一个开关（`theme:'dark'` 或
+      `themeVariables`），缓存 key 同样加主题维度
+- [ ] 文档里引用的位图图片不受控（预期内，不做）
+- [ ] 第一步（约半天，纯 CSS）：qrc 加 `markdown_dark.css`，`MarkdownView` 加
+      `SetColorScheme(dark)`（或跟随 `QGuiApplication::palette()` 自动挑）；
+      `MD_MARKDOWN_CSS` 仍是最高优先级
+- [ ] 控件外壳（滚动条、QLiteHtmlWidget 底色、查看窗的"打开…"按钮与路径标签）
+      走的是 Qt QSS/调色板，**不在注入的那份 CSS 范围里**：基座的底座层样式表
+      覆盖得到，要单独调就按项目层规矩加
+
 ## 审查留档（2026-10-15，一轮外部 review）
 
 那一轮提出的小改动已全部收掉（见 `git log`；`UnescapeHtml` 补 `&apos;` 那条的
