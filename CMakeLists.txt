@@ -506,6 +506,9 @@ add_subdirectory(examples)
 if(TARGET make_deploy AND TARGET deploy_fft_demo)
     add_dependencies(make_deploy deploy_fft_demo)
 endif()
+if(TARGET make_deploy AND TARGET deploy_md_viewer)
+    add_dependencies(make_deploy deploy_md_viewer)
+endif()
 
 # 单元测试
 if(BUILD_TESTS)
