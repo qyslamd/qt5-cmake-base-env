@@ -263,6 +263,9 @@ local.cmake
 # 这一份不入库——换台机器路径就不对了
 scripts/make_appimage.sh
 
+# scripts\tree.bat 的产物（仓库树快照，随源码变，随时可重跑）
+scripts/info.txt
+
 # 打包输出：安装程序 / AppImage 与归档的符号。Windows 侧的产物恰好被
 # *.exe / *.pdb 规则覆盖，而 AppImage 与无扩展名的 Linux 符号文件不在任何
 # 扩展名规则内，故整目录忽略
