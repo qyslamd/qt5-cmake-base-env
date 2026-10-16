@@ -5,6 +5,8 @@ set(TARGET_SRCS
     code_highlighter.h
     formula_renderer.cpp
     formula_renderer.h
+    heading_ids.cpp
+    heading_ids.h
     mermaid_css_inliner.cpp
     mermaid_css_inliner.h
     mermaid_renderer.cpp

@@ -72,6 +72,8 @@ class MarkdownView : public QWidget {
   QString base_dir_;
   // 代码块 id → 原始代码文本，供"复制"链接取用；每次 ApplyDocument 重建
   QHash<QString, QString> code_blocks_;
+  // 标题 slug → 元素 id，供页内锚点反查；同样每次 ApplyDocument 重建
+  QHash<QString, QString> heading_ids_;
   qreal zoom_ = 1.0;
 };
 

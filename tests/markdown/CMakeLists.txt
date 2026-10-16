@@ -19,6 +19,16 @@ add_unit_test(
     LABELS MARKDOWN
 )
 
+# 标题锚点：slug 规则与 ASCII id 的生成是纯字符串变换，可逐条断言。
+# 为什么 id 非 ASCII 不可、data-md-slug 为什么要跟着走，见用例头部注释
+add_unit_test(
+    NAME test_heading_ids
+    SOURCES heading_ids_test.cpp
+    LIBS ${APP_TARGET_PREFIX}_markdown
+    QT_MODULES Core
+    LABELS MARKDOWN
+)
+
 # 公式渲染的端到端判据：载荷加载 → QuickJS 里 tex→svg → 画成 PNG → <img>。
 # 这条链路以前只能靠 funq 抓像素看，而像素判据没法进 CI、也不好在无显示的
 # 机器上跑；测试自己起 QGuiApplication 并切 offscreen 平台，无头也能验。

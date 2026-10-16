@@ -255,9 +255,13 @@ void MarkdownView::SetContent(const QString& markdown,
 }
 
 void MarkdownView::ScrollToAnchor(const QString& anchor) {
-  if (!anchor.isEmpty()) {
-    html_->scrollToAnchor(anchor);
+  if (anchor.isEmpty()) {
+    return;
   }
+  // 用户写的锚点是 slug（可能是 CJK），元素的 id 是纯 ASCII 的 h-N——查表
+  // 换过去（表在 ApplyDocument 里建好）。查不到就原样透传：手写的
+  // <a name="x"> 这类锚点还得靠 litehtml 自己找
+  html_->scrollToAnchor(heading_ids_.value(anchor, anchor));
 }
 
 void MarkdownView::ApplyDocument() {
@@ -270,15 +274,21 @@ void MarkdownView::ApplyDocument() {
   }
   html_->setUrl(base);
   // 公式与图表渲染以回调注入：markdown 模块不依赖渲染引擎，这里把它接上。
-  // 代码块表每次重建——旧文档的 id 不能留到新文档里（表是 copy: 链接的唯一
-  // 数据源，串了就会复制出上一份文档的代码）
+  // 代码块表与锚点表每次重建——旧文档的表不能留到新文档里（一个是 copy:
+  // 链接的唯一数据源，串了会复制出上一份文档的代码；另一个会让 #锚点 跳到
+  // 上一份文档的元素上）
   code_blocks_.clear();
-  html_->setHtml(WrapDocument(
-      MarkdownToHtml(markdown_, FormulaToImgTag, MermaidToImgTag,
-                     [this](const QString& id, const QString& code) {
-                       code_blocks_.insert(id, code);
-                     }),
-      LoadDefaultCss()));
+  heading_ids_.clear();
+  html_->setHtml(
+      WrapDocument(MarkdownToHtml(
+                       markdown_, FormulaToImgTag, MermaidToImgTag,
+                       [this](const QString& id, const QString& code) {
+                         code_blocks_.insert(id, code);
+                       },
+                       [this](const QString& slug, const QString& id) {
+                         heading_ids_.insert(slug, id);
+                       }),
+                   LoadDefaultCss()));
 }
 
 void MarkdownView::ShowMessage(const QString& text) {

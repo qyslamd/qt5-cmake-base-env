@@ -89,11 +89,5 @@
 - `MetricsFor` 在两边 family 都空时落到 Qt 默认字体：只在这个平台连一个 CJK 族都没有时
   发生，此时本来就该报警告（`PickCjkFamily` 已经会 warning）
 
-可选的扩展点（不急）：
-
-- [ ] 标题 anchor：`[x](#heading-name)` 这种 GitHub 风格锚点现在跳不了——md4c 不给标题加
-      `id`，只有显式 `<a name>` 有效。要做就在 `HighlightCodeBlocks` 之后过一遍 HTML 给
-      `<h1>`–`<h6>` 补 `id`。等真要跨文档锚点再做
-
 架构备注：`MarkdownWindow`（一窗一篇）与 `MarkdownView`（一篇一视图）的划分对"分栏预览 +
 编辑器"是友好的——届时 `MarkdownView::SetContent(markdown, base_dir)` 就够用，不必改结构。

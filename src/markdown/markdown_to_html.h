@@ -5,6 +5,8 @@
 
 #include <QString>
 
+#include "heading_ids.h"
+
 // 公式渲染回调：tex 原文 + 是否独立公式 → 可直接内联的 HTML（通常是 <img>）。
 // 返回空串表示渲染不出来，正文里会保留原文（红色 <code class="math-src">）。
 //
@@ -29,10 +31,12 @@ using CodeBlockSink =
 // 按 GFM 方言解析：表格、删除线、任务列表都在这个 dialect 里，用默认 flags
 // 会把表格静默丢掉。围栏代码块交给 HighlightCode 上色、包一层带"复制"链接
 // 的框；$…$/$$…$$ 交给 formula 渲染（不传则原样保留）；```mermaid 交给
-// mermaid 渲染（不传则退回代码块）。code_blocks 不传时复制链接查不到原文，
-// 点了没反应——查看器把它接上即可（见 MarkdownView）。
+// mermaid 渲染（不传则退回代码块）。标题一律补 id 与 data-md-slug，并把
+// 「slug → 元素 id」交给 heading_ids——不给回调时锚点表就没建，页内 #跳转
+// 会原地不动。code_blocks 同理：不传则复制链接点了没反应（见 MarkdownView）。
 QString MarkdownToHtml(const QString& markdown, const FormulaSink& formula = {},
                        const MermaidSink& mermaid = {},
-                       const CodeBlockSink& code_blocks = {});
+                       const CodeBlockSink& code_blocks = {},
+                       const HeadingSink& heading_ids = {});
 
 #endif  // FILE_MARKDOWN_MARKDOWN_TO_HTML_H_

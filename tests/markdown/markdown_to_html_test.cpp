@@ -22,9 +22,26 @@ TEST(MarkdownToHtmlTest, RendersGfmTable) {
 TEST(MarkdownToHtmlTest, RendersHeadingsAndInlineCode) {
   const QString html =
       MarkdownToHtml(QStringLiteral("# 标题\n\n正文 `inline` 结束。\n"));
-  EXPECT_TRUE(html.contains(QStringLiteral("<h1>标题</h1>")))
+  // 标题一律带锚点：id 是纯 ASCII 的 h-N，slug 挂 data-md-slug（非 ASCII 的
+  // id 会被 litehtml 改写，见 heading_ids.h）
+  EXPECT_TRUE(html.contains(
+      QStringLiteral("<h1 id=\"h-0\" data-md-slug=\"标题\">标题</h1>")))
       << html.toStdString();
   EXPECT_TRUE(html.contains(QStringLiteral("<code>inline</code>")))
+      << html.toStdString();
+}
+
+// 标题表要经 sink 交到宿主手上：页内 #跳转 就是拿它把 slug 换成元素 id 的。
+// 这条钉的是"MarkdownToHtml 有没有把这条线接上"，规则细节归 heading_ids_test
+TEST(MarkdownToHtmlTest, HeadingsReachTheSink) {
+  QHash<QString, QString> ids;
+  const QString html = MarkdownToHtml(
+      QStringLiteral("## 跳转测试\n"), FormulaSink(), MermaidSink(),
+      CodeBlockSink(),
+      [&ids](const QString& slug, const QString& id) { ids.insert(slug, id); });
+  ASSERT_EQ(ids.size(), 1);
+  EXPECT_EQ(ids.value(QStringLiteral("跳转测试")), QStringLiteral("h-0"));
+  EXPECT_TRUE(html.contains(QStringLiteral("id=\"h-0\"")))
       << html.toStdString();
 }
 
