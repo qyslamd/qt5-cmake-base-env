@@ -72,3 +72,15 @@ add_unit_test(
     QT_MODULES Core
     LABELS MARKDOWN
 )
+
+# 查找与打印：渲染控件的既有能力，模块只做透传。判据取行为最小面——找得到/
+# 找不到、PDF 真的出得来。无头（offscreen + QPrinter(PdfFormat) 写临时文件），
+# 要 Widgets 与 PrintSupport；NO_GTEST_MAIN 是因为要自己建 QApplication
+add_unit_test(
+    NAME test_markdown_view_actions
+    SOURCES markdown_view_actions_test.cpp
+    LIBS ${APP_TARGET_PREFIX}_markdown
+    QT_MODULES Widgets PrintSupport
+    LABELS MARKDOWN
+    NO_GTEST_MAIN
+)

@@ -3,11 +3,13 @@
 
 #include <QHash>
 #include <QString>
+#include <QTextDocument>
 #include <QUrl>
 #include <QWidget>
 
 class QFileSystemWatcher;
 class QLiteHtmlWidget;
+class QPrinter;
 
 // copy: 链接（代码块"复制"按钮）→ 要复制的原文；不是 copy: 或表里查不到
 // 返回空串。抽成自由函数是为了可测：物理点击 funq 驱动不了（html 是
@@ -41,8 +43,19 @@ class MarkdownView : public QWidget {
   QString current_file() const { return current_file_; }
   bool has_document() const { return !current_file_.isEmpty(); }
 
-  // 滚到页内锚点。md4c 不给标题加 id，找不到目标时原地不动
+  // 滚到页内锚点：用户写的是 slug（`#标题`），这里经内部的 slug→id 表换成
+  // 元素再滚；查不到就原样透传（手写的 <a name="x"> 那类归 litehtml 自己找）
   void ScrollToAnchor(const QString& anchor);
+
+  // 查找并选中命中处（找到会滚过去）。wrapped 非空时被写成"本次是否绕回了
+  // 开头"（每次调用都会写——控件本体只在绕回时写，见实现），宿主拿它提示
+  // "已到末尾"。返回 false = 没有命中，选区不动
+  bool FindText(const QString& text, QTextDocument::FindFlags flags,
+                bool* wrapped = nullptr);
+  // 打印/导出 PDF：QPrinter 由宿主自备（本控件不碰文件系统与输出格式）。
+  // 控件按 print 媒体重排一遍再逐页绘制——分页是按页高切片的，跨页的长
+  // 元素会被切在页缝上
+  void Print(QPrinter* printer);
 
  signals:
   void linkClicked(const QUrl& url);

@@ -150,5 +150,11 @@ apply_patch_to_dir("${3RDPARTY_DIR}/quickjs-0.17.0"
 apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
     "${PATCHES_DIR}/qlitehtml/0001-qt-5.12-compat.patch")
 
+# qlitehtml：打印支持被上游判在 "TARGET Qt5::PrintSupport AND QT_FEATURE_printer"
+# 上，而后者只有自己 configure 出来的 Qt 才有——官方二进制包不带它，整条判据
+# 恒假，QLITEHTML_HAS_QPRINTER 永远 0，QLiteHtmlWidget::print() 静默变空操作
+apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
+    "${PATCHES_DIR}/qlitehtml/0002-print-with-binary-qt.patch")
+
 message(STATUS "Patches applied.")
 message(STATUS "")

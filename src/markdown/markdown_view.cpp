@@ -264,6 +264,27 @@ void MarkdownView::ScrollToAnchor(const QString& anchor) {
   html_->scrollToAnchor(heading_ids_.value(anchor, anchor));
 }
 
+bool MarkdownView::FindText(const QString& text, QTextDocument::FindFlags flags,
+                            bool* wrapped) {
+  if (text.isEmpty()) {
+    return false;  // 空串不是"找全部"，是误用；选区与滚动都别动
+  }
+  // 控件只在"绕回"时写 wrapped，没绕回就原样留着——宿主拿到的会是个没初始化的
+  // 值。这里先清零，把契约补成"每次调用都有效"
+  if (wrapped != nullptr) {
+    *wrapped = false;
+  }
+  // incremental 固定 false：本仓没有"边打字边找"的 UI，省得宿主以为它有
+  return html_->findText(text, flags, /*incremental=*/false, wrapped);
+}
+
+void MarkdownView::Print(QPrinter* printer) {
+  if (printer == nullptr) {
+    return;
+  }
+  html_->print(printer);
+}
+
 void MarkdownView::ApplyDocument() {
   // 先 setUrl 再 setHtml：setHtml 会立刻渲染，顺序反了首帧的相对图片与相对
   // 链接会按错误的基准解析。没有基准时也显式清掉，别让上一份文档的目录留下来
