@@ -100,6 +100,9 @@ void ParseDecls(const QString& body, QHash<QString, QString>* decls,
                 QSet<QString>* important) {
   // 不传 SkipEmptyParts：Qt::SkipEmptyParts 要 5.14，QString::SkipEmptyParts
   // 在 5.15 又弃用（同 code_highlighter.cpp 的口径），空项在这里跳过
+  // TODO: 这里按 ';' 硬切，CSS 值里带引号的分号（合法但罕见，如
+  // content:"a;b"）会被切碎。mermaid 现在的输出没这种写法，真遇到再补一个
+  // 带引号状态的扫描
   const QStringList parts = body.split(QChar(';'));
   for (const QString& p : parts) {
     const int colon = p.indexOf(QChar(':'));

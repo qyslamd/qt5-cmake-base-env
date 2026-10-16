@@ -44,14 +44,19 @@ TEST(MarkdownToHtmlTest, CodeBlockWithoutLanguageHasNoClass) {
 }
 
 // 回归点：代码块里的 "<" 从 md4c 出来是 &lt;，高亮器还原再转义，一进一出
-// 之后必须还是 &lt;——漏了任何一半都会让代码里的尖括号变成真标签
+// 之后必须还是 &lt;——漏了任何一半都会让代码里的尖括号变成真标签。
+// 单引号同理：高亮器还原的实体表里少认 &apos;，字面的 ' 就会以 "&apos;" 的
+// 形式显示出来（代码块里实体按 GFM 保持字面量，所以这里钉的是"字面引号
+// 原样出来"，不是"实体被解码"）
 TEST(MarkdownToHtmlTest, CodeBlockKeepsAngleBracketsEscaped) {
-  const QString html =
-      MarkdownToHtml(QStringLiteral("```cpp\nif (a < b && c > d) {}\n```\n"));
+  const QString html = MarkdownToHtml(
+      QStringLiteral("```cpp\nif (a < b && c > d) { x = 'y'; }\n```\n"));
   EXPECT_TRUE(html.contains(QStringLiteral("&lt;"))) << html.toStdString();
   EXPECT_TRUE(html.contains(QStringLiteral("&amp;&amp;")))
       << html.toStdString();
   EXPECT_FALSE(html.contains(QStringLiteral("a < b"))) << html.toStdString();
+  EXPECT_TRUE(html.contains(QStringLiteral("'y'"))) << html.toStdString();
+  EXPECT_FALSE(html.contains(QStringLiteral("apos;"))) << html.toStdString();
 }
 
 // 原始 HTML 按 GitHub 的惯例放行（文档里常用 <br>、<sub>），qlitehtml 不执行

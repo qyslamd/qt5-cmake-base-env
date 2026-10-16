@@ -11,6 +11,9 @@
 //
 // 首次调用才加载 JS 载荷（1.5MB 且首次求值要一两秒），没公式的文档不付这个
 // 钱；结果按 (tex, display) 缓存。渲染失败返回空串——调用方按"显示原文"兜底。
+//
+// qrc 载荷的初始化由本模块内部完成（Q_INIT_RESOURCE
+// 幂等），宿主不需要做任何事。
 QString FormulaToImgTag(const QString& tex, bool display);
 
 // JS 载荷是否可用（加载失败即永久不可用，不会反复重试）

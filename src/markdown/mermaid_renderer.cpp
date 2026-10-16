@@ -8,6 +8,7 @@
 #include <QFont>
 #include <QFontDatabase>
 #include <QFontMetricsF>
+#include <QGuiApplication>
 #include <QHash>
 #include <QImage>
 #include <QJsonDocument>
@@ -58,6 +59,9 @@ void DumpStage(int index, const QString& stage, const QByteArray& data) {
 // SVG 自己写的族名走——两者都过 Qt 的替换链，仍然同源，只是中文可能缺字。
 
 QString PickCjkFamily() {
+  // 只许在 GUI 线程、QGuiApplication 构造之后调：QFontDatabase 需要应用实例
+  // （将来渲染搬进后台线程时，这条断言会先响，别把它当噪声）
+  Q_ASSERT(qGuiApp != nullptr);
   const QStringList candidates = {
       QStringLiteral("Microsoft YaHei"),     // Windows
       QStringLiteral("Noto Sans CJK SC"),    // Linux 常见
@@ -89,7 +93,8 @@ bool IsBoldWeight(const QString& weight) {
 
 // mermaid 的度量回调：QFontMetricsF 走的是 QFont 的替换链，与 QSvgRenderer
 // 绘制时同一条路。不用 QRawFont——它的 advancesForGlyphs 不做字体替换，
-// 缺字时会与绘制对不上
+// 缺字时会与绘制对不上。
+// 前置条件同 PickCjkFamily：GUI 线程 + QGuiApplication 已构造
 QFontMetricsF MetricsFor(const QString& js_family, double size_px,
                          const QString& weight) {
   const QString family = MermaidFontFamily();

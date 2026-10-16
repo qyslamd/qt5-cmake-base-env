@@ -225,6 +225,8 @@ QString UnescapeHtml(const QString& text) {
   out.replace(QStringLiteral("&quot;"), QStringLiteral("\""));
   out.replace(QStringLiteral("&lt;"), QStringLiteral("<"));
   out.replace(QStringLiteral("&gt;"), QStringLiteral(">"));
+  // md4c 在 GFM 下一般发 &#39;，补 &apos; 是完整性（同一批实体别漏一个）
+  out.replace(QStringLiteral("&apos;"), QStringLiteral("'"));
   out.replace(QStringLiteral("&amp;"), QStringLiteral("&"));
   return out;
 }

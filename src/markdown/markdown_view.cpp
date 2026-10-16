@@ -1,5 +1,6 @@
 #include "markdown_view.h"
 
+#include <QDebug>
 #include <QFile>
 #include <QFileInfo>
 #include <QFileSystemWatcher>
@@ -23,7 +24,22 @@ const QString& LoadDefaultCss() {
   static const QString kCss = []() -> QString {
     QFile file(QStringLiteral(":/markdown/markdown_default.css"));
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-      return {};
+      // qrc 读不出来是构建问题、运行时几乎不会发生，但"样式全丢"比"丑一点"
+      // 严重得多（表格/代码块/图都会失去排版），退回一份最小样式并留痕
+      qWarning() << "markdown: default css missing from resources,"
+                    " falling back to built-in minimal css";
+      return QStringLiteral(
+          "body { font-family: sans-serif; font-size: 14px;"
+          " line-height: 1.6; margin: 16px; }\n"
+          "pre, code { font-family: monospace; }\n"
+          "pre { background: #f6f8fa; padding: 8px; overflow-x: auto; }\n"
+          "table { border-collapse: collapse; }\n"
+          "table th, table td { border: 1px solid #d0d7de;"
+          " padding: 4px 8px; }\n"
+          "img { max-width: 100%; }\n"
+          ".math-display { display: block; margin: 10px auto; }\n"
+          ".mermaid-wrap { text-align: center; margin: 12px 0; }\n"
+          "img.mermaid { max-width: 100%; height: auto; }\n");
     }
     return QString::fromUtf8(file.readAll());
   }();

@@ -166,8 +166,10 @@ struct RowSpan {
 
 // 切出 <text> 里的顶层 tspan（mermaid 每行一个，内部再套 run）
 QVector<RowSpan> TopLevelTspans(const QString& inner) {
+  // 第一个候选连自闭合的 <tspan .../> 一起吃（[^>]* 会把结尾的 / 一并吞掉），
+  // 是不是自闭合由下面的 endsWith("/>") 判
   static const QRegularExpression kTag(
-      QStringLiteral("<tspan\\b[^>]*>|</tspan>|<tspan\\b[^>]*/>"));
+      QStringLiteral("<tspan\\b[^>]*/?>|</tspan>"));
   QVector<RowSpan> rows;
   int depth = 0;
   int content_start = -1;
@@ -315,7 +317,9 @@ QHash<QString, MarkerDef> ParseMarkers(const QString& svg) {
       continue;
     }
     MarkerDef def;
-    def.attrs = StripPositionAttrs(tag);
+    // 原样留着：marker 上没有 x/y/dx/dy，该剥的 id/refX/refY/marker*/orient 等
+    // 在展开时由 MarkerStyleAttrs 一并处理
+    def.attrs = tag;
     def.content = match.captured(2);
     ParseNumber(AttrOf(tag, QStringLiteral("refX")), &def.ref_x);
     ParseNumber(AttrOf(tag, QStringLiteral("refY")), &def.ref_y);

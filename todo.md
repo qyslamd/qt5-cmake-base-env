@@ -52,35 +52,13 @@
       的 `-text` 让两个平台 checkout 出同样的字节（哈希才可比）。
 - [ ] mermaid 的 `theme` 目前固定 `default`：要跟随应用主题（深色/浅色）得把它
       接到配置上，并注意主题 CSS 一变，`InlineSvgCss` 的层叠偏差就会被放大。
-- [x] windows 上 `-p` / `-d` 收集不到 QtPrintSupport.dll —— 已修：它是 QCustomPlot
-      带进 `fft_demo.exe` 的，而 app 侧的 `make_deploy` 只对 `demo_app.exe` 跑
-      windeployqt（依赖按导入表收集，demo_app 不导入它）。现在 `fft_demo` 有自己的
-      `deploy_fft_demo`，顶层把它挂成 `make_deploy` 的前置（顺序执行，避免两个
-      windeployqt 同时往 bin/ 写）。**安装包不受影响**：Inno 脚本只收 demo_app
 
-## 代码审查发现（2026-10-15，一轮外部 review 的整理）
+## 审查留档（2026-10-15，一轮外部 review）
 
-不影响功能，但值得收拾的（都在 markdown 模块，每条都是小改动）：
-
-- [ ] `mermaid_svg_cleanup.cpp`：`MarkerDef::attrs = StripPositionAttrs(tag)` 是冗余调用
-      （真正剥 marker 属性的是 `MarkerStyleAttrs`），而函数名说的是"剥 x/y/dx/dy"，
-      与用途不符、容易误导 → 删掉这个调用，或把函数改名 `StripXY`
-- [ ] `mermaid_renderer.h`：给 `MermaidFontFamily()` 写明前置条件——**只许在 GUI 线程、
-      QGuiApplication 构造之后调用**（内部走 `QFontDatabase`），`MetricsFor` 同理；
-      能加 `Q_ASSERT(qApp)` 更好
-- [ ] 两个 renderer 各自调 `Q_INIT_RESOURCE(markdown_res)`（幂等、安全）：头文件里写明
-      "qrc 初始化由库内部完成，宿主不需要做任何事"，省得宿主重复调
-- [ ] `markdown_to_html.cpp` 的 `UnescapeHtml` 补 `&apos;` → `'`：md4c 在 GFM 下一般发
-      `&#39;` 而不是 `&apos;`（所以至今没暴露），补上是完整性
-- [ ] `mermaid_svg_cleanup.cpp` 的 `TopLevelTspans` 正则第三个分支是死代码——
-      `[^>]*>` 已经把自闭合的 `/>` 吞了；可简化成 `"<tspan\\b[^>]*/?>|</tspan>"`
-      （当前逻辑不受影响，因为后面还判 `endsWith("/>")`）
-- [ ] `markdown_view.cpp` 的 `LoadDefaultCss()` 失败时返回空串 = **样式全丢**：qrc 读不出来
-      是构建问题、运行时几乎不会发生，但至少该 `qWarning`，最好再 fallback 一份内置最小 CSS
-- [ ] `mermaid_css_inliner.cpp` 的 `ParseDecls` 按 `;` 硬切：CSS 值里若有引号包裹的分号
-      （合法、罕见）会被切碎。mermaid 现在的输出没这种写法，加个 TODO 注明前提
-
-已确认安全 / 无需动作（留档，免得下次重复怀疑）：
+那一轮提出的小改动已全部收掉（见 `git log`；`UnescapeHtml` 补 `&apos;` 那条的
+细节——代码块里实体按 GFM 保持字面量，所以它防的是"字面单引号被漏成实体"——
+记在 `markdown_to_html_test.cpp` 的用例注释里）。这里只留"查过、确认不用动"的
+结论，免得下次重复怀疑：
 
 - `AttrOf` 的 `\b%1\s*=\s*"…"`：`\brefX` 不会命中 `myrefX`，`refX` 也不会命中 `refY` ✓
 - `InlineSvgCss` 给每个元素（含 `<svg>` / `<defs>` / `<marker>`）都写一份 `font-family`：
