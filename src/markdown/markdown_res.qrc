@@ -10,5 +10,8 @@
         <file alias="mermaid.js">resources/mermaid.js</file>
         <file alias="dom_shim.js">resources/dom_shim.js</file>
         <file alias="path_bbox.js">resources/path_bbox.js</file>
+        <!-- 语法高亮的 JS 载荷（highlight.js 11.12.0，66KB）。重建配方与 md5
+             见 resources/highlight_entry.js 头注释 -->
+        <file alias="highlight.min.js">resources/highlight.min.js</file>
     </qresource>
 </RCC>

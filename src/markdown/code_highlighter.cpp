@@ -1,119 +1,77 @@
 #include "code_highlighter.h"
 
-#include <QHash>
-#include <QSet>
-#include <QStringList>
+#include <quickjs.h>
+
+#include <QDebug>
+#include <QFile>
+
+// 静态库里的 qrc 不会自动初始化，而载荷就在里面。Q_INIT_RESOURCE 展开的是
+// extern 声明 + 一次调用，**必须留在文件作用域、且不能放进匿名命名空间**
+// （放进去会绑到匿名空间上，链接期找不到 rcc 生成的全局函数）。重复调用幂等
+static void EnsureResourcesInitialized() { Q_INIT_RESOURCE(markdown_res); }
 
 namespace {
 
-// 一种语言的词法要素。关键字写成空格分隔的一串，省得摆一堆 QStringLiteral
-struct HighlightRules {
-  QString keywords;
-  QString line_comment;  // 空 = 这种语言没有行注释
-  bool block_comment = false;
-};
+JSRuntime* g_runtime = nullptr;
+JSContext* g_context = nullptr;
+bool g_load_failed = false;
 
-QHash<QString, HighlightRules> BuildRules() {
-  const HighlightRules cpp{
-      QStringLiteral(
-          "if else for while do switch case default break continue return goto "
-          "class struct union enum namespace using template typename public "
-          "private protected virtual override final static const constexpr "
-          "mutable volatile inline explicit friend operator new delete this "
-          "try catch throw noexcept sizeof alignof decltype auto void bool "
-          "char short int long float double signed unsigned wchar_t nullptr "
-          "true false static_cast dynamic_cast const_cast reinterpret_cast "
-          "include define ifndef ifdef endif pragma"),
-      QStringLiteral("//"), true};
-  const HighlightRules cmake{
-      QStringLiteral(
-          "if elseif else endif foreach endforeach function endfunction macro "
-          "endmacro while endwhile break continue return set unset list string "
-          "file math option message include find_package project add_library "
-          "add_executable add_subdirectory add_custom_command "
-          "add_custom_target "
-          "target_link_libraries target_include_directories "
-          "target_compile_definitions target_compile_options "
-          "target_sources target_compile_features install "
-          "set_target_properties "
-          "cmake_minimum_required cmake_parse_arguments and or not in"),
-      QStringLiteral("#"), false};
-  const HighlightRules shell{
-      QStringLiteral(
-          "if then else elif fi for while until do done case esac function "
-          "return break continue local export readonly declare unset source "
-          "echo printf cd exit set test in"),
-      QStringLiteral("#"), false};
-  const HighlightRules python{
-      QStringLiteral(
-          "def class if elif else for while return import from as try except "
-          "finally with lambda yield global nonlocal pass break continue and "
-          "or "
-          "not in is None True False self async await assert del raise"),
-      QStringLiteral("#"), false};
-  const HighlightRules json{QStringLiteral("true false null"), QString(),
-                            false};
-  // CSS/QSS 只认块注释：属性名不当关键字，省得一屏全是高亮
-  const HighlightRules css{QString(), QString(), true};
+bool EnsureLoaded() {
+  if (g_context != nullptr) {
+    return true;
+  }
+  if (g_load_failed) {
+    return false;
+  }
 
-  QHash<QString, HighlightRules> rules;
-  for (const QString& name :
-       {QStringLiteral("cpp"), QStringLiteral("c"), QStringLiteral("cc"),
-        QStringLiteral("cxx"), QStringLiteral("h"), QStringLiteral("hpp"),
-        QStringLiteral("hxx")}) {
-    rules.insert(name, cpp);
+  EnsureResourcesInitialized();
+  QFile file(QStringLiteral(":/markdown/highlight.min.js"));
+  if (!file.open(QIODevice::ReadOnly)) {
+    qWarning() << "highlight payload missing from resources";
+    g_load_failed = true;
+    return false;
   }
-  rules.insert(QStringLiteral("cmake"), cmake);
-  for (const QString& name :
-       {QStringLiteral("bash"), QStringLiteral("sh"), QStringLiteral("bat"),
-        QStringLiteral("cmd"), QStringLiteral("powershell"),
-        QStringLiteral("ps1")}) {
-    rules.insert(name, shell);
-  }
-  for (const QString& name : {QStringLiteral("python"), QStringLiteral("py")}) {
-    rules.insert(name, python);
-  }
-  rules.insert(QStringLiteral("json"), json);
-  for (const QString& name : {QStringLiteral("qss"), QStringLiteral("css")}) {
-    rules.insert(name, css);
-  }
-  return rules;
-}
+  const QByteArray code = file.readAll();
+  file.close();
 
-const HighlightRules& RulesFor(const QString& language) {
-  static const QHash<QString, HighlightRules> kRules = BuildRules();
-  const auto found = kRules.constFind(language.toLower());
-  if (found != kRules.cend()) {
-    return found.value();
+  g_runtime = JS_NewRuntime();
+  if (g_runtime == nullptr) {
+    g_load_failed = true;
+    return false;
   }
-  return kRules.constFind(QStringLiteral("cpp")).value();
-}
+  // 高亮不递归得深，16MB 与 formula/mermaid 两个渲染器同一档
+  JS_SetMaxStackSize(g_runtime, 16U << 20);
+  g_context = JS_NewContext(g_runtime);
+  if (g_context == nullptr) {
+    g_load_failed = true;
+    return false;
+  }
 
-QSet<QString> KeywordSet(const QString& keywords) {
-  QSet<QString> set;
-  // 不用 SkipEmptyParts：Qt::SkipEmptyParts 是 5.14 才有的，而 Linux 侧的系统
-  // Qt（Ubuntu 20.04）是 5.12；旧的 QString::SkipEmptyParts 在 5.15 又被弃用。
-  // 空串本就不该进关键字表，顺手滤掉，与 Qt 版本彻底解耦
-  const QStringList words = keywords.split(QLatin1Char(' '));
-  for (const QString& word : words) {
-    if (!word.isEmpty()) {
-      set.insert(word);
+  const JSValue result = JS_Eval(g_context, code.constData(), code.size(),
+                                 "highlight", JS_EVAL_TYPE_GLOBAL);
+  if (JS_IsException(result)) {
+    JSValue exception = JS_GetException(g_context);
+    const char* message = JS_ToCString(g_context, exception);
+    qWarning() << "highlight payload eval failed:"
+               << (message != nullptr ? message : "?");
+    if (message != nullptr) {
+      JS_FreeCString(g_context, message);
     }
+    JS_FreeValue(g_context, exception);
+    JS_FreeValue(g_context, result);
+    g_load_failed = true;
+    return false;
   }
-  return set;
+  JS_FreeValue(g_context, result);
+  return true;
 }
 
-QString EscapeHtml(const QString& text) {
-  QString out = text;
-  out.replace(QLatin1Char('&'), QStringLiteral("&amp;"));
-  out.replace(QLatin1Char('<'), QStringLiteral("&lt;"));
-  out.replace(QLatin1Char('>'), QStringLiteral("&gt;"));
+QString EscapeHtml(const QString& s) {
+  QString out = s;
+  out.replace(QChar('&'), QStringLiteral("&amp;"));
+  out.replace(QChar('<'), QStringLiteral("&lt;"));
+  out.replace(QChar('>'), QStringLiteral("&gt;"));
   return out;
-}
-
-QString Span(const QString& css_class, const QString& text) {
-  return QStringLiteral("<span class=\"%1\">%2</span>")
-      .arg(css_class, EscapeHtml(text));
 }
 
 }  // namespace
@@ -122,96 +80,52 @@ QString HighlightCode(const QString& code, const QString& language) {
   if (code.isEmpty()) {
     return {};
   }
+  if (!EnsureLoaded()) {
+    return EscapeHtml(code);  // 载荷挂了：纯转义兜底
+  }
 
-  const HighlightRules& rules = RulesFor(language);
-  const QSet<QString> keywords = KeywordSet(rules.keywords);
-  // C 系的多行注释要跨行保持状态，其余语言用不上
-  bool in_block_comment = false;
+  // 参数走全局变量传入，避免手写 JS 字符串转义（代码块里什么字符都可能有）
+  const QByteArray code_utf8 = code.toUtf8();
+  const QByteArray lang_utf8 = language.toUtf8();
+  JSValue global = JS_GetGlobalObject(g_context);
+  JS_SetPropertyStr(
+      g_context, global, "__hl_code",
+      JS_NewStringLen(g_context, code_utf8.constData(), code_utf8.size()));
+  JS_SetPropertyStr(
+      g_context, global, "__hl_lang",
+      JS_NewStringLen(g_context, lang_utf8.constData(), lang_utf8.size()));
+  JS_FreeValue(g_context, global);
 
-  QString out;
-  const QStringList lines = code.split(QLatin1Char('\n'));
-  for (int line_index = 0; line_index < lines.size(); ++line_index) {
-    const QString& line = lines[line_index];
-    int i = 0;
-    while (i < line.size()) {
-      if (in_block_comment) {
-        const int end = line.indexOf(QStringLiteral("*/"), i);
-        if (end < 0) {
-          out += Span(QStringLiteral("cmt"), line.mid(i));
-          i = line.size();
-        } else {
-          out += Span(QStringLiteral("cmt"), line.mid(i, end - i + 2));
-          i = end + 2;
-          in_block_comment = false;
-        }
-        continue;
-      }
+  static const QByteArray kCall = QByteArrayLiteral(
+      "(function(){"
+      "  var r = __highlight(__hl_code, __hl_lang);"
+      "  return (r === null || r === undefined) ? '' : r;"
+      "})()");
+  const JSValue value = JS_Eval(g_context, kCall.constData(), kCall.size(),
+                                "hl-call", JS_EVAL_TYPE_GLOBAL);
 
-      // 行注释：空串会匹配一切，所以这条判断要先看规则里有没有注释符
-      if (!rules.line_comment.isEmpty() &&
-          line.mid(i, rules.line_comment.size()) == rules.line_comment) {
-        out += Span(QStringLiteral("cmt"), line.mid(i));
-        i = line.size();
-        continue;
-      }
-
-      if (rules.block_comment && line.mid(i, 2) == QStringLiteral("/*")) {
-        out += Span(QStringLiteral("cmt"), QStringLiteral("/*"));
-        i += 2;
-        in_block_comment = true;
-        continue;
-      }
-
-      const QChar current = line[i];
-
-      if (current == QLatin1Char('"') || current == QLatin1Char('\'')) {
-        const QChar quote = current;
-        int j = i + 1;
-        while (j < line.size() && line[j] != quote) {
-          if (line[j] == QLatin1Char('\\')) {
-            ++j;
-          }
-          ++j;
-        }
-        if (j < line.size()) {
-          ++j;  // 收尾引号
-        }
-        out += Span(QStringLiteral("str"), line.mid(i, j - i));
-        i = j;
-        continue;
-      }
-
-      if (current.isLetter() || current == QLatin1Char('_')) {
-        int j = i;
-        while (j < line.size() &&
-               (line[j].isLetterOrNumber() || line[j] == QLatin1Char('_'))) {
-          ++j;
-        }
-        const QString word = line.mid(i, j - i);
-        out += keywords.contains(word) ? Span(QStringLiteral("kw"), word)
-                                       : EscapeHtml(word);
-        i = j;
-        continue;
-      }
-
-      if (current.isDigit()) {
-        int j = i;
-        while (j < line.size() &&
-               (line[j].isDigit() || line[j] == QLatin1Char('.'))) {
-          ++j;
-        }
-        out += Span(QStringLiteral("num"), line.mid(i, j - i));
-        i = j;
-        continue;
-      }
-
-      out += EscapeHtml(QString(current));
-      ++i;
+  QString result;
+  if (JS_IsException(value)) {
+    JSValue exception = JS_GetException(g_context);
+    const char* message = JS_ToCString(g_context, exception);
+    qWarning() << "highlight call exception:"
+               << (message != nullptr ? message : "?");
+    if (message != nullptr) {
+      JS_FreeCString(g_context, message);
     }
-
-    if (line_index < lines.size() - 1) {
-      out += QLatin1Char('\n');
+    JS_FreeValue(g_context, exception);
+  } else {
+    const char* text = JS_ToCString(g_context, value);
+    result = QString::fromUtf8(text != nullptr ? text : "");
+    if (text != nullptr) {
+      JS_FreeCString(g_context, text);
     }
   }
-  return out;
+  JS_FreeValue(g_context, value);
+
+  // 空结果（未注册语言、JS 侧异常）都退纯转义：高亮挂了不至于白块
+  if (result.isEmpty()) {
+    return EscapeHtml(code);
+  }
+  return result;
 }

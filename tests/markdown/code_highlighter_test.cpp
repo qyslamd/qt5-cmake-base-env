@@ -3,95 +3,78 @@
 #include <gtest/gtest.h>
 
 #include <QString>
+#include <QStringList>
 
+// 高亮的端到端判据：qrc 载荷 → QuickJS 里跑 highlight.js → 类名映射后的
+// HTML。类名（kw/str/num/cmt/…）是与 markdown_default.css 的唯一契约，这里
+// 钉的是"关键字/字符串有没有被认出来""每行的 span 是否配平"这类静默出错的
+// 地方；配色本身是 CSS 的事
 namespace {
 
-TEST(CodeHighlighterTest, ColorsKeywordsStringsNumbersAndComments) {
+TEST(CodeHighlighterTest, ColorsCppKeywordsStringsNumbersAndComments) {
   const QString html = HighlightCode(
       QStringLiteral(
           "class A { int n = 42; const char* s = \"x\"; };  // 说明"),
       QStringLiteral("cpp"));
-  EXPECT_TRUE(html.contains(QStringLiteral("<span class=\"kw\">class</span>")))
+  EXPECT_TRUE(html.contains(QStringLiteral("class=\"kw\"")))
       << html.toStdString();
-  EXPECT_TRUE(html.contains(QStringLiteral("<span class=\"num\">42</span>")))
+  EXPECT_TRUE(html.contains(QStringLiteral("class=\"num\"")))
       << html.toStdString();
-  EXPECT_TRUE(html.contains(QStringLiteral("<span class=\"str\">\"x\"</span>")))
-      << html.toStdString();
-  EXPECT_TRUE(
-      html.contains(QStringLiteral("<span class=\"cmt\">// 说明</span>")))
-      << html.toStdString();
-}
-
-// 块注释要跨行保持状态：第二行若被当成普通代码，配色会在注释中间断掉。
-// 注释符单独一段（进入注释那一步就吐出来了），所以逐行断言而不是整段
-TEST(CodeHighlighterTest, BlockCommentSpansLines) {
-  const QString html = HighlightCode(
-      QStringLiteral("/* 第一行\n第二行 */ int a;"), QStringLiteral("cpp"));
-  EXPECT_TRUE(
-      html.contains(QStringLiteral("<span class=\"cmt\"> 第一行</span>")))
-      << html.toStdString();
-  EXPECT_TRUE(
-      html.contains(QStringLiteral("<span class=\"cmt\">第二行 */</span>")))
-      << html.toStdString();
-  // 注释结束后代码恢复着色
-  EXPECT_TRUE(html.contains(QStringLiteral("<span class=\"kw\">int</span>")))
-      << html.toStdString();
-  EXPECT_FALSE(html.contains(QStringLiteral("cmt\"> int")))
-      << html.toStdString();
-}
-
-TEST(CodeHighlighterTest, HashCommentsForShellAndCmake) {
-  const QString shell =
-      HighlightCode(QStringLiteral("echo 1  # 说明"), QStringLiteral("bash"));
-  EXPECT_TRUE(
-      shell.contains(QStringLiteral("<span class=\"cmt\"># 说明</span>")))
-      << shell.toStdString();
-  EXPECT_TRUE(shell.contains(QStringLiteral("<span class=\"kw\">echo</span>")))
-      << shell.toStdString();
-
-  const QString cmake =
-      HighlightCode(QStringLiteral("if(X)  # 条件"), QStringLiteral("cmake"));
-  EXPECT_TRUE(cmake.contains(QStringLiteral("<span class=\"kw\">if</span>")))
-      << cmake.toStdString();
-}
-
-// 每种语言的注释符不能串味：JSON 没有注释，CSS/QSS 只有块注释
-TEST(CodeHighlighterTest, CommentSyntaxDoesNotLeakAcrossLanguages) {
-  const QString json = HighlightCode(QStringLiteral("{\"a\": true}  # x"),
-                                     QStringLiteral("json"));
-  EXPECT_FALSE(json.contains(QStringLiteral("class=\"cmt\"")))
-      << json.toStdString();
-  EXPECT_TRUE(json.contains(QStringLiteral("<span class=\"kw\">true</span>")))
-      << json.toStdString();
-
-  const QString qss = HighlightCode(QStringLiteral("a { color: red; } // x"),
-                                    QStringLiteral("qss"));
-  EXPECT_FALSE(qss.contains(QStringLiteral("class=\"cmt\"")))
-      << qss.toStdString();
-}
-
-TEST(CodeHighlighterTest, UnknownLanguageFallsBackToCpp) {
-  const QString html = HighlightCode(QStringLiteral("int a; // 注释"),
-                                     QStringLiteral("brainfuck"));
-  EXPECT_TRUE(html.contains(QStringLiteral("<span class=\"kw\">int</span>")))
+  EXPECT_TRUE(html.contains(QStringLiteral("class=\"str\"")))
       << html.toStdString();
   EXPECT_TRUE(html.contains(QStringLiteral("class=\"cmt\"")))
       << html.toStdString();
+  // 内容还在（转义过的）
+  EXPECT_TRUE(html.contains(QStringLiteral("42"))) << html.toStdString();
 }
 
-// 高亮结果直接拼进 HTML，源码里的尖括号与 & 必须先转义，否则会变成真标签
-TEST(CodeHighlighterTest, EscapesHtmlSpecials) {
-  const QString html = HighlightCode(QStringLiteral("if (a < b && c > d) {}"),
-                                     QStringLiteral("cpp"));
-  EXPECT_FALSE(html.contains(QStringLiteral("< b"))) << html.toStdString();
-  EXPECT_TRUE(html.contains(QStringLiteral("&lt;"))) << html.toStdString();
-  EXPECT_TRUE(html.contains(QStringLiteral("&amp;&amp;")))
-      << html.toStdString();
-  EXPECT_TRUE(html.contains(QStringLiteral("&gt;"))) << html.toStdString();
+// 围栏标签到 hljs 语言的别名（py→python、bat→dos…）要在入口里处理
+TEST(CodeHighlighterTest, LanguageAliasesResolve) {
+  const QString py = HighlightCode(QStringLiteral("def f():\n    pass\n"),
+                                   QStringLiteral("py"));
+  EXPECT_TRUE(py.contains(QStringLiteral("class=\"kw\""))) << py.toStdString();
+
+  const QString bat =
+      HighlightCode(QStringLiteral("echo hello\n"), QStringLiteral("bat"));
+  EXPECT_FALSE(bat.isEmpty()) << bat.toStdString();
 }
 
-TEST(CodeHighlighterTest, EmptyInputStaysEmpty) {
-  EXPECT_TRUE(HighlightCode(QString(), QStringLiteral("cpp")).isEmpty());
+// 未注册的语言不猜（demo 版会 highlightAuto，这里有意关掉：猜错的配色比不
+// 高亮更难看）——返回纯转义的原文，一个 span 都没有
+TEST(CodeHighlighterTest, UnknownLanguageFallsBackToPlainEscape) {
+  const QString html =
+      HighlightCode(QStringLiteral("a < b & c"), QStringLiteral("notalang"));
+  EXPECT_EQ(html, QStringLiteral("a &lt; b &amp; c")) << html.toStdString();
+  EXPECT_FALSE(html.contains(QStringLiteral("<span"))) << html.toStdString();
+}
+
+// 空输入返回空串（markdown_to_html 对空代码块本来就不该走到这里）
+TEST(CodeHighlighterTest, EmptyInputYieldsEmpty) {
+  EXPECT_EQ(HighlightCode(QString(), QStringLiteral("cpp")), QString());
+}
+
+// 跨行 span 拆行：C++ 侧按 \n 处理代码块时，任何一行的 <span 与 </span>
+// 数量都必须相等，否则 HTML 标签配对会断（splitSpansPerLine 的职责）
+TEST(CodeHighlighterTest, SpansAreBalancedOnEveryLine) {
+  const QString html = HighlightCode(
+      QStringLiteral("/* 第一行\n第二行 */ int a = 1;\n// done\n"),
+      QStringLiteral("cpp"));
+  const QStringList lines = html.split(QChar('\n'));
+  ASSERT_GT(lines.size(), 1);
+  for (const QString& line : lines) {
+    const int open = line.count(QStringLiteral("<span"));
+    const int close = line.count(QStringLiteral("</span>"));
+    EXPECT_EQ(open, close) << line.toStdString();
+  }
+}
+
+// 输出里的类名必须都是 CSS 认识的短类名（hljs-xxx 前缀如果漏映射，样式就
+// 静默丢失——配色看着"对了一半"最难查）
+TEST(CodeHighlighterTest, NoUnmappedHljsClassNamesRemain) {
+  const QString html = HighlightCode(
+      QStringLiteral("#include <vector>\nstruct S { double x; };\n"),
+      QStringLiteral("cpp"));
+  EXPECT_FALSE(html.contains(QStringLiteral("hljs-"))) << html.toStdString();
 }
 
 }  // namespace

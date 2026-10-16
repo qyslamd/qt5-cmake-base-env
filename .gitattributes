@@ -2,7 +2,9 @@
 # （extract_mermaid_payload.py）按 md5 验收，而 git 默认会把文本文件在仓库里
 # 存成 LF、checkout 时按平台转 CRLF，两个平台拿到的字节就不一致了。
 # -text 关掉所有转换（上游 mermaidx 这几份本来就是 CRLF）。
-# 只点名这三个：mathjax-svg.min.js 已经入库且不需要逐字节比对，别去动它。
+# 只点名逐字节要紧的四个：mermaid 三份 + highlight.min.js（它的 md5 钉在
+# highlight_entry.js 头注释里）。mathjax-svg.min.js 不需要逐字节比对，别去动它。
 src/markdown/resources/mermaid.js -text
 src/markdown/resources/dom_shim.js -text
 src/markdown/resources/path_bbox.js -text
+src/markdown/resources/highlight.min.js -text

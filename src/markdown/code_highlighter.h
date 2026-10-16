@@ -3,9 +3,14 @@
 
 #include <QString>
 
-// 源码文本 → 带 <span class="kw|str|num|cmt"> 的 HTML 片段。
-// 这四个类名是与样式表（markdown_default.css）的唯一契约，改配色动 CSS 即可。
-// language 认不出时按 C++ 规则处理；输出已做 HTML 转义，可直接进 HTML。
+// 源码文本 → 带高亮 <span> 的 HTML 片段。实现在 QuickJS 里跑 highlight.js
+// （载荷在 qrc，66KB，配方见 resources/highlight_entry.js 头注释），qrc 初始化
+// 由本模块内部完成，宿主不需要做任何事。
+//
+// 类名是与样式表（markdown_default.css）的唯一契约：kw/str/num/cmt 之外还有
+// ty/bi/fn/tt/lit/var/re/meta/attr/tag/sel/sym/op——映射表在 entry 的
+// CLASS_MAP 里，改配色只动 CSS。language 未注册时返回纯转义的原文（不猜
+// 语言）；输出已做 HTML 转义，可直接进 HTML。
 QString HighlightCode(const QString& code, const QString& language);
 
 #endif  // FILE_MARKDOWN_CODE_HIGHLIGHTER_H_

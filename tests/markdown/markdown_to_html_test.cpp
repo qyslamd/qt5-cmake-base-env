@@ -45,9 +45,9 @@ TEST(MarkdownToHtmlTest, CodeBlockWithoutLanguageHasNoClass) {
 
 // 回归点：代码块里的 "<" 从 md4c 出来是 &lt;，高亮器还原再转义，一进一出
 // 之后必须还是 &lt;——漏了任何一半都会让代码里的尖括号变成真标签。
-// 单引号同理：高亮器还原的实体表里少认 &apos;，字面的 ' 就会以 "&apos;" 的
-// 形式显示出来（代码块里实体按 GFM 保持字面量，所以这里钉的是"字面引号
-// 原样出来"，不是"实体被解码"）
+// 引号：highlight.js 对字符串里的 ' 用数字实体 &#x27; 转义，显示等价，所以
+// 钉的是它而不是字面 '（&apos; 那条还原规则照旧要认，字面引号不许漏成
+// "&apos;" 的样子）
 TEST(MarkdownToHtmlTest, CodeBlockKeepsAngleBracketsEscaped) {
   const QString html = MarkdownToHtml(
       QStringLiteral("```cpp\nif (a < b && c > d) { x = 'y'; }\n```\n"));
@@ -55,7 +55,8 @@ TEST(MarkdownToHtmlTest, CodeBlockKeepsAngleBracketsEscaped) {
   EXPECT_TRUE(html.contains(QStringLiteral("&amp;&amp;")))
       << html.toStdString();
   EXPECT_FALSE(html.contains(QStringLiteral("a < b"))) << html.toStdString();
-  EXPECT_TRUE(html.contains(QStringLiteral("'y'"))) << html.toStdString();
+  EXPECT_TRUE(html.contains(QStringLiteral("&#x27;y&#x27;")))
+      << html.toStdString();
   EXPECT_FALSE(html.contains(QStringLiteral("apos;"))) << html.toStdString();
 }
 
@@ -159,10 +160,11 @@ TEST(MarkdownToHtmlTest, UnclosedDisplayBlockStaysText) {
 TEST(MarkdownToHtmlTest, StrayInlinePreCodeDoesNotSwallowLaterBlocks) {
   const QString html = MarkdownToHtml(
       QStringLiteral("text <pre><code> tail\n\n```cpp\nint a;\n```\n"));
-  // 后面那个真围栏块照常成块且带上语言类
+  // 后面那个真围栏块照常成块且带上语言类；highlight.js 把裸类型归为
+  // type（.ty）而不是 keyword——比旧手写分词器拆得细，这里顺带钉住
   EXPECT_TRUE(html.contains(QStringLiteral("class=\"language-cpp\"")))
       << html.toStdString();
-  EXPECT_TRUE(html.contains(QStringLiteral("<span class=\"kw\">int</span>")))
+  EXPECT_TRUE(html.contains(QStringLiteral("<span class=\"ty\">int</span>")))
       << html.toStdString();
   // 正文那截没被当成代码吞掉
   EXPECT_FALSE(html.contains(QStringLiteral("tail&lt;/p&gt;")))
