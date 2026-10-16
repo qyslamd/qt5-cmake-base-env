@@ -5,12 +5,16 @@
 // 只有升级 MathJax 时才重跑（node 与依赖的版本钉在下面）：
 //
 //   npm install mathjax-full@3.2.1 esbuild@0.28.2
-//   node_modules/.bin/esbuild mathjax_svg_entry.mjs --bundle --minify \
-//     --format=iife --define:process.env.NODE_ENV='"production"' \
+//   <NPM_DIR>/node_modules/.bin/esbuild src/markdown/resources/mathjax_svg_entry.mjs \
+//     --bundle --minify --format=iife \
+//     --alias:mathjax-full=<NPM_DIR>/node_modules/mathjax-full \
+//     --define:process.env.NODE_ENV='"production"' \
 //     --define:PACKAGE_VERSION='"3.2.1"' --outfile=mathjax-svg.min.js
 //
 // 两个 --define 都不能省：mathjax-full 的版本探测写着 eval("require") 去读
 // package.json，而 QuickJS 里没有 require。
+//
+// 重建后对 md5：bfdd6f73560f2e17c09b250cb84aa24c（1618089 字节，实测一致）。
 //
 // 入口本身的要点：
 //  - 不用 es5/ 组件包（那些面向浏览器，引用 window/document），从 js/ 源码组

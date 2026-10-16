@@ -3,7 +3,14 @@
 // 与平台无关，平时不需要 node；升级 highlight.js 时才重跑（版本钉在下面）：
 //
 //   npm install highlight.js@11.12.0 esbuild@0.28.2
-//   npx esbuild highlight_entry.js --bundle --format=iife --minify //     --outfile=highlight.min.js
+//   <NPM_DIR>/node_modules/.bin/esbuild src/markdown/resources/highlight_entry.js \
+//     --bundle --format=iife --minify \
+//     --alias:highlight.js=<NPM_DIR>/node_modules/highlight.js \
+//     --outfile=highlight.min.js
+//
+// --alias 不能省：入口住在仓库里，没有 node_modules。把入口拷到 node_modules
+// 旁边也能建，但入口所在目录的 package.json `type` 会改变 esbuild 的 CJS 互操作
+// 包装，产物差 20 字节（行为相同）——要复现入库那份就照上面原样跑。
 //
 // 入口做的事，按顺序：
 //  - 只注册 9 种语言（core 版不带语言包，注册表外的一律拒绝——见 __highlight
