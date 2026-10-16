@@ -1,6 +1,6 @@
 /* Markdown 预览的默认样式。qlitehtml 自绘，读不到应用级 QSS，这里是它唯一的
-   外观来源：排版规则 + 代码高亮的四个类名（.kw/.str/.num/.cmt，与
-   code_highlighter.h 的契约一致）。改配色只动本文件 */
+   外观来源：排版规则 + 代码高亮的类名（与 code_highlighter.h 的契约一致，
+   完整映射表见 highlight_entry.js 的 CLASS_MAP）。改配色只动本文件 */
 
 body {
   font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
@@ -30,6 +30,10 @@ pre {
   padding: 12px;
   border-radius: 6px;
   margin: 10px 0;
+  /* 长行折行：不折的话 qlitehtml 会把超出容器的部分直接裁掉（右侧看不到），
+     页面还会出横向滚动条 */
+  white-space: pre-wrap;
+  overflow-x: auto;
 }
 
 pre code {
@@ -37,7 +41,12 @@ pre code {
   padding: 0;
   font-family: Consolas, "Courier New", monospace;
   font-size: 13px;
+  /* 定死行高：中文 glyph 比拉丁高，行高跟着字体走时注释块会互相压住、
+     底部被裁；断词让超长 token（长标识符/URL）也能折 */
+  line-height: 20px;
   color: #24292e;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
 blockquote {
@@ -68,8 +77,22 @@ a { color: #5b21b6; }
 .mermaid-wrap { text-align: center; margin: 12px 0; }
 img.mermaid { max-width: 100%; height: auto; }
 
-/* 代码高亮配色 */
-.kw  { color: #d73a49; font-weight: bold; }
-.str { color: #032f62; }
-.num { color: #005cc5; }
-.cmt { color: #6a737d; font-style: italic; }
+/* 代码高亮配色：GitHub Light 2023 色板，类别按 highlight_entry.js 的
+   CLASS_MAP 拆细。改配色只动这里 */
+.kw  { color: #cf222e; }                     /* if/for/return… */
+.ty  { color: #cf222e; }                     /* int/char… */
+.bi  { color: #8250df; }                     /* 函数调用、内建类型名 */
+.fn  { color: #8250df; }                     /* 函数定义名 */
+.tt  { color: #8250df; }                     /* 类名/标题 */
+.lit { color: #0550ae; }                     /* true/false/nullptr */
+.var { color: #953800; }                     /* 变量、参数 */
+.str { color: #0a3069; }                     /* 字符串 */
+.re  { color: #0a3069; }                     /* 正则 */
+.num { color: #0550ae; }                     /* 数字 */
+.cmt { color: #6e7781; font-style: italic; } /* 注释 */
+.meta{ color: #0550ae; }                     /* #include 等 */
+.attr{ color: #0550ae; }                     /* 属性/键 */
+.tag { color: #116329; }                     /* HTML 标签 */
+.sel { color: #0550ae; }                     /* CSS 选择器 */
+.sym { color: #953800; }                     /* 符号 */
+.op  { color: #24292f; }                     /* 操作符/标点，跟正文一档，不抢眼 */
