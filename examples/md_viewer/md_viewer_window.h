@@ -6,8 +6,10 @@
 
 class QAction;
 class QLabel;
+class QLineEdit;
 class QListWidget;
 class QListWidgetItem;
+class QToolBar;
 class FluentWindowFrame;
 class MarkdownView;
 
@@ -30,6 +32,9 @@ class MdViewerWindow : public QMainWindow {
 
   void OpenFileDialog();
   void OpenDirectoryDialog();
+  void ShowFindBar();
+  void FindNext(bool backward);
+  void ExportPdf();
   // 只填列表，不加载——加载由 ShowFile 负责，免得两边互相触发
   void RefreshDirectoryListing(const QString& dir);
   void ShowFile(const QString& path);
@@ -40,6 +45,15 @@ class MdViewerWindow : public QMainWindow {
   QAction* open_dir_action_ = nullptr;
   QAction* quit_action_ = nullptr;
   QAction* about_action_ = nullptr;
+  QAction* export_pdf_action_ = nullptr;
+  QAction* find_action_ = nullptr;
+  QAction* find_next_action_ = nullptr;
+  QAction* find_prev_action_ = nullptr;
+  QAction* find_close_action_ = nullptr;
+
+  // 查找栏：标题栏下方的工具栏，默认藏起来（Ctrl+F 唤出）
+  QToolBar* find_bar_ = nullptr;
+  QLineEdit* find_edit_ = nullptr;
 
   MarkdownView* view_ = nullptr;
   QListWidget* file_list_ = nullptr;

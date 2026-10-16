@@ -7,6 +7,7 @@ set(ALL_SRCS
     main.cpp
     md_viewer_window.cpp
     md_viewer_window.h
+    md_viewer.qrc
 )
 
 add_executable(${TARGET_NAME} WIN32 ${ALL_SRCS})
@@ -25,6 +26,9 @@ target_link_libraries(${TARGET_NAME} PRIVATE
 )
 target_compile_definitions(${TARGET_NAME} PRIVATE APP_UI_FLUENT)
 
+# 导出 PDF：QPrinter 归宿主建（模块只透传），所以链接在示例侧
+target_link_libraries(${TARGET_NAME} PRIVATE Qt5::PrintSupport)
+
 set_target_properties(${TARGET_NAME} PROPERTIES
     AUTOMOC ON
     AUTOUIC ON
@@ -32,6 +36,25 @@ set_target_properties(${TARGET_NAME} PROPERTIES
 
 if(MSVC)
     target_compile_options(${TARGET_NAME} PRIVATE /W4 /WX- /EHsc /utf-8)
+endif()
+
+# Windows .rc：exe 的文件图标与版本信息（右键属性里那几行）。模板与 demo_app
+# 共用；版本号走同一份 version_manage（git tag + 提交数），所以示例的 exe 属性
+# 与主程序对得上同一个版本。APP_APP_NAME 只在本目录覆盖，不影响别的目标
+#
+# icon.ico 由 resources/svg/icon.svg 生成（换了图标重跑这行）：
+#   magick -background none svg/icon.svg \
+#       -define icon:auto-resize=256,128,64,48,32,16 icon.ico
+if(WIN32 AND MSVC)
+    include(${CMAKE_SOURCE_DIR}/cmake/version_manage.cmake)
+    resolve_app_version(APP)
+    set(APP_ICON_PATH "${CMAKE_CURRENT_SOURCE_DIR}/resources/icon.ico")
+    set(APP_APP_NAME "Markdown 查看器")
+    set(OUT_RC_FILE ${CMAKE_CURRENT_BINARY_DIR}/md_viewer.rc)
+    configure_file(${CMAKE_SOURCE_DIR}/cmake/template/app.rc.in
+        ${OUT_RC_FILE}
+        @ONLY)
+    target_sources(${TARGET_NAME} PRIVATE ${OUT_RC_FILE})
 endif()
 
 # 生成运行脚本（Windows 为 .bat，Linux 为 .sh），输出到可执行文件所在目录

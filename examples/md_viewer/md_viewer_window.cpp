@@ -1,5 +1,7 @@
 #include "md_viewer_window.h"
 
+#include <fluentwindowframe.h>
+
 #include <QAction>
 #include <QDir>
 #include <QDockWidget>
@@ -8,14 +10,17 @@
 #include <QFileInfoList>
 #include <QKeySequence>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QPrinter>
+#include <QShortcut>
 #include <QStatusBar>
-
-#include <fluentwindowframe.h>
+#include <QTextDocument>
+#include <QToolBar>
 
 #include "markdown_view.h"
 
@@ -43,6 +48,16 @@ void MdViewerWindow::createActions() {
   quit_action_ = new QAction(QStringLiteral("退出"), this);
   quit_action_->setShortcut(QKeySequence::Quit);
   about_action_ = new QAction(QStringLiteral("关于"), this);
+  export_pdf_action_ = new QAction(QStringLiteral("导出 PDF…"), this);
+
+  // 查找三个动作同时挂菜单与查找栏：动作复用，快捷键就不用写两遍
+  find_action_ = new QAction(QStringLiteral("查找…"), this);
+  find_action_->setShortcut(QKeySequence::Find);
+  find_next_action_ = new QAction(QStringLiteral("查找下一个"), this);
+  find_next_action_->setShortcut(QKeySequence(Qt::Key_F3));
+  find_prev_action_ = new QAction(QStringLiteral("查找上一个"), this);
+  find_prev_action_->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_F3));
+  find_close_action_ = new QAction(QStringLiteral("关闭查找"), this);
 }
 
 void MdViewerWindow::initUi() {
@@ -57,11 +72,32 @@ void MdViewerWindow::initUi() {
   file_menu->addAction(open_file_action_);
   file_menu->addAction(open_dir_action_);
   file_menu->addSeparator();
+  file_menu->addAction(export_pdf_action_);
+  file_menu->addSeparator();
   file_menu->addAction(quit_action_);
+
+  QMenu* edit_menu = menuBar()->addMenu(QStringLiteral("编辑(&E)"));
+  edit_menu->addAction(find_action_);
+  edit_menu->addAction(find_next_action_);
+  edit_menu->addAction(find_prev_action_);
 
   QMenu* view_menu = menuBar()->addMenu(QStringLiteral("视图(&V)"));
   QMenu* help_menu = menuBar()->addMenu(QStringLiteral("帮助(&H)"));
   help_menu->addAction(about_action_);
+
+  // 查找栏：标题栏下方一条工具栏，默认藏起来。objectName 留给 funq 按名字定位
+  find_bar_ = new QToolBar(QStringLiteral("查找"), this);
+  find_bar_->setObjectName(QStringLiteral("findBar"));
+  find_edit_ = new QLineEdit(find_bar_);
+  find_edit_->setObjectName(QStringLiteral("findEdit"));
+  find_edit_->setPlaceholderText(QStringLiteral("查找…"));
+  find_edit_->setClearButtonEnabled(true);
+  find_bar_->addWidget(find_edit_);
+  find_bar_->addAction(find_prev_action_);
+  find_bar_->addAction(find_next_action_);
+  find_bar_->addAction(find_close_action_);
+  find_bar_->hide();
+  addToolBar(find_bar_);
 
   // 目录里扫到的 Markdown 铺在这：显示文件名，UserRole 存全路径
   auto* dock = new QDockWidget(QStringLiteral("文档"), this);
@@ -103,6 +139,29 @@ void MdViewerWindow::initSignals() {
                     .arg(QFileInfo(path).fileName(), reason),
                 5000);
           });
+
+  connect(export_pdf_action_, &QAction::triggered, this,
+          &MdViewerWindow::ExportPdf);
+  connect(find_action_, &QAction::triggered, this,
+          &MdViewerWindow::ShowFindBar);
+  connect(find_next_action_, &QAction::triggered, this,
+          [this] { FindNext(/*backward=*/false); });
+  connect(find_prev_action_, &QAction::triggered, this,
+          [this] { FindNext(/*backward=*/true); });
+  connect(find_close_action_, &QAction::triggered, this, [this] {
+    find_bar_->hide();
+    view_->setFocus();  // 焦点还回正文，方向键/滚轮立刻能用
+  });
+  // 回车 = 下一个（查找框里的输入法/回车不该抢这个语义）
+  connect(find_edit_, &QLineEdit::returnPressed, this,
+          [this] { FindNext(/*backward=*/false); });
+  // Esc 关查找栏。QShortcut 是与 Ctrl+F 那类动作快捷键不冲突的写法
+  auto* escape = new QShortcut(QKeySequence(Qt::Key_Escape), this);
+  connect(escape, &QShortcut::activated, this, [this] {
+    if (find_bar_->isVisible()) {
+      find_close_action_->trigger();
+    }
+  });
 }
 
 void MdViewerWindow::OpenPath(const QString& path) {
@@ -121,8 +180,8 @@ void MdViewerWindow::OpenFileDialog() {
   const QString start_dir =
       listed_dir_.isEmpty() ? QDir::homePath() : listed_dir_;
   const QString path = QFileDialog::getOpenFileName(
-      this, QStringLiteral("打开 Markdown"),
-      start_dir, QStringLiteral("Markdown 文档 (*.md *.markdown);;所有文件 (*)"));
+      this, QStringLiteral("打开 Markdown"), start_dir,
+      QStringLiteral("Markdown 文档 (*.md *.markdown);;所有文件 (*)"));
   if (!path.isEmpty()) {
     ShowFile(path);
   }
@@ -160,8 +219,7 @@ void MdViewerWindow::ShowFile(const QString& path) {
   if (!view_->LoadFile(info.absoluteFilePath())) {
     return;  // 视图里已经是错误页，状态栏的消息由 loadFailed 负责
   }
-  setWindowTitle(
-      QStringLiteral("Markdown 查看器 - %1").arg(info.fileName()));
+  setWindowTitle(QStringLiteral("Markdown 查看器 - %1").arg(info.fileName()));
   path_label_->setText(info.fileName());
   path_label_->setToolTip(info.absoluteFilePath());
   SelectInList(info.absoluteFilePath());
@@ -176,4 +234,65 @@ void MdViewerWindow::SelectInList(const QString& path) {
       return;
     }
   }
+}
+
+void MdViewerWindow::ShowFindBar() {
+  find_bar_->show();
+  find_edit_->setFocus();
+  find_edit_->selectAll();  // 再按 Ctrl+F 是"改查找词"，不是接着找
+}
+
+void MdViewerWindow::FindNext(bool backward) {
+  const QString needle = find_edit_->text();
+  if (needle.isEmpty()) {
+    return;
+  }
+  bool wrapped = false;
+  const QTextDocument::FindFlags flags =
+      backward ? QTextDocument::FindBackward : QTextDocument::FindFlags();
+  if (!view_->FindText(needle, flags, &wrapped)) {
+    statusBar()->showMessage(QStringLiteral("未找到：%1").arg(needle), 3000);
+    return;
+  }
+  // 绕回说明找了一圈——提示一下，否则用户以为"没动"
+  if (wrapped) {
+    statusBar()->showMessage(
+        backward ? QStringLiteral("已绕回末尾") : QStringLiteral("已绕回开头"),
+        3000);
+  }
+}
+
+void MdViewerWindow::ExportPdf() {
+  if (!view_->has_document()) {
+    statusBar()->showMessage(QStringLiteral("先打开一篇 Markdown 再导出"),
+                             3000);
+    return;
+  }
+  QString default_path;
+  if (!view_->current_file().isEmpty()) {
+    const QFileInfo info(view_->current_file());
+    default_path = info.absolutePath() + QLatin1Char('/') +
+                   info.completeBaseName() + QStringLiteral(".pdf");
+  } else {
+    default_path = QDir::homePath() + QStringLiteral("/untitled.pdf");
+  }
+
+  QString path = QFileDialog::getSaveFileName(
+      this, QStringLiteral("导出 PDF"), default_path,
+      QStringLiteral("PDF 文件 (*.pdf)"));
+  if (path.isEmpty()) {
+    return;  // 用户取消
+  }
+  if (!path.endsWith(QStringLiteral(".pdf"), Qt::CaseInsensitive)) {
+    path += QStringLiteral(".pdf");
+  }
+
+  // 分页与 print 媒体重排都在控件里（见 MarkdownView::Print 的注释）
+  QPrinter printer(QPrinter::HighResolution);
+  printer.setOutputFormat(QPrinter::PdfFormat);
+  printer.setOutputFileName(path);
+  view_->Print(&printer);
+
+  statusBar()->showMessage(
+      QStringLiteral("已导出：%1").arg(QFileInfo(path).fileName()), 5000);
 }
