@@ -1,12 +1,18 @@
 #include "markdown_view.h"
 
+#include <QClipboard>
 #include <QDebug>
 #include <QFile>
 #include <QFileInfo>
 #include <QFileSystemWatcher>
+#include <QGuiApplication>
+#include <QKeyEvent>
+#include <QKeySequence>
 #include <QScrollBar>
+#include <QShortcut>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <QWheelEvent>
 
 #include "formula_renderer.h"
 #include "markdown_to_html.h"
@@ -18,6 +24,11 @@ namespace {
 // "先删后建"保存的等待节奏：每 100ms 看一次，最多等 5 秒
 constexpr int kReloadIntervalMs = 100;
 constexpr int kReloadMaxAttempts = 50;
+
+// 缩放：步进 1.1 倍，范围与 demo 一致；再大中文会糊、再小认不出字
+constexpr qreal kZoomStep = 1.1;
+constexpr qreal kZoomMin = 0.3;
+constexpr qreal kZoomMax = 5.0;
 
 // qrc 里的默认样式，进程内只读一次（qrc 的内容不会变）
 const QString& DefaultCssFromResources() {
@@ -112,6 +123,14 @@ MarkdownView::MarkdownView(QWidget* parent) : QWidget(parent) {
   initSignals();
 }
 
+QString CopyTextForLink(const QUrl& url,
+                        const QHash<QString, QString>& blocks) {
+  if (url.scheme() != QLatin1String("copy")) {
+    return QString();
+  }
+  return blocks.value(url.path());
+}
+
 // 析构写在 .cpp：成员里只有第三方控件的前向声明，需要完整类型才能生成
 MarkdownView::~MarkdownView() = default;
 
@@ -121,6 +140,11 @@ void MarkdownView::initUi() {
   html_ = new QLiteHtmlWidget(this);
   html_->setObjectName(QStringLiteral("markdownHtml"));
   html_->setResourceHandler(ReadLocalFile);
+  // 缩放快捷键与 Ctrl+C 要做成控件的内置能力：Wheel 发到 viewport、
+  // KeyPress 发到 widget 本身，两处都装（见 eventFilter）
+  html_->setFocusPolicy(Qt::StrongFocus);
+  html_->installEventFilter(this);
+  html_->viewport()->installEventFilter(this);
 
   auto* layout = new QVBoxLayout(this);
   layout->setContentsMargins(0, 0, 0, 0);
@@ -128,8 +152,18 @@ void MarkdownView::initUi() {
 }
 
 void MarkdownView::initSignals() {
-  connect(html_, &QLiteHtmlWidget::linkClicked, this,
-          &MarkdownView::linkClicked);
+  // copy: 是代码块的"复制"链接（渲染层产出），在这里就地处理、不往宿主抛：
+  // 它不是导航请求，宿主不需要知道
+  connect(html_, &QLiteHtmlWidget::linkClicked, this, [this](const QUrl& url) {
+    if (url.scheme() == QLatin1String("copy")) {
+      const QString text = CopyTextForLink(url, code_blocks_);
+      if (!text.isEmpty()) {
+        QGuiApplication::clipboard()->setText(text);
+      }
+      return;
+    }
+    emit linkClicked(url);
+  });
 
   watcher_ = new QFileSystemWatcher(this);
   connect(watcher_, &QFileSystemWatcher::fileChanged, this,
@@ -139,6 +173,60 @@ void MarkdownView::initSignals() {
   reload_timer_ = new QTimer(this);
   reload_timer_->setInterval(kReloadIntervalMs);
   connect(reload_timer_, &QTimer::timeout, this, &MarkdownView::OnReloadTick);
+
+  // 缩放的键盘快捷键走 QShortcut（WindowShortcut）：eventFilter 那条路要求
+  // 焦点先在预览上，而查看窗口刚打开时焦点不在（实测 Ctrl+= 不生效），
+  // "窗口激活就能按"才是查看器该有的行为
+  auto add_zoom_shortcut = [this](const QKeySequence& keys, qreal factor,
+                                  bool reset) {
+    auto* shortcut = new QShortcut(keys, this);
+    shortcut->setContext(Qt::WindowShortcut);
+    connect(shortcut, &QShortcut::activated, this,
+            [this, factor, reset] { SetZoom(reset ? 1.0 : zoom_ * factor); });
+  };
+  add_zoom_shortcut(QKeySequence::ZoomIn, kZoomStep, false);
+  add_zoom_shortcut(QKeySequence::ZoomOut, 1.0 / kZoomStep, false);
+  add_zoom_shortcut(QKeySequence(QStringLiteral("Ctrl+=")), kZoomStep, false);
+  add_zoom_shortcut(QKeySequence(QStringLiteral("Ctrl+-")), 1.0 / kZoomStep,
+                    false);
+  add_zoom_shortcut(QKeySequence(QStringLiteral("Ctrl+0")), 1.0, true);
+}
+
+bool MarkdownView::eventFilter(QObject* watched, QEvent* event) {
+  const bool from_html = watched == html_ || watched == html_->viewport();
+  if (from_html && event->type() == QEvent::Wheel) {
+    auto* wheel = static_cast<QWheelEvent*>(event);
+    if (wheel->modifiers().testFlag(Qt::ControlModifier)) {
+      const int delta = wheel->angleDelta().y();
+      if (delta != 0) {
+        SetZoom(zoom_ * (delta > 0 ? kZoomStep : 1.0 / kZoomStep));
+        return true;  // 拦下：不拦会同时滚页面
+      }
+    }
+  }
+  if (from_html && event->type() == QEvent::KeyPress) {
+    auto* key = static_cast<QKeyEvent*>(event);
+    // QAbstractScrollArea 的默认按键处理会把 Copy 吞掉，选中文本复制不了。
+    // 键盘缩放不在这里做——那条路要求焦点先在预览上，走 QShortcut（见
+    // initSignals）
+    if (key->matches(QKeySequence::Copy)) {
+      const QString selected = html_->selectedText();
+      if (!selected.isEmpty()) {
+        QGuiApplication::clipboard()->setText(selected);
+        return true;
+      }
+    }
+  }
+  return QWidget::eventFilter(watched, event);
+}
+
+void MarkdownView::SetZoom(qreal factor) {
+  const qreal next = qBound(kZoomMin, factor, kZoomMax);
+  if (qFuzzyCompare(next, zoom_)) {
+    return;
+  }
+  zoom_ = next;
+  html_->setZoomFactor(zoom_);
 }
 
 bool MarkdownView::LoadFile(const QString& path) {
@@ -181,10 +269,16 @@ void MarkdownView::ApplyDocument() {
     base.setPath(base.path() + QLatin1Char('/'));
   }
   html_->setUrl(base);
-  // 公式渲染以回调注入：markdown 模块不依赖公式引擎，这里把它接上
-  html_->setHtml(
-      WrapDocument(MarkdownToHtml(markdown_, FormulaToImgTag, MermaidToImgTag),
-                   LoadDefaultCss()));
+  // 公式与图表渲染以回调注入：markdown 模块不依赖渲染引擎，这里把它接上。
+  // 代码块表每次重建——旧文档的 id 不能留到新文档里（表是 copy: 链接的唯一
+  // 数据源，串了就会复制出上一份文档的代码）
+  code_blocks_.clear();
+  html_->setHtml(WrapDocument(
+      MarkdownToHtml(markdown_, FormulaToImgTag, MermaidToImgTag,
+                     [this](const QString& id, const QString& code) {
+                       code_blocks_.insert(id, code);
+                     }),
+      LoadDefaultCss()));
 }
 
 void MarkdownView::ShowMessage(const QString& text) {

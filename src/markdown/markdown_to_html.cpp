@@ -237,7 +237,34 @@ QString UnescapeHtml(const QString& text) {
 // 正文里若出现没闭合的裸 <pre><code>，不加行首锚点就会从那处一直匹配到文档
 // 后面下一个 </code></pre>，把中间整段正文吞成"代码"。md4c 生成的块级代码块
 // 永远从行首开始，锚 ^ 之后只认真块（正则用 Multiline 让 ^ 匹配每行行首）
-QString HighlightCodeBlocks(const QString& html, const MermaidSink& mermaid) {
+// 代码块包一层带 header 的框：左边语言标签、右边"复制"链接。复制链接是
+// copy:<id>，id 交给调用方去查原文（见 CodeBlockSink）——这里只负责把 id 写
+// 进 HTML，不碰剪贴板（渲染层不该知道宿主用不用 Qt 剪贴板）
+QString BuildCodeBlockFrame(const QString& highlighted, const QString& language,
+                            const QString& block_id) {
+  const QString lang_text =
+      language.isEmpty() ? QStringLiteral("text") : language;
+  QString out = QStringLiteral("<div class=\"code-wrap\">");
+  out += QStringLiteral("<div class=\"code-header\">");
+  out += QStringLiteral("<span class=\"code-lang\">%1</span>")
+             .arg(lang_text.toHtmlEscaped());
+  out += QStringLiteral("<a class=\"copy-btn\" href=\"copy:%1\">复制</a>")
+             .arg(block_id);
+  out += QStringLiteral("</div>");
+  // 无语言的围栏不写 language- 类：那是"代码块声明了哪种语言"的契约，
+  // header 上显示 text 只是给人看的
+  if (language.isEmpty()) {
+    out += QStringLiteral("<pre><code>%1</code></pre>").arg(highlighted);
+  } else {
+    out += QStringLiteral("<pre><code class=\"language-%1\">%2</code></pre>")
+               .arg(language.toHtmlEscaped(), highlighted);
+  }
+  out += QStringLiteral("</div>");
+  return out;
+}
+
+QString HighlightCodeBlocks(const QString& html, const MermaidSink& mermaid,
+                            const CodeBlockSink& code_blocks) {
   static const QRegularExpression kPreCode(
       QStringLiteral("^(<pre><code([^>]*)>)([\\s\\S]*?)(</code></pre>)"),
       QRegularExpression::MultilineOption);
@@ -246,6 +273,7 @@ QString HighlightCodeBlocks(const QString& html, const MermaidSink& mermaid) {
 
   QString result;
   int consumed = 0;
+  int block_index = 0;  // 每个代码块一个 id，与 copy: 链接里的编号对应
   auto matches = kPreCode.globalMatch(html);
   while (matches.hasNext()) {
     const QRegularExpressionMatch match = matches.next();
@@ -273,14 +301,12 @@ QString HighlightCodeBlocks(const QString& html, const MermaidSink& mermaid) {
       }
     }
 
-    const QString highlighted = HighlightCode(code, language);
-    if (language.isEmpty()) {
-      result += QStringLiteral("<pre><code>%1</code></pre>").arg(highlighted);
-    } else {
-      result +=
-          QStringLiteral("<pre><code class=\"language-%1\">%2</code></pre>")
-              .arg(language, highlighted);
+    const QString block_id = QString::number(block_index++);
+    if (code_blocks) {
+      code_blocks(block_id, code);
     }
+    result +=
+        BuildCodeBlockFrame(HighlightCode(code, language), language, block_id);
   }
   result += html.mid(consumed);
   return result;
@@ -289,7 +315,8 @@ QString HighlightCodeBlocks(const QString& html, const MermaidSink& mermaid) {
 }  // namespace
 
 QString MarkdownToHtml(const QString& markdown, const FormulaSink& formula,
-                       const MermaidSink& mermaid) {
+                       const MermaidSink& mermaid,
+                       const CodeBlockSink& code_blocks) {
   // 公式在 md4c 之前抽出占位符、之后换回渲染结果；没给回调就整段跳过，
   // 一个字符都不动（$…$ 于是原样显示）
   QVector<MathSegment> segments;
@@ -305,5 +332,6 @@ QString MarkdownToHtml(const QString& markdown, const FormulaSink& formula,
   if (result != 0) {
     return QStringLiteral("<p class=\"error\">Markdown 解析失败</p>");
   }
-  return RestoreMath(HighlightCodeBlocks(html, mermaid), segments, formula);
+  return RestoreMath(HighlightCodeBlocks(html, mermaid, code_blocks), segments,
+                     formula);
 }

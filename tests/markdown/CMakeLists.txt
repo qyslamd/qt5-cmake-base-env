@@ -52,3 +52,13 @@ add_unit_test(
     NO_GTEST_MAIN
 )
 set_tests_properties(test_mermaid_renderer PROPERTIES TIMEOUT 120)
+
+# "复制按钮"链路里属于本模块的一段：copy: 链接 → 原文（纯函数）。
+# 物理点击 funq 驱动不了（代码块是 qlitehtml 自绘的），见用例头部注释
+add_unit_test(
+    NAME test_markdown_view
+    SOURCES markdown_view_test.cpp
+    LIBS ${APP_TARGET_PREFIX}_markdown
+    QT_MODULES Core
+    LABELS MARKDOWN
+)

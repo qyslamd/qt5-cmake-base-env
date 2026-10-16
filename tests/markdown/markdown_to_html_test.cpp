@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <QHash>
 #include <QString>
 #include <QStringList>
 #include <QVector>
@@ -188,6 +189,66 @@ TEST(MarkdownToHtmlTest, UnclosedFenceAndEmptyInput) {
 
   const QString empty = MarkdownToHtml(QString());
   EXPECT_FALSE(empty.contains(QStringLiteral("<pre>"))) << empty.toStdString();
+}
+
+// 复制按钮：每个代码块包一层带 header 的框，header 里有语言标签与 copy: 链接；
+// 回调按 id 收到的是**未高亮的原始源码**（复制出去的是源码，不是 HTML），
+// 且逐字照给——含结尾那个换行，不做 trim（复制走的就是文档里写的样子）
+TEST(MarkdownToHtmlTest, CodeBlockGetsCopyButtonAndHeader) {
+  QHash<QString, QString> blocks;
+  const QString html = MarkdownToHtml(
+      QStringLiteral("```cpp\nint a = 1;  // 甲\n```\n"), FormulaSink(),
+      MermaidSink(), [&blocks](const QString& id, const QString& code) {
+        blocks.insert(id, code);
+      });
+
+  EXPECT_TRUE(html.contains(QStringLiteral("<div class=\"code-wrap\">")))
+      << html.toStdString();
+  EXPECT_TRUE(html.contains(QStringLiteral("<span class=\"code-lang\">cpp")))
+      << html.toStdString();
+  ASSERT_EQ(blocks.size(), 1);
+  const QString id = blocks.constBegin().key();
+  EXPECT_TRUE(html.contains(QStringLiteral("href=\"copy:%1\"").arg(id)))
+      << html.toStdString();
+  EXPECT_EQ(blocks.value(id), QStringLiteral("int a = 1;  // 甲\n"));
+}
+
+// 多个代码块各自一个 id，按出现顺序编号——查表串了会复制出别的块的代码
+TEST(MarkdownToHtmlTest, CodeBlockIdsAreUniqueAndOrdered) {
+  QHash<QString, QString> blocks;
+  const QString html = MarkdownToHtml(
+      QStringLiteral("```cpp\n甲\n```\n\n```python\n乙\n```\n"), FormulaSink(),
+      MermaidSink(), [&blocks](const QString& id, const QString& code) {
+        blocks.insert(id, code);
+      });
+
+  ASSERT_EQ(blocks.size(), 2);
+  EXPECT_EQ(blocks.value(QStringLiteral("0")), QStringLiteral("甲\n"));
+  EXPECT_EQ(blocks.value(QStringLiteral("1")), QStringLiteral("乙\n"));
+  EXPECT_TRUE(html.contains(QStringLiteral("href=\"copy:0\"")))
+      << html.toStdString();
+  EXPECT_TRUE(html.contains(QStringLiteral("href=\"copy:1\"")))
+      << html.toStdString();
+}
+
+// 无语言的围栏：header 显示 text，但 <code> 上不许凭空写 language- 类
+// （那是"声明了哪种语言"的契约）
+TEST(MarkdownToHtmlTest, LanguageLessBlockKeepsCodeClassClean) {
+  const QString html =
+      MarkdownToHtml(QStringLiteral("```\nplain\n```\n"), FormulaSink(),
+                     MermaidSink(), [](const QString&, const QString&) {});
+  EXPECT_TRUE(html.contains(QStringLiteral("<span class=\"code-lang\">text")))
+      << html.toStdString();
+  EXPECT_TRUE(html.contains(QStringLiteral("<pre><code>")))
+      << html.toStdString();
+}
+
+// 不传 code_blocks 时也要照常出复制按钮（宿主没接表，点了没反应而已）——
+// 渲染层不能因为宿主没接就改变产出的结构
+TEST(MarkdownToHtmlTest, CopyButtonAppearsWithoutSink) {
+  const QString html = MarkdownToHtml(QStringLiteral("```cpp\nint a;\n```\n"));
+  EXPECT_TRUE(html.contains(QStringLiteral("href=\"copy:0\"")))
+      << html.toStdString();
 }
 
 }  // namespace

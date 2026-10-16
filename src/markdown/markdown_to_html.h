@@ -18,11 +18,21 @@ using FormulaSink = std::function<QString(const QString& tex, bool display)>;
 // 模块不依赖渲染引擎，单测塞假实现即可。
 using MermaidSink = std::function<QString(const QString& code)>;
 
+// 代码块回调：每个代码块渲染完都会调一次（id，原始源码）。宿主拿它给
+// HTML 里 `<a href="copy:ID">复制</a>` 备好原文——渲染层不碰剪贴板。
+// 传进来的意义同样是依赖倒置：不传就没有复制按钮可查的表，单测塞个 lambda
+// 就能验 id 与源码的对应
+using CodeBlockSink =
+    std::function<void(const QString& id, const QString& code)>;
+
 // Markdown → HTML 正文（不含 <html>/<style> 外壳，由调用方套样式）。
 // 按 GFM 方言解析：表格、删除线、任务列表都在这个 dialect 里，用默认 flags
-// 会把表格静默丢掉。围栏代码块交给 HighlightCode 上色；$…$/$$…$$ 交给
-// formula 渲染（不传则原样保留）。
+// 会把表格静默丢掉。围栏代码块交给 HighlightCode 上色、包一层带"复制"链接
+// 的框；$…$/$$…$$ 交给 formula 渲染（不传则原样保留）；```mermaid 交给
+// mermaid 渲染（不传则退回代码块）。code_blocks 不传时复制链接查不到原文，
+// 点了没反应——查看器把它接上即可（见 MarkdownView）。
 QString MarkdownToHtml(const QString& markdown, const FormulaSink& formula = {},
-                       const MermaidSink& mermaid = {});
+                       const MermaidSink& mermaid = {},
+                       const CodeBlockSink& code_blocks = {});
 
 #endif  // FILE_MARKDOWN_MARKDOWN_TO_HTML_H_
