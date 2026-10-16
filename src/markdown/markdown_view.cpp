@@ -19,8 +19,8 @@ namespace {
 constexpr int kReloadIntervalMs = 100;
 constexpr int kReloadMaxAttempts = 50;
 
-// 每次渲染都要用，读一次存下来（qrc 里的内容在进程生命周期内不会变）
-const QString& LoadDefaultCss() {
+// qrc 里的默认样式，进程内只读一次（qrc 的内容不会变）
+const QString& DefaultCssFromResources() {
   static const QString kCss = []() -> QString {
     QFile file(QStringLiteral(":/markdown/markdown_default.css"));
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -44,6 +44,22 @@ const QString& LoadDefaultCss() {
     return QString::fromUtf8(file.readAll());
   }();
   return kCss;
+}
+
+// MD_MARKDOWN_CSS=<文件>：存在就覆盖 qrc 里的样式——调样式不用重编，发布
+// 默认关闭（与 MD_MERMAID_DUMP 同一个模式）。环境变量读一次；**文件**每次
+// 现读，改完重开文档就生效，不用重启程序。设了但读不了就落回 qrc
+QString LoadDefaultCss() {
+  static const QString kOverridePath = qEnvironmentVariable("MD_MARKDOWN_CSS");
+  if (!kOverridePath.isEmpty()) {
+    QFile file(kOverridePath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+      return QString::fromUtf8(file.readAll());
+    }
+    qWarning() << "markdown: MD_MARKDOWN_CSS set but unreadable,"
+               << kOverridePath;
+  }
+  return DefaultCssFromResources();
 }
 
 // 相对路径的图片与公式图都走这里：qlitehtml 按基准 URL 解析出路径来要数据
