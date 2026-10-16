@@ -10,3 +10,9 @@ src/markdown/resources/dom_shim.js -text
 src/markdown/resources/path_bbox.js -text
 src/markdown/resources/highlight.min.js -text
 src/markdown/resources/mathjax-svg.min.js -text
+
+# 补丁文件钉死 LF：patch_dependencies.cmake 关掉 autocrlf 再 git apply，指望
+# "补丁什么行尾、落盘就什么行尾"。不钉的话开发者机上 autocrlf 一转，补丁被
+# checkout 成 CRLF，新增行也就跟着 CRLF，产物行尾随各人配置漂移
+# （机制的注释一直这么写着，规则此前漏了）
+patches/** -text
