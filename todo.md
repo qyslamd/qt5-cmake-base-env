@@ -20,6 +20,20 @@
     还是把 sink 异步化（接口要扩成带批次的，公式侧同改）。**二选一，别混。**
 - [ ] 载荷压缩复量：`markdown_res.qrc` 的 `<qresource>` 可以加 `compress`（zlib）。
       现在 `qrc_markdown_res.cpp` 已约 14MB，编译时间与 exe 体积值得量一次再决定。
+- [ ] **resize 会触发整篇重排（拖动分栏/拉窗口时每帧一次）。** `qlitehtmlwidget.cpp`
+      的 `resizeEvent` 直接调 `render()`，而 `render()` = 整篇 litehtml 布局
+      （`documentContainer.render(w, h)`）。demo 侧实测布局约 **90ms/KB**：54KB
+      文档一次 `setHtml` ≈ 3s，所以拖分栏的每一帧都可能等一次全量布局；窗口
+      最大化、拉伸同理。`setZoomFactor` 也是一个道理（Ctrl+滚轮每档排一次），
+      `paintEvent` 只 draw、滚动不受影响（这条别改错地方）。修法（都在本仓侧，
+      不必等上游）：
+  - resize 去抖：拖动期间不重排（旧内容缩放显示或留白），停手 150~250ms 补一次；
+  - **宽度没变就不重排**：纯高度变化不影响 litehtml 布局（本仓 CSS 不用
+    `vh`/`position:fixed`）——这条是一行判断，收益最大；
+  - 缩放同样合并（连续滚轮只排最后一档）。
+  qlitehtml 在本仓是**源码入库**（见 `docs/guide/第三方依赖补丁.md`），改动直接落
+  `3rdparty/qlitehtml-180e3eb/src/`；也可以子类化只在 `MarkdownView` 里用。
+  demo 与基座是同一份控件，两边一起受益。
 
 ## 已知偏差（设计 §7.1，暂时没咬到）
 
