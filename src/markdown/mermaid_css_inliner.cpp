@@ -328,6 +328,28 @@ QString InlineSvgCss(const QString& svg, const QString& font_family) {
                      return a.spec_tags < b.spec_tags;
                    });
 
+  // 规则按最右一段选择器建索引：元素只查命中的少数候选，不再遍历全部
+  // 规则（大图是几百元素 × 几百规则）。rules 已按层叠顺序排好，候选下标
+  // 排序后逐个应用即与"全量遍历"结果一致
+  QHash<QString, QVector<int>> rules_by_id;
+  QHash<QString, QVector<int>> rules_by_class;
+  QHash<QString, QVector<int>> rules_by_tag;
+  QVector<int> rules_unindexed;
+  for (int r = 0; r < rules.size(); ++r) {
+    const SimpleSelector& last = rules.at(r).chain.last().sel;
+    if (!last.id.isEmpty()) {
+      rules_by_id[last.id].append(r);
+    } else if (!last.classes.isEmpty()) {
+      // 只按第一个 class 建索引就够：元素要命中规则必须同时具备全部
+      // class，因此必然具备第一个
+      rules_by_class[last.classes.first()].append(r);
+    } else if (!last.tag.isEmpty()) {
+      rules_by_tag[last.tag].append(r);
+    } else {
+      rules_unindexed.append(r);
+    }
+  }
+
   static const QRegularExpression kTag(
       QStringLiteral("<(/)?([a-zA-Z][a-zA-Z0-9:_-]*)((?:\\s[^>]*?)?)(/)?>"),
       QRegularExpression::DotMatchesEverythingOption);
@@ -419,7 +441,30 @@ QString InlineSvgCss(const QString& svg, const QString& font_family) {
       }
     }
 
-    for (const CssRule& rule : rules) {
+    QVector<int> candidates = rules_unindexed;
+    auto add_bucket = [&candidates](const QVector<int>& bucket) {
+      candidates += bucket;
+    };
+    if (!current.id.isEmpty()) {
+      const auto it_id = rules_by_id.constFind(current.id);
+      if (it_id != rules_by_id.constEnd()) {
+        add_bucket(*it_id);
+      }
+    }
+    for (const QString& cls : current.classes) {
+      const auto it_class = rules_by_class.constFind(cls);
+      if (it_class != rules_by_class.constEnd()) {
+        add_bucket(*it_class);
+      }
+    }
+    const auto it_tag = rules_by_tag.constFind(current.tag);
+    if (it_tag != rules_by_tag.constEnd()) {
+      add_bucket(*it_tag);
+    }
+    std::sort(candidates.begin(), candidates.end());
+
+    for (int rule_index : candidates) {
+      const CssRule& rule = rules.at(rule_index);
       if (!MatchChain(stack, rule)) {
         continue;
       }

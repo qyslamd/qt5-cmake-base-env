@@ -343,21 +343,10 @@ bool EnsureLoaded() {
   if (!EvalGlobal(QByteArray(kExpose), "expose")) {
     return FailLoad();
   }
-  return true;
-}
 
-// 渲染：mermaid.render() 返回 Promise，而 QuickJS 的微任务不会自动跑，必须
-// 手动泵（dom_shim 把 rAF/setTimeout 换成了微任务，所以循环能收敛）
-QString RenderMermaidSvg(const QString& code) {
-  if (!EnsureLoaded()) {
-    return QString();
-  }
-  if (!EvalGlobal(QByteArray("__resetDocument();"), "reset")) {
-    return QString();
-  }
-
-  // htmlLabels:false 是必填项：默认会把节点文字放进 <foreignObject>，而
-  // QSvgRenderer 完全不认，文字会全部消失
+  // 配置与文档无关，加载后设一次即可（initialize 幂等，但每次渲染都走
+  // 一遍配置解析纯属浪费）。htmlLabels:false 是必填项：默认会把节点文字
+  // 放进 <foreignObject>，而 QSvgRenderer 完全不认，文字会全部消失
   static const char* const kInit =
       "mermaid.initialize({"
       "  startOnLoad: false,"
@@ -369,6 +358,18 @@ QString RenderMermaidSvg(const QString& code) {
       "  er: { useMaxWidth: true }"
       "});";
   if (!EvalGlobal(QByteArray(kInit), "init")) {
+    return FailLoad();
+  }
+  return true;
+}
+
+// 渲染：mermaid.render() 返回 Promise，而 QuickJS 的微任务不会自动跑，必须
+// 手动泵（dom_shim 把 rAF/setTimeout 换成了微任务，所以循环能收敛）
+QString RenderMermaidSvg(const QString& code) {
+  if (!EnsureLoaded()) {
+    return QString();
+  }
+  if (!EvalGlobal(QByteArray("__resetDocument();"), "reset")) {
     return QString();
   }
 

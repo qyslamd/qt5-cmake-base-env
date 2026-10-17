@@ -2,6 +2,7 @@
 
 #include <QHash>
 #include <QRegularExpression>
+#include <QSet>
 
 #include "html_escape.h"
 
@@ -35,7 +36,9 @@ QString AddHeadingIds(const QString& html, const HeadingSink& on_heading) {
   out.reserve(html.size());
   int pos = 0;
   int index = 0;  // 全局序号：重名 slug 靠它拿到彼此不同的 id
-  QHash<QString, int> seen;
+  // 已分配给任何标题的 slug。只按"原始 slug 出现次数"加后缀会和显式
+  // 同名的标题撞车：Foo / Foo-1 / Foo 的第三个会生成 foo-1
+  QSet<QString> used;
   auto it = kHeading.globalMatch(html);
   while (it.hasNext()) {
     const auto match = it.next();
@@ -52,11 +55,13 @@ QString AddHeadingIds(const QString& html, const HeadingSink& on_heading) {
     plain = UnescapeHtml(plain);
 
     QString slug = Slugify(plain);
-    const int n = seen.value(slug, 0);
-    seen[slug] = n + 1;
-    if (n > 0) {
-      slug += QStringLiteral("-%1").arg(n);
+    const QString base = slug;
+    int n = 0;
+    while (used.contains(slug)) {
+      ++n;
+      slug = base + QStringLiteral("-%1").arg(n);
     }
+    used.insert(slug);
 
     // id 必须是纯 ASCII：litehtml 解析时会改写 id 的存储形式，UTF-8 多字节
     // 经不起这一趟，非 ASCII 的 id 会让 scrollToAnchor 静默找不到元素。

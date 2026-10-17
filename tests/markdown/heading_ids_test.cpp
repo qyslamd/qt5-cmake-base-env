@@ -53,6 +53,16 @@ TEST(HeadingIdsTest, DuplicateSlugsGetSuffixes) {
                      "<h2 id=\"h-2\" data-md-slug=\"title-2\">Title</h2>"));
 }
 
+// 后缀要和"已占用集合"比较，不能只看原始 slug 出现次数：
+// Foo / Foo-1 / Foo 的第三个标题必须绕开已存在的 foo-1
+TEST(HeadingIdsTest, SuffixDoesNotCollideWithExplicitSlug) {
+  EXPECT_EQ(AddHeadingIds(QStringLiteral("<h2>Foo</h2><h2>Foo-1</h2>"
+                                         "<h2>Foo</h2>")),
+            QStringLiteral("<h2 id=\"h-0\" data-md-slug=\"foo\">Foo</h2>"
+                           "<h2 id=\"h-1\" data-md-slug=\"foo-1\">Foo-1</h2>"
+                           "<h2 id=\"h-2\" data-md-slug=\"foo-2\">Foo</h2>"));
+}
+
 // 实体先解码再算 slug：'&' 是标点被丢，两侧空格各变一个 '-'
 TEST(HeadingIdsTest, EntitiesDecodedBeforeSlugging) {
   EXPECT_EQ(

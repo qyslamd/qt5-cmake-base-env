@@ -210,12 +210,18 @@ QString FormulaToImgTag(const QString& tex, bool display) {
     JS_FreeValue(g_context, exception);
   } else {
     const char* raw = JS_ToCString(g_context, value);
-    const QString converted = QString::fromUtf8(raw);
-    JS_FreeCString(g_context, raw);
-    if (converted.startsWith(QLatin1String("SVGOK:"))) {
-      tag = SvgToImgTag(converted.mid(6), display);
+    if (raw == nullptr) {
+      // 分配失败等情况下 QuickJS 返回 null，并可能留下 pending 异常
+      qWarning() << "formula convert: JS_ToCString returned null";
+      JS_FreeValue(g_context, JS_GetException(g_context));
     } else {
-      qWarning() << "formula convert failed:" << converted;
+      const QString converted = QString::fromUtf8(raw);
+      JS_FreeCString(g_context, raw);
+      if (converted.startsWith(QLatin1String("SVGOK:"))) {
+        tag = SvgToImgTag(converted.mid(6), display);
+      } else {
+        qWarning() << "formula convert failed:" << converted;
+      }
     }
   }
   JS_FreeValue(g_context, value);

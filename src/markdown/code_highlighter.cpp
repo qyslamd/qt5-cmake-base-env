@@ -106,6 +106,21 @@ QString HighlightCode(const QString& code, const QString& language) {
       JS_NewStringLen(g_context, code_utf8.constData(), code_utf8.size()),
       JS_NewStringLen(g_context, lang_utf8.constData(), lang_utf8.size()),
   };
+  if (JS_IsException(argv[0]) || JS_IsException(argv[1])) {
+    // 分配失败返回的是异常哨兵，不能当参数传给 JS_Call；取出并清掉
+    // pending 异常，退回纯转义
+    JSValue exception = JS_GetException(g_context);
+    const char* message = JS_ToCString(g_context, exception);
+    qWarning() << "highlight argument alloc failed:"
+               << (message != nullptr ? message : "?");
+    if (message != nullptr) {
+      JS_FreeCString(g_context, message);
+    }
+    JS_FreeValue(g_context, exception);
+    JS_FreeValue(g_context, argv[0]);
+    JS_FreeValue(g_context, argv[1]);
+    return EscapeHtml(code);
+  }
   const JSValue value =
       JS_Call(g_context, g_highlight_fn, JS_UNDEFINED, 2, argv);
   JS_FreeValue(g_context, argv[0]);
