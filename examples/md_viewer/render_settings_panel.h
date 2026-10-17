@@ -5,6 +5,7 @@
 
 class QCheckBox;
 class QComboBox;
+class QLabel;
 class QLineEdit;
 class QPushButton;
 class QVBoxLayout;
@@ -28,6 +29,7 @@ class RenderSettingsPanel : public QWidget {
   void ApplyDiagnostics();
   void BrowseCacheDirectory();
   void BrowseDumpDirectory();
+  void RefreshStatus();
   // 开关默认文字跟状态走（Fluent Gallery 同款写法）
   QCheckBox* CreateSwitch(bool checked);
 
@@ -40,11 +42,17 @@ class RenderSettingsPanel : public QWidget {
   QLineEdit* cache_directory_ = nullptr;
   QPushButton* choose_cache_ = nullptr;
   QPushButton* reset_cache_ = nullptr;
+  QPushButton* clear_memory_cache_ = nullptr;
   QPushButton* clear_cache_ = nullptr;
   QCheckBox* trace_ = nullptr;
   QLineEdit* dump_directory_ = nullptr;
   QPushButton* choose_dump_ = nullptr;
   QPushButton* reset_dump_ = nullptr;
+  QLabel* status_highlight_ = nullptr;
+  QLabel* status_formula_ = nullptr;
+  QLabel* status_mermaid_ = nullptr;
+  QPushButton* refresh_status_ = nullptr;
+  QPushButton* reset_stats_ = nullptr;
 };
 
 #endif  // FILE_EXAMPLES_MD_VIEWER_RENDER_SETTINGS_PANEL_H_

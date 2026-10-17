@@ -187,6 +187,21 @@ TEST(RenderTogglesTest, ReapplyReportsScrollPosition) {
   EXPECT_EQ(last_y, 0) << "文档在顶部，坐标应为 0";
 }
 
+// 状态计数要覆盖 Mermaid，而不只是高亮/公式
+TEST(RenderTogglesTest, StatusCountsMermaidRenders) {
+  QTemporaryDir dir;
+  ASSERT_TRUE(dir.isValid());
+  MarkdownView view;
+  view.SetRenderCacheDirectory(dir.path());
+  view.SetContent(
+      QStringLiteral("```mermaid\nflowchart LR\n    A --> B\n```\n"),
+      QString());
+  const MarkdownRendererStatus status = view.renderer_status();
+  EXPECT_TRUE(status.mermaid.loaded);
+  EXPECT_EQ(status.mermaid_context.renders, 1U);
+  EXPECT_EQ(status.mermaid_context.failures, 0U);
+}
+
 // 持久缓存开关与目录：默认开；指向临时目录后渲染应落盘；清目录只清模块
 // 子目录；关闭后不再写盘
 TEST(RenderTogglesTest, PersistentCacheCanBeConfiguredAndCleared) {

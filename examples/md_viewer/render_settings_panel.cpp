@@ -64,6 +64,29 @@ QWidget* NewPathRow(QWidget* parent, QLineEdit* edit, QPushButton** choose,
   return row;
 }
 
+QString EngineStateText(const MarkdownEngineStatus& engine) {
+  if (engine.permanently_failed) {
+    return QStringLiteral("加载失败");
+  }
+  if (!engine.loaded) {
+    return QStringLiteral("未加载");
+  }
+  return QStringLiteral("已加载（首次 %1 ms）").arg(engine.first_load_ms);
+}
+
+QString CounterText(const MarkdownContextStatus& counters) {
+  // 调用 = 实际渲染 + 两种缓存命中；只盯"渲染"会在缓存命中时永远看到 0
+  const quint64 calls =
+      counters.renders + counters.memory_cache_hits + counters.disk_cache_hits;
+  return QStringLiteral(
+             "调用 %1 · 渲染 %2 · 失败 %3 · 内存命中 %4 · 磁盘命中 %5")
+      .arg(calls)
+      .arg(counters.renders)
+      .arg(counters.failures)
+      .arg(counters.memory_cache_hits)
+      .arg(counters.disk_cache_hits);
+}
+
 }  // namespace
 
 RenderSettingsPanel::RenderSettingsPanel(MarkdownView* view, QWidget* parent)
@@ -98,7 +121,7 @@ void RenderSettingsPanel::initUi() {
 
   // 外观
   QVBoxLayout* appearance = nullptr;
-  QWidget* appearance_card = NewCard(this, QStringLiteral("外观"), &appearance);
+  QWidget* appearance_card = NewCard(body, QStringLiteral("外观"), &appearance);
   theme_ = new QComboBox(appearance_card);
   theme_->addItem(QStringLiteral("浅色"),
                   static_cast<int>(MarkdownTheme::Light));
@@ -142,8 +165,16 @@ void RenderSettingsPanel::initUi() {
   cache->addWidget(NewPathRow(cache_card, cache_directory_, &choose_cache_,
                               &reset_cache_, QStringLiteral("选择…"),
                               QStringLiteral("默认")));
-  clear_cache_ = new QPushButton(QStringLiteral("清除缓存"), cache_card);
-  cache->addWidget(clear_cache_);
+  auto* cache_actions = new QWidget(cache_card);
+  auto* cache_actions_layout = new QHBoxLayout(cache_actions);
+  cache_actions_layout->setContentsMargins(0, 0, 0, 0);
+  cache_actions_layout->setSpacing(6);
+  clear_memory_cache_ =
+      new QPushButton(QStringLiteral("清空内存缓存"), cache_actions);
+  clear_cache_ = new QPushButton(QStringLiteral("清除磁盘缓存"), cache_actions);
+  cache_actions_layout->addWidget(clear_memory_cache_);
+  cache_actions_layout->addWidget(clear_cache_);
+  cache->addWidget(cache_actions);
   outer->addWidget(cache_card);
 
   // 诊断
@@ -164,9 +195,35 @@ void RenderSettingsPanel::initUi() {
                  QStringLiteral("选择…"), QStringLiteral("关闭")));
   outer->addWidget(diagnostics_card);
 
+  // 渲染状态：引擎是否加载 + 各上下文的渲染/命中计数
+  QVBoxLayout* status = nullptr;
+  QWidget* status_card = NewCard(body, QStringLiteral("渲染状态"), &status);
+  status_highlight_ = new QLabel(status_card);
+  status_highlight_->setObjectName(QStringLiteral("statusHighlight"));
+  status_formula_ = new QLabel(status_card);
+  status_formula_->setObjectName(QStringLiteral("statusFormula"));
+  status_mermaid_ = new QLabel(status_card);
+  status_mermaid_->setObjectName(QStringLiteral("statusMermaid"));
+  for (QLabel* label : {status_highlight_, status_formula_, status_mermaid_}) {
+    label->setWordWrap(true);
+    status->addWidget(label);
+  }
+  auto* status_actions = new QWidget(status_card);
+  auto* status_actions_layout = new QHBoxLayout(status_actions);
+  status_actions_layout->setContentsMargins(0, 0, 0, 0);
+  status_actions_layout->setSpacing(6);
+  refresh_status_ = new QPushButton(QStringLiteral("刷新"), status_actions);
+  reset_stats_ = new QPushButton(QStringLiteral("计数清零"), status_actions);
+  status_actions_layout->addWidget(refresh_status_);
+  status_actions_layout->addWidget(reset_stats_);
+  status_actions_layout->addStretch(1);
+  status->addWidget(status_actions);
+  outer->addWidget(status_card);
+
   outer->addStretch(1);
   scroll->setWidget(body);
   panel_layout->addWidget(scroll);
+  RefreshStatus();
 }
 
 void RenderSettingsPanel::initSignals() {
@@ -191,10 +248,25 @@ void RenderSettingsPanel::initSignals() {
     view_->SetRenderCacheDirectory(QString());
     emit statusMessage(QStringLiteral("持久缓存目录恢复默认"));
   });
+  connect(clear_memory_cache_, &QPushButton::clicked, this, [this] {
+    view_->ClearRenderCaches();
+    RefreshStatus();
+    emit statusMessage(QStringLiteral("已清空内存缓存"));
+  });
   connect(clear_cache_, &QPushButton::clicked, this, [this] {
     view_->ClearPersistentRenderCache();
     emit statusMessage(QStringLiteral("已清除持久渲染缓存"));
   });
+  connect(refresh_status_, &QPushButton::clicked, this,
+          &RenderSettingsPanel::RefreshStatus);
+  connect(reset_stats_, &QPushButton::clicked, this, [this] {
+    view_->ResetRendererStats();
+    RefreshStatus();
+    emit statusMessage(QStringLiteral("渲染计数已清零"));
+  });
+  // 每次文档重建（含主题/开关切换）都会更新计数，顺手刷新状态
+  connect(view_, &MarkdownView::outlineChanged, this,
+          &RenderSettingsPanel::RefreshStatus);
   connect(choose_dump_, &QPushButton::clicked, this,
           &RenderSettingsPanel::BrowseDumpDirectory);
   connect(reset_dump_, &QPushButton::clicked, this, [this] {
@@ -220,6 +292,19 @@ void RenderSettingsPanel::BrowseCacheDirectory() {
   }
   cache_directory_->setText(dir);
   view_->SetRenderCacheDirectory(dir);
+}
+
+void RenderSettingsPanel::RefreshStatus() {
+  const MarkdownRendererStatus status = view_->renderer_status();
+  status_highlight_->setText(QStringLiteral("高亮：%1\n%2")
+                                 .arg(EngineStateText(status.highlighter),
+                                      CounterText(status.highlight_context)));
+  status_formula_->setText(QStringLiteral("公式：%1\n%2")
+                               .arg(EngineStateText(status.formula),
+                                    CounterText(status.formula_context)));
+  status_mermaid_->setText(QStringLiteral("Mermaid：%1\n%2")
+                               .arg(EngineStateText(status.mermaid),
+                                    CounterText(status.mermaid_context)));
 }
 
 void RenderSettingsPanel::BrowseDumpDirectory() {
