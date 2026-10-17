@@ -44,6 +44,8 @@ bool EnsureLoaded() {
   g_context = JS_NewContext(g_runtime);
   if (g_context == nullptr) {
     g_load_failed = true;
+    JS_FreeRuntime(g_runtime);
+    g_runtime = nullptr;
     return false;
   }
 

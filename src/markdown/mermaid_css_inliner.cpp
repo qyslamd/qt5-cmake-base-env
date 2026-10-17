@@ -414,8 +414,12 @@ QString InlineSvgCss(const QString& svg, const QString& font_family) {
     // 内联 style 的层叠位次高于一切"规则 normal"声明：它只在规则带
     // !important 时才让位（内联自己 !important 则谁也盖不动）。
     // 这套键要从初始解析里记下来——后面 decls 会被规则逐步覆盖，分不清
-    // 谁是内联带来的
-    const QSet<QString> inline_keys(decls.keyBegin(), decls.keyEnd());
+    // 谁是内联带来的。
+    // 不用迭代器构造：QSet(iter, iter) 是 5.15 才有的，本仓支持线是 5.12
+    QSet<QString> inline_keys;
+    for (auto dit = decls.constBegin(); dit != decls.constEnd(); ++dit) {
+      inline_keys.insert(dit.key());
+    }
 
     for (const CssRule& rule : rules) {
       if (!MatchChain(stack, rule)) {

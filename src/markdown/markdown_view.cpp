@@ -1,6 +1,7 @@
 #include "markdown_view.h"
 
 #include <QClipboard>
+#include <QDateTime>
 #include <QDebug>
 #include <QFile>
 #include <QFileInfo>
@@ -58,17 +59,32 @@ const QString& DefaultCssFromResources() {
 }
 
 // MD_MARKDOWN_CSS=<文件>：存在就覆盖 qrc 里的样式——调样式不用重编，发布
-// 默认关闭（与 MD_MERMAID_DUMP 同一个模式）。环境变量读一次；**文件**每次
-// 现读，改完重开文档就生效，不用重启程序。设了但读不了就落回 qrc
+// 默认关闭（与 MD_MERMAID_DUMP 同一个模式）。环境变量读一次；**文件**按
+// 变更时间缓存——没变不读盘（每次 ApplyDocument 现读是白读），变了立即
+// 跟上，"改完重开文档就生效"的调样式工作流不破坏。设了但读不了就落回 qrc
 QString LoadDefaultCss() {
   static const QString kOverridePath = qEnvironmentVariable("MD_MARKDOWN_CSS");
   if (!kOverridePath.isEmpty()) {
-    QFile file(kOverridePath);
-    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-      return QString::fromUtf8(file.readAll());
+    static QString cached_css;
+    static QDateTime cached_modified;
+    static qint64 cached_size = -1;
+    static bool have_cached = false;
+    const QFileInfo info(kOverridePath);
+    const QDateTime modified = info.lastModified();
+    if (!have_cached || modified != cached_modified ||
+        info.size() != cached_size) {
+      QFile file(kOverridePath);
+      if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qWarning() << "markdown: MD_MARKDOWN_CSS set but unreadable,"
+                   << kOverridePath;
+        return DefaultCssFromResources();  // 失败态不缓存，文件回来了直接用
+      }
+      cached_css = QString::fromUtf8(file.readAll());
+      cached_modified = modified;
+      cached_size = info.size();
+      have_cached = true;
     }
-    qWarning() << "markdown: MD_MARKDOWN_CSS set but unreadable,"
-               << kOverridePath;
+    return cached_css;
   }
   return DefaultCssFromResources();
 }
@@ -264,7 +280,7 @@ void MarkdownView::ScrollToAnchor(const QString& anchor) {
   html_->scrollToAnchor(heading_ids_.value(anchor, anchor));
 }
 
-bool MarkdownView::FindText(const QString& text, QTextDocument::FindFlags flags,
+bool MarkdownView::FindText(const QString& text, FindFlags flags,
                             bool* wrapped) {
   if (text.isEmpty()) {
     return false;  // 空串不是"找全部"，是误用；选区与滚动都别动
@@ -274,8 +290,18 @@ bool MarkdownView::FindText(const QString& text, QTextDocument::FindFlags flags,
   if (wrapped != nullptr) {
     *wrapped = false;
   }
+  QTextDocument::FindFlags qt_flags;
+  if (flags & FindFlag::FindBackward) {
+    qt_flags |= QTextDocument::FindBackward;
+  }
+  if (flags & FindFlag::FindCaseSensitively) {
+    qt_flags |= QTextDocument::FindCaseSensitively;
+  }
+  if (flags & FindFlag::FindWholeWords) {
+    qt_flags |= QTextDocument::FindWholeWords;
+  }
   // incremental 固定 false：本仓没有"边打字边找"的 UI，省得宿主以为它有
-  return html_->findText(text, flags, /*incremental=*/false, wrapped);
+  return html_->findText(text, qt_flags, /*incremental=*/false, wrapped);
 }
 
 void MarkdownView::Print(QPrinter* printer) {

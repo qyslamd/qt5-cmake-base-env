@@ -213,6 +213,29 @@ TEST(MarkdownToHtmlTest, IndentedContinuationStillExtractsFormulas) {
   EXPECT_EQ(probe.texes.at(0), QStringLiteral("y"));
 }
 
+// 缩进代码块里的 ``` 是内容（CommonMark），不能当围栏开关——否则它会
+// 翻转围栏态，后面的正文 $ 被错吞成"围栏内容"
+TEST(MarkdownToHtmlTest, IndentedFenceLinesAreCodeContent) {
+  FormulaProbe probe;
+  const QString html = MarkdownToHtml(
+      QStringLiteral("引子\n\n    ```py\n    $x$\n    ```\n\n收尾 $y$ 尾。\n"),
+      probe.Sink());
+  ASSERT_EQ(probe.texes.size(), 1);
+  EXPECT_EQ(probe.texes.at(0), QStringLiteral("y"));
+  EXPECT_TRUE(html.contains(QStringLiteral("$x$"))) << html.toStdString();
+}
+
+// 缩进代码块结束后紧跟围栏：结束那行不能吞掉围栏判定（老实现里围栏
+// 判定先走，非缩进的 ``` 会被正确认出；这条钉的是重构后的行为不变）
+TEST(MarkdownToHtmlTest, IndentedCodeThenFenceStillWorks) {
+  FormulaProbe probe;
+  const QString html = MarkdownToHtml(
+      QStringLiteral("引子\n\n    indented\n```py\n$x$\n```\n收尾 $y$ 尾。\n"),
+      probe.Sink());
+  ASSERT_EQ(probe.texes.size(), 1);
+  EXPECT_EQ(probe.texes.at(0), QStringLiteral("y"));
+}
+
 // 回归点：md4c 在 GFM 下放行内联原始 HTML，正文里没闭合的裸 <pre><code> 若不加
 // 行首锚点，会一直匹配到文档后面下一个 </code></pre>，把中间整段正文吞成代码
 TEST(MarkdownToHtmlTest, StrayInlinePreCodeDoesNotSwallowLaterBlocks) {

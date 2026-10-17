@@ -23,8 +23,21 @@ namespace {
 JSRuntime* g_runtime = nullptr;
 JSContext* g_context = nullptr;
 bool g_load_failed = false;
-// key = 'D'/'I' + tex。失败也缓存空串：同一个坏公式不该每帧重试一遍
+// key = 'D'/'I' + tex。失败也缓存空串：同一个坏公式不该每帧重试一遍。
+// 上限 256 条（tag 是 KB 级），FIFO 淘汰——长会话里无限图源会把内存吃穿
+constexpr int kCacheMax = 256;
 QHash<QString, QString> g_cache;
+QList<QString> g_cache_order;
+
+void CacheInsert(const QString& key, const QString& tag) {
+  if (!g_cache.contains(key)) {
+    g_cache_order.append(key);
+  }
+  g_cache.insert(key, tag);
+  while (g_cache_order.size() > kCacheMax) {
+    g_cache.remove(g_cache_order.takeFirst());
+  }
+}
 
 // 载荷在 qrc 里（resources/mathjax-svg.min.js），只求值一次
 bool EnsureLoaded() {
@@ -128,7 +141,9 @@ QString SvgToImgTag(const QString& svg, bool display) {
 
   QBuffer buffer;
   buffer.open(QIODevice::WriteOnly);
-  image.save(&buffer, "PNG");
+  if (!image.save(&buffer, "PNG")) {
+    return {};  // PNG 编不出：返回空，正文落回原文而不是坏 img
+  }
 
   // data URI 内联：自定义 scheme 会被 qlitehtml 当主机名做浏览器式扩展
   // （实测 mj://0 变成 mj://0.0.0.0），走 data URI 完全不经 URL 解析
@@ -196,6 +211,6 @@ QString FormulaToImgTag(const QString& tex, bool display) {
   }
   JS_FreeValue(g_context, value);
 
-  g_cache.insert(key, tag);
+  CacheInsert(key, tag);
   return tag;
 }

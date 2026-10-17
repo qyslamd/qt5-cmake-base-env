@@ -2,8 +2,11 @@
 
 #include <quickjs.h>
 
+#include <cmath>
+
 #include <QBuffer>
 #include <QDebug>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFont>
 #include <QFontDatabase>
@@ -31,8 +34,22 @@ namespace {
 JSRuntime* g_runtime = nullptr;
 JSContext* g_context = nullptr;
 bool g_load_failed = false;
-// key = mermaid 源码。失败也缓存空串：同一个坏图不该每次编辑都重试
+// key = mermaid 源码。失败也缓存空串：同一个坏图不该每次编辑都重试。
+// 上限 32 张（每张是内嵌 PNG 的 data URI，大图能到 MB 级），FIFO 淘汰——
+// 被挤掉的图无非重渲一次，无限增长的缓存会在长会话里把内存吃穿
+constexpr int kCacheMax = 32;
 QHash<QString, QString> g_cache;
+QList<QString> g_cache_order;
+
+void CacheInsert(const QString& key, const QString& tag) {
+  if (!g_cache.contains(key)) {
+    g_cache_order.append(key);
+  }
+  g_cache.insert(key, tag);
+  while (g_cache_order.size() > kCacheMax) {
+    g_cache.remove(g_cache_order.takeFirst());
+  }
+}
 
 // 排查渲染问题用：设了 MD_MERMAID_DUMP=<目录> 就把各阶段产物落盘
 QString DumpDir() {
@@ -59,9 +76,13 @@ void DumpStage(int index, const QString& stage, const QByteArray& data) {
 // SVG 自己写的族名走——两者都过 Qt 的替换链，仍然同源，只是中文可能缺字。
 
 QString PickCjkFamily() {
-  // 只许在 GUI 线程、QGuiApplication 构造之后调：QFontDatabase 需要应用实例
-  // （将来渲染搬进后台线程时，这条断言会先响，别把它当噪声）
-  Q_ASSERT(qGuiApp != nullptr);
+  // 只许在 GUI 线程、QGuiApplication 构造之后调：QFontDatabase 需要应用实例。
+  // 用运行时检查不用 Q_ASSERT——Release 下断言是空操作，null 会直接炸在
+  // families() 里；返回空族，调用方退回 JS 自报的族名，行为可预期
+  if (qGuiApp == nullptr) {
+    qWarning() << "mermaid: PickCjkFamily called before QGuiApplication";
+    return QString();
+  }
   const QStringList candidates = {
       QStringLiteral("Microsoft YaHei"),     // Windows
       QStringLiteral("Noto Sans CJK SC"),    // Linux 常见
@@ -348,8 +369,13 @@ QString RenderMermaidSvg(const QString& code) {
     return QString();
   }
 
-  // 上界与 mermaidx 同值：mindmap 这类图会不停排 rAF，靠它兜底
+  // 上界与 mermaidx 同值：mindmap 这类图会不停排 rAF，靠它兜底。
+  // 光有 job 数不够——"小步慢排"的图永远到不了上限但 UI 照样卡死，
+  // 加墙钟 30 秒兜底
   constexpr int kMaxJobs = 200000;
+  constexpr qint64 kPumpDeadlineMs = 30000;
+  QElapsedTimer pump_clock;
+  pump_clock.start();
   bool done = false;
   for (int i = 0; i < kMaxJobs; ++i) {
     JSContext* pump_context = nullptr;
@@ -366,6 +392,10 @@ QString RenderMermaidSvg(const QString& code) {
       break;
     }
     if (result == 0) {
+      break;
+    }
+    if (pump_clock.elapsed() > kPumpDeadlineMs) {
+      qWarning() << "mermaid: pump exceeded" << kPumpDeadlineMs << "ms";
       break;
     }
     global = JS_GetGlobalObject(g_context);
@@ -461,22 +491,32 @@ QString SvgToImgTag(const QString& svg) {
     return QString();
   }
 
-  // 2 倍超采样、按 1 倍尺寸摆放：连线与箭头的边缘才是锐的
+  // 2 倍超采样、按 1 倍尺寸摆放：连线与箭头的边缘才是锐的。
+  // Format_ARGB32 是 4 字节/像素，大图 2 倍会内存爆（5000×5000 的图 2 倍
+  // = 1.6GB）：像素总量封顶 4096×4096（≈67MB 一张），超了自动降倍数
   QSvgRenderer renderer(marked.toUtf8());
   if (!renderer.isValid()) {
     qWarning() << "mermaid: QSvgRenderer rejected the cleaned svg";
     return QString();
   }
-  QImage image(qRound(width * 2.0), qRound(height * 2.0),
+  qreal scale = 2.0;
+  constexpr qreal kMaxRasterPixels = 4096.0 * 4096.0;
+  const qreal area = width * height;
+  if (area * scale * scale > kMaxRasterPixels) {
+    scale = std::sqrt(kMaxRasterPixels / area);
+  }
+  QImage image(qRound(width * scale), qRound(height * scale),
                QImage::Format_ARGB32_Premultiplied);
   image.fill(Qt::transparent);
   QPainter painter(&image);
-  renderer.render(&painter, QRectF(0.0, 0.0, width * 2.0, height * 2.0));
+  renderer.render(&painter, QRectF(0.0, 0.0, width * scale, height * scale));
   painter.end();
 
   QBuffer buffer;
   buffer.open(QIODevice::WriteOnly);
-  image.save(&buffer, "PNG");
+  if (!image.save(&buffer, "PNG")) {
+    return QString();  // PNG 编不出：返回空，原图位退回代码块
+  }
   DumpStage(index, QStringLiteral("png"), buffer.data());
 
   return QStringLiteral(
@@ -503,6 +543,6 @@ QString MermaidToImgTag(const QString& code) {
   }
   const QString svg = RenderMermaidSvg(code);
   const QString tag = svg.isEmpty() ? QString() : SvgToImgTag(svg);
-  g_cache.insert(code, tag);
+  CacheInsert(code, tag);
   return tag;
 }

@@ -143,9 +143,32 @@ QString ExtractMath(const QString& markdown, QVector<MathSegment>* segments,
   for (const QString& line : lines) {
     const QString trimmed = line.trimmed();
     const bool blank = trimmed.isEmpty();
+    // 缩进的围栏行（4 空格起头的 ```）不是围栏：在缩进代码块里是内容，
+    // 在围栏里也不构成闭合（CommonMark 的闭合围栏不允许 4 空格缩进）
+    const bool indented = line.startsWith(QLatin1String("    ")) ||
+                          line.startsWith(QLatin1Char('\t'));
 
-    if (!in_display_block && (trimmed.startsWith(QLatin1String("```")) ||
-                              trimmed.startsWith(QLatin1String("~~~")))) {
+    // 缩进代码块（CommonMark：4 空格或 tab，且不能打断段落——段落开着的
+    // 时候缩进行只是续行）。近似口径：段落态按"上一非围栏/非代码行是否
+    // 非空"维护，列表项内的深缩进场景不覆盖
+    if (!in_display_block && !in_fence && !in_indent_code && indented &&
+        !paragraph_open) {
+      in_indent_code = true;
+    }
+    if (in_indent_code) {
+      if (indented || blank) {
+        result << line;
+        paragraph_open = false;
+        continue;
+      }
+      // 非缩进非空：代码块到此为止。这行本身可能是围栏（缩进代码块后跟
+      // 围栏极常见），不能吞掉围栏判定——落下去继续走
+      in_indent_code = false;
+    }
+
+    if (!in_display_block && !indented &&
+        (trimmed.startsWith(QLatin1String("```")) ||
+         trimmed.startsWith(QLatin1String("~~~")))) {
       const QString marker = trimmed.left(3);
       if (!in_fence) {
         in_fence = true;
@@ -160,23 +183,6 @@ QString ExtractMath(const QString& markdown, QVector<MathSegment>* segments,
     if (in_fence) {
       result << line;
       continue;
-    }
-
-    if (!in_display_block) {
-      const bool indented = line.startsWith(QLatin1String("    ")) ||
-                            line.startsWith(QLatin1Char('\t'));
-      if (!in_indent_code && indented && !paragraph_open) {
-        in_indent_code = true;
-      }
-      if (in_indent_code) {
-        if (!indented && !blank) {
-          in_indent_code = false;  // 非缩进非空行结束代码块，落到普通处理
-        } else {
-          result << line;
-          paragraph_open = false;
-          continue;
-        }
-      }
     }
 
     if (in_display_block) {

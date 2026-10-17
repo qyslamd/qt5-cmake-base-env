@@ -20,7 +20,6 @@
 #include <QPrinter>
 #include <QShortcut>
 #include <QStatusBar>
-#include <QTextDocument>
 #include <QToolBar>
 
 #include "markdown_view.h"
@@ -283,8 +282,8 @@ void MdViewerWindow::FindNext(bool backward) {
     return;
   }
   bool wrapped = false;
-  const QTextDocument::FindFlags flags =
-      backward ? QTextDocument::FindBackward : QTextDocument::FindFlags();
+  const MarkdownView::FindFlags flags =
+      backward ? MarkdownView::FindBackward : MarkdownView::FindNoFlag;
   if (!view_->FindText(needle, flags, &wrapped)) {
     statusBar()->showMessage(QStringLiteral("未找到：%1").arg(needle), 3000);
     return;

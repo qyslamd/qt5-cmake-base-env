@@ -12,7 +12,6 @@
 #include <QPrinter>
 #include <QString>
 #include <QTemporaryDir>
-#include <QTextDocument>
 
 #include "markdown_view.h"
 
@@ -43,23 +42,23 @@ TEST(MarkdownViewActionsTest, FindHits) {
   MarkdownView view;
   view.SetContent(SampleMarkdown(), QString());
   bool wrapped = true;  // 先置反，确认实现真的写了它
-  EXPECT_TRUE(view.FindText(QStringLiteral("needle"),
-                            QTextDocument::FindFlags(), &wrapped));
+  EXPECT_TRUE(view.FindText(QStringLiteral("needle"), MarkdownView::FindFlags(),
+                            &wrapped));
   EXPECT_FALSE(wrapped);
 }
 
 TEST(MarkdownViewActionsTest, FindMissesWithoutTouchingSelection) {
   MarkdownView view;
   view.SetContent(SampleMarkdown(), QString());
-  EXPECT_FALSE(view.FindText(QStringLiteral("完全没有的词"),
-                             QTextDocument::FindFlags()));
+  EXPECT_FALSE(
+      view.FindText(QStringLiteral("完全没有的词"), MarkdownView::FindFlags()));
 }
 
 // 空串是误用，不是"找全部"：必须原样返回 false，不滚不选
 TEST(MarkdownViewActionsTest, EmptyNeedleIsRejected) {
   MarkdownView view;
   view.SetContent(SampleMarkdown(), QString());
-  EXPECT_FALSE(view.FindText(QString(), QTextDocument::FindFlags()));
+  EXPECT_FALSE(view.FindText(QString(), MarkdownView::FindFlags()));
 }
 
 TEST(MarkdownViewActionsTest, PrintWritesPdf) {

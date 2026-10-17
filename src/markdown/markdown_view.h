@@ -3,7 +3,6 @@
 
 #include <QHash>
 #include <QString>
-#include <QTextDocument>
 #include <QUrl>
 #include <QWidget>
 
@@ -31,6 +30,15 @@ class MarkdownView : public QWidget {
   Q_OBJECT
 
  public:
+  // 查找选项。自定义而不用 QTextDocument::FindFlags——宿主不该为了几个
+  // 枚举值把 QTextDocument 拉进编译单元
+  enum FindFlag {
+    FindNoFlag = 0,
+    FindBackward = 1,
+    FindCaseSensitively = 2,
+    FindWholeWords = 4,
+  };
+  Q_DECLARE_FLAGS(FindFlags, FindFlag)
   explicit MarkdownView(QWidget* parent = nullptr);
   ~MarkdownView() override;
 
@@ -54,8 +62,7 @@ class MarkdownView : public QWidget {
   // 查找并选中命中处（找到会滚过去）。wrapped 非空时被写成"本次是否绕回了
   // 开头"（每次调用都会写——控件本体只在绕回时写，见实现），宿主拿它提示
   // "已到末尾"。返回 false = 没有命中，选区不动
-  bool FindText(const QString& text, QTextDocument::FindFlags flags,
-                bool* wrapped = nullptr);
+  bool FindText(const QString& text, FindFlags flags, bool* wrapped = nullptr);
   // 打印/导出 PDF：QPrinter 由宿主自备（本控件不碰文件系统与输出格式）。
   // 控件按 print 媒体重排一遍再逐页绘制——分页是按页高切片的，跨页的长
   // 元素会被切在页缝上
@@ -93,5 +100,7 @@ class MarkdownView : public QWidget {
   QHash<QString, QString> heading_ids_;
   qreal zoom_ = 1.0;
 };
+
+Q_DECLARE_OPERATORS_FOR_FLAGS(MarkdownView::FindFlags)
 
 #endif  // FILE_MARKDOWN_MARKDOWN_VIEW_H_
