@@ -149,6 +149,32 @@ TEST(MarkdownToHtmlTest, MoneyAndEscapedDollarStayText) {
   EXPECT_FALSE(html.contains(QStringLiteral("data-tex"))) << html.toStdString();
 }
 
+// 开标记的转义判断与闭标记同一条规则：数前面连续反斜杠的奇偶。偶数个
+// 反斜杠之后的 $ 是开标记（老实现只看紧邻字符，把 \$ 整对吃掉，公式没开）
+TEST(MarkdownToHtmlTest, EvenBackslashesKeepDollarAsOpenMarker) {
+  FormulaProbe probe;
+  const QString html =
+      MarkdownToHtml(QStringLiteral("\\\\\\\\$x$ 尾\n"), probe.Sink());
+  ASSERT_EQ(probe.texes.size(), 1) << html.toStdString();
+  EXPECT_EQ(probe.texes.at(0), QStringLiteral("x"));
+}
+
+TEST(MarkdownToHtmlTest, TwoBackslashesStillOpenFormula) {
+  FormulaProbe probe;
+  const QString html =
+      MarkdownToHtml(QStringLiteral("\\\\$x$ 尾\n"), probe.Sink());
+  ASSERT_EQ(probe.texes.size(), 1) << html.toStdString();
+  EXPECT_EQ(probe.texes.at(0), QStringLiteral("x"));
+}
+
+// 奇数个反斜杠：$ 是字面量，不能开公式
+TEST(MarkdownToHtmlTest, ThreeBackslashesEscapeDollar) {
+  FormulaProbe probe;
+  const QString html =
+      MarkdownToHtml(QStringLiteral("\\\\\\$x$ 尾\n"), probe.Sink());
+  EXPECT_TRUE(probe.texes.isEmpty()) << html.toStdString();
+}
+
 // 渲染不出来（回调返回空）或调用方没给回调：原文照旧显示，别吞内容
 TEST(MarkdownToHtmlTest, FailedFormulaFallsBackToSource) {
   const FormulaSink failing = [](const QString&, bool) { return QString(); };
@@ -247,6 +273,73 @@ TEST(MarkdownToHtmlTest, IndentedFenceLinesAreCodeContent) {
   ASSERT_EQ(probe.texes.size(), 1);
   EXPECT_EQ(probe.texes.at(0), QStringLiteral("y"));
   EXPECT_TRUE(html.contains(QStringLiteral("$x$"))) << html.toStdString();
+}
+
+// 块级标记之后不能再把缩进行当段落续行：标题、分隔线、Setext 下划线、
+// 空引用都是完整块，后面的 4 空格行应进缩进代码块，块里的 $ 是字面量
+TEST(MarkdownToHtmlTest, HeadingEndsParagraphBeforeIndentedCode) {
+  FormulaProbe probe;
+  const QString html = MarkdownToHtml(
+      QStringLiteral("# Title\n    code $x$\n\n尾 $y$ 尾。\n"), probe.Sink());
+  ASSERT_EQ(probe.texes.size(), 1) << html.toStdString();
+  EXPECT_EQ(probe.texes.at(0), QStringLiteral("y"));
+  EXPECT_TRUE(html.contains(QStringLiteral("$x$"))) << html.toStdString();
+}
+
+TEST(MarkdownToHtmlTest, ThematicBreakEndsParagraphBeforeIndentedCode) {
+  FormulaProbe probe;
+  const QString html = MarkdownToHtml(
+      QStringLiteral("引子\n\n---\n    code $x$\n\n尾 $y$ 尾。\n"),
+      probe.Sink());
+  ASSERT_EQ(probe.texes.size(), 1) << html.toStdString();
+  EXPECT_EQ(probe.texes.at(0), QStringLiteral("y"));
+  EXPECT_TRUE(html.contains(QStringLiteral("$x$"))) << html.toStdString();
+}
+
+TEST(MarkdownToHtmlTest, SetextUnderlineEndsParagraphBeforeIndentedCode) {
+  FormulaProbe probe;
+  const QString html = MarkdownToHtml(
+      QStringLiteral("标题\n===\n    code $x$\n\n尾 $y$ 尾。\n"), probe.Sink());
+  ASSERT_EQ(probe.texes.size(), 1) << html.toStdString();
+  EXPECT_EQ(probe.texes.at(0), QStringLiteral("y"));
+  EXPECT_TRUE(html.contains(QStringLiteral("$x$"))) << html.toStdString();
+}
+
+// 反向保护：引用行有正文时，后面的缩进行是 CommonMark 的 lazy
+// continuation（pandoc 实测），不能被当成代码块
+TEST(MarkdownToHtmlTest, BlockQuoteKeepsLazyContinuation) {
+  FormulaProbe probe;
+  const QString html =
+      MarkdownToHtml(QStringLiteral("> quote\n    code $x$\n"), probe.Sink());
+  ASSERT_EQ(probe.texes.size(), 1) << html.toStdString();
+  EXPECT_EQ(probe.texes.at(0), QStringLiteral("x"));
+}
+
+TEST(MarkdownToHtmlTest, EmptyBlockQuoteEndsParagraphBeforeIndentedCode) {
+  FormulaProbe probe;
+  const QString html = MarkdownToHtml(
+      QStringLiteral(">\n    code $x$\n\n尾 $y$ 尾。\n"), probe.Sink());
+  ASSERT_EQ(probe.texes.size(), 1) << html.toStdString();
+  EXPECT_EQ(probe.texes.at(0), QStringLiteral("y"));
+}
+
+// 空行后的 "=====" 只是普通正文（CommonMark），不能当 Setext 下划线：
+// 后面的缩进行仍是段落续行
+TEST(MarkdownToHtmlTest, StandaloneEqualsLineIsParagraph) {
+  FormulaProbe probe;
+  const QString html =
+      MarkdownToHtml(QStringLiteral("=====\n    code $x$\n"), probe.Sink());
+  ASSERT_EQ(probe.texes.size(), 1) << html.toStdString();
+  EXPECT_EQ(probe.texes.at(0), QStringLiteral("x"));
+}
+
+// 列表项的缩进是内容续行，不是缩进代码块
+TEST(MarkdownToHtmlTest, ListContinuationIsNotCode) {
+  FormulaProbe probe;
+  const QString html = MarkdownToHtml(
+      QStringLiteral("- item\n    continuation $x$\n"), probe.Sink());
+  ASSERT_EQ(probe.texes.size(), 1) << html.toStdString();
+  EXPECT_EQ(probe.texes.at(0), QStringLiteral("x"));
 }
 
 // 缩进代码块结束后紧跟围栏：结束那行不能吞掉围栏判定（老实现里围栏

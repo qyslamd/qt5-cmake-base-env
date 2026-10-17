@@ -122,7 +122,8 @@ img.mermaid { max-width: 100%; height: auto; }
 .str { color: #0a3069; }                     /* 字符串 */
 .re  { color: #0a3069; }                     /* 正则 */
 .num { color: #0550ae; }                     /* 数字 */
-.cmt { color: #6e7781; font-style: italic; } /* 注释 */
+/* 注释不设 italic：CJK 没有真斜体，Qt 会做合成 oblique，中文被剪切得又歪又扁 */
+.cmt { color: #6e7781; } /* 注释 */
 .meta{ color: #0550ae; }                     /* #include 等 */
 .attr{ color: #0550ae; }                     /* 属性/键 */
 .tag { color: #116329; }                     /* HTML 标签 */

@@ -546,16 +546,18 @@ QString InlineSvgMarkers(const QString& svg) {
     cleaned.remove(kRef);
     out += cleaned;
 
-    // 箭头必须是图形的**兄弟**节点：塞进 <line>/<path> 里面 SVG 根本不画
+    // 箭头必须是图形的**兄弟**节点：塞进 <line>/<path> 里面 SVG 根本不画。
+    // 图形可能有子内容（<title>、注释），先把内容与闭合标签原样搬完，再把
+    // 箭头放到闭合标签之后；自闭合标签没有闭合标签，箭头直接跟在后面
     const QString close_tag =
         QStringLiteral("</") + match.captured(1) + QChar('>');
-    int p = pos;
-    while (p < svg.size() && svg[p].isSpace()) {
-      ++p;
-    }
-    if (svg.midRef(p, close_tag.size()) == close_tag) {
-      out += close_tag;
-      pos = p + close_tag.size();
+    if (!tag.trimmed().endsWith(QLatin1String("/>"))) {
+      const int close_start = svg.indexOf(close_tag, pos);
+      if (close_start >= 0) {
+        out.append(svg.constData() + pos, close_start - pos);
+        out += close_tag;
+        pos = close_start + close_tag.size();
+      }
     }
     out += arrows;
   }

@@ -110,6 +110,12 @@ void ParseDecls(const QString& body, QHash<QString, QString>* decls,
       value = value.trimmed();
       is_important = true;
     }
+    // 同一块内 importance 先于顺序比较：前面已标记 !important 的属性，
+    // 后面的普通声明压不动它（CSS 层叠先比 origin+importance，再比顺序）。
+    // 照搬"后写覆盖"会把 "color:red !important; color:blue" 输出成 blue
+    if (!is_important && important->contains(prop)) {
+      continue;
+    }
     (*decls)[prop] = value;
     if (is_important) {
       important->insert(prop);

@@ -91,6 +91,26 @@ TEST(MermaidSvgCleanupTest, ExpandsMarkerEndIntoASiblingGroup) {
   EXPECT_GT(arrow, path_end) << out.toStdString();
 }
 
+// 非自闭合图形带子内容（<title>/注释）时，内容与闭合标签必须原样保留，
+// 箭头放在闭合标签之后——不能把"当前 mermaid 输出都自闭合"当成契约
+TEST(MermaidSvgCleanupTest, ShapeWithChildContentKeepsItAndArrowFollows) {
+  const QString svg = QStringLiteral(
+      "<svg><defs>"
+      "<marker id=\"a\" refX=\"0\" refY=\"0\" orient=\"auto\">"
+      "<path d=\"M0,0 L5,5 z\"></path></marker>"
+      "</defs><path d=\"M0,0 L100,0\" marker-end=\"url(#a)\">"
+      "<title>tip</title></path></svg>");
+
+  const QString out = InlineSvgMarkers(svg);
+
+  EXPECT_TRUE(out.contains(QStringLiteral("<title>tip</title></path>")))
+      << out.toStdString();
+  const int close = out.indexOf(QStringLiteral("</path>"));
+  const int arrow = out.indexOf(QStringLiteral("<g transform="));
+  ASSERT_GE(close, 0) << out.toStdString();
+  EXPECT_GT(arrow, close) << out.toStdString();
+}
+
 // 起点箭头用"路径前进方向"，只有 orient="auto-start-reverse" 才翻 180°：
 // 翻错方向会把箭头画到路径另一侧（class 图的继承空心三角就是这么歪的）
 TEST(MermaidSvgCleanupTest, StartMarkerUsesPathDirection) {
@@ -177,6 +197,24 @@ TEST(MermaidCssInlinerTest, RuleImportantBeatsInlineNormal) {
   const QString out = InlineSvgCss(svg, QString());
 
   EXPECT_FALSE(out.contains(QStringLiteral("blue"))) << out.toStdString();
+}
+
+// 同一条 style 里 !important 先于顺序：后面那条普通声明不能把前一条的
+// important 声明顶掉（CSS 层叠先比 origin+importance，再比出现顺序）。
+// 老实现无条件后写覆盖，输出 "fill: green"，与浏览器不一致
+TEST(MermaidCssInlinerTest, ImportantBeatsLaterNormalInSameStyle) {
+  // 必须有一条（不命中的）规则：没有 <style> 时 InlineSvgCss 原样返回，
+  // 根本不解析内联 style
+  const QString svg = QStringLiteral(
+      "<svg><style>.dummy { fill: red; }</style>"
+      "<rect style=\"fill: blue !important; fill: green\"></rect></svg>");
+
+  const QString out = InlineSvgCss(svg, QString());
+
+  EXPECT_TRUE(out.contains(QStringLiteral("fill=\"blue\"")))
+      << out.toStdString();
+  EXPECT_TRUE(out.contains(QStringLiteral("!important"))) << out.toStdString();
+  EXPECT_FALSE(out.contains(QStringLiteral("green"))) << out.toStdString();
 }
 
 // 同属性按 specificity 决胜、同 specificity 才按文档顺序：tag 选择器在前、

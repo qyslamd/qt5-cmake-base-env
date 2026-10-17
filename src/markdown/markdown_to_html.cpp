@@ -53,14 +53,6 @@ QString ExtractMathInLine(const QString& line, QVector<MathSegment>* segments,
   while (i < size) {
     const QChar current = line.at(i);
 
-    // 转义的 \$：原样留着（md4c 会渲染成 $）
-    if (current == QLatin1Char('\\') && i + 1 < size &&
-        line.at(i + 1) == QLatin1Char('$')) {
-      out.append(line.constData() + i, 2);
-      i += 2;
-      continue;
-    }
-
     // 行内代码：整段照抄，里面的 $ 不动
     if (current == QLatin1Char('`')) {
       int run = 1;
@@ -78,6 +70,14 @@ QString ExtractMathInLine(const QString& line, QVector<MathSegment>* segments,
     }
 
     if (current != QLatin1Char('$')) {
+      out += current;
+      ++i;
+      continue;
+    }
+
+    // 开标记与闭标记用同一条转义规则：数前面连续反斜杠的奇偶。被转义的 $
+    // 原样输出（前面的反斜杠已按普通字符输出），md4c 会渲染成字面 $
+    if (IsEscapedAt(line, i)) {
       out += current;
       ++i;
       continue;
@@ -133,6 +133,93 @@ QString ExtractMathInLine(const QString& line, QVector<MathSegment>* segments,
     ++i;
   }
   return out;
+}
+
+// ATX 标题：1~6 个 #，后面是空白或行尾
+bool IsAtxHeading(const QString& trimmed) {
+  int hashes = 0;
+  while (hashes < trimmed.size() && trimmed.at(hashes) == QLatin1Char('#')) {
+    ++hashes;
+  }
+  if (hashes < 1 || hashes > 6) {
+    return false;
+  }
+  return hashes == trimmed.size() || trimmed.at(hashes).isSpace();
+}
+
+// 分隔线：同一种标记（* - _）至少 3 个，中间可以有空白
+bool IsThematicBreak(const QString& trimmed) {
+  if (trimmed.isEmpty()) {
+    return false;
+  }
+  const QChar marker = trimmed.at(0);
+  if (marker != QLatin1Char('*') && marker != QLatin1Char('-') &&
+      marker != QLatin1Char('_')) {
+    return false;
+  }
+  int count = 0;
+  for (const QChar c : trimmed) {
+    if (c == marker) {
+      ++count;
+    } else if (!c.isSpace()) {
+      return false;
+    }
+  }
+  return count >= 3;
+}
+
+// Setext 下划线：整行只有 = 或 -。只在前一行是段落时才算块标记——
+// 空行后的 "=====" 在 CommonMark 里只是一段普通正文
+bool IsSetextUnderline(const QString& trimmed) {
+  if (trimmed.isEmpty()) {
+    return false;
+  }
+  const QChar marker = trimmed.at(0);
+  if (marker != QLatin1Char('=') && marker != QLatin1Char('-')) {
+    return false;
+  }
+  for (const QChar c : trimmed) {
+    if (c != marker) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// 该行是否以引用标记开头；是则把标记剥掉，剩下的内容写进 rest
+bool StripBlockQuoteMarker(const QString& trimmed, QString* rest) {
+  if (!trimmed.startsWith(QLatin1Char('>'))) {
+    return false;
+  }
+  int i = 0;
+  while (i < trimmed.size() && trimmed.at(i) == QLatin1Char('>')) {
+    ++i;
+    if (i < trimmed.size() && trimmed.at(i).isSpace()) {
+      ++i;
+    }
+  }
+  *rest = trimmed.mid(i);
+  return true;
+}
+
+// 这一行是否结束了当前段落（后面的 4 空格行应进缩进代码块）。
+// 列表项不算：CommonMark 的 lazy continuation 让 "- item" 后的缩进行
+// 仍是列表内容。引用行只有"空引用"或引用内是完整块时才结束段落，
+// "> quote" 后的缩进行同样是 lazy continuation
+bool EndsParagraph(const QString& trimmed, bool paragraph_open) {
+  if (IsAtxHeading(trimmed) || IsThematicBreak(trimmed)) {
+    return true;
+  }
+  if (paragraph_open && IsSetextUnderline(trimmed)) {
+    return true;
+  }
+  QString quote_rest;
+  if (StripBlockQuoteMarker(trimmed, &quote_rest)) {
+    const QString inner = quote_rest.trimmed();
+    return inner.isEmpty() || IsAtxHeading(inner) || IsThematicBreak(inner) ||
+           (paragraph_open && IsSetextUnderline(inner));
+  }
+  return false;
 }
 
 // 逐行抽取：围栏代码块整段跳过；单独成行的 $$ 会把中间的行合并成一段公式
@@ -231,7 +318,9 @@ QString ExtractMath(const QString& markdown, QVector<MathSegment>* segments,
     }
 
     result << ExtractMathInLine(line, segments, salt);
-    paragraph_open = !blank;
+    // 标题/分隔线/空引用之后是完整块，不能再把下一行当段落续行——否则
+    // 后面的缩进代码块会被跳过判定，块里的 $ 被误当公式抽走
+    paragraph_open = !blank && !EndsParagraph(trimmed, paragraph_open);
   }
 
   // 没闭合的块级公式：按原文吐回去，不当公式

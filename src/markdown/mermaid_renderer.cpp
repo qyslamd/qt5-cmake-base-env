@@ -381,18 +381,17 @@ QString RenderMermaidSvg(const QString& code) {
                     JS_NewString(g_context, "m0"));
   JS_FreeValue(g_context, global);
 
-  // 完成判据是显式的 __renderSettled：r.svg 缺失时 undefined 的细节不该让
-  // C 侧去猜——JS 侧自己把 settled 置真，结果统一成字符串（svg || ''）
+  // 完成判据是 C 侧的旗子：then 与 catch 都必须调 __setSettled_raw，否则
+  // 出错的一路只能等泵循环跑满预算才放弃。JS 侧不再维护 __renderSettled
   static const char* const kCall =
       "globalThis.__renderResult = null;\n"
       "globalThis.__renderError = null;\n"
-      "globalThis.__renderSettled = false;\n"
       "mermaid.render(__renderId, __code)\n"
       "  .then(r => { globalThis.__renderResult = r.svg || '';\n"
       "               __setSettled_raw(); })\n"
       "  .catch(e => { globalThis.__renderError = "
       "      (e && e.name ? e.name + ': ' + e.message : String(e));\n"
-      "                 globalThis.__renderSettled = true; });";
+      "                 __setSettled_raw(); });";
   g_render_settled = false;
   if (!EvalGlobal(QByteArray(kCall), "render-call")) {
     return QString();

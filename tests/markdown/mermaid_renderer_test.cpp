@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <QByteArray>
+#include <QElapsedTimer>
 #include <QGuiApplication>
 #include <QString>
 #include <QStringList>
@@ -61,6 +62,20 @@ TEST(MermaidRendererTest, CachesBySource) {
   EXPECT_EQ(first, second);
   EXPECT_NE(first, MermaidToImgTag(
                        QStringLiteral("flowchart LR\n    X --> Y --> Z\n")));
+}
+
+// 回归点：mermaid.render 走 .catch（图示类型都认不出来）时也必须置 C 侧
+// settled 旗子。漏了的话泵循环要跑满二十万次 job 或 30 秒上限才放弃，一张
+// 坏图能把界面卡半分钟——比空结果本身严重得多
+TEST(MermaidRendererTest, RenderErrorSettlesPromptly) {
+  ASSERT_TRUE(MermaidRendererReady());
+  QElapsedTimer clock;
+  clock.start();
+  const QString tag =
+      MermaidToImgTag(QStringLiteral("notadiagram\n    A --> B\n"));
+  const qint64 elapsed = clock.elapsed();
+  EXPECT_TRUE(tag.isEmpty()) << "这类输入应当被 mermaid 拒绝";
+  EXPECT_LT(elapsed, 5000) << "出错路径没有及时落定，泵循环跑满了预算";
 }
 
 // 畸形输入不抛、不崩。约定是"空串 = 渲不出来，调用方退回代码块"，但别指望畸形
