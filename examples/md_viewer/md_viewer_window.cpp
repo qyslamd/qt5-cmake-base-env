@@ -24,6 +24,7 @@
 
 #include "markdown_outline_widget.h"
 #include "markdown_view.h"
+#include "render_settings_panel.h"
 
 namespace {
 
@@ -117,6 +118,15 @@ void MdViewerWindow::initUi() {
   addDockWidget(Qt::LeftDockWidgetArea, outline_dock);
   view_menu->addAction(outline_dock->toggleViewAction());
 
+  // 渲染设置：主题、行号、渲染开关、持久缓存、诊断
+  auto* settings_dock = new QDockWidget(QStringLiteral("渲染设置"), this);
+  settings_dock->setObjectName(QStringLiteral("renderSettingsDock"));
+  settings_dock->setMinimumWidth(280);
+  render_settings_ = new RenderSettingsPanel(view_, settings_dock);
+  settings_dock->setWidget(render_settings_);
+  addDockWidget(Qt::RightDockWidgetArea, settings_dock);
+  view_menu->addAction(settings_dock->toggleViewAction());
+
   path_label_ = new QLabel(this);
   statusBar()->addPermanentWidget(path_label_);
 
@@ -145,6 +155,10 @@ void MdViewerWindow::initSignals() {
           [this] { outline_->SetHeadings(view_->outline()); });
   connect(outline_, &MarkdownOutlineWidget::headingActivated, view_,
           &MarkdownView::ScrollToAnchor);
+  connect(render_settings_, &RenderSettingsPanel::statusMessage, this,
+          [this](const QString& message) {
+            statusBar()->showMessage(message, 5000);
+          });
   // 当前章节由宿主反查：最后一个 AnchorY <= 滚动位置 的标题。
   // 标题自带 margin，顶部标题的 y 通常大于 0；滚动到顶时留一段容差，
   // 否则第一项永远选不中

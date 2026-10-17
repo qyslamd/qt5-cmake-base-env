@@ -9,7 +9,9 @@ body {
   font-size: 14px;
   line-height: 1.7;
   color: #ffffff;
-  margin: 16px;
+  /* 宽屏下整篇内容限宽居中，代码块与正文同列 */
+  max-width: 960px;
+  margin: 16px auto;
 }
 
 h1 { font-size: 24px; border-bottom: 2px solid #ffffff; padding-bottom: 6px; }
