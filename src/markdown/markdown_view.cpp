@@ -23,6 +23,7 @@
 #include "markdown_types.h"
 #include "mermaid_renderer.h"
 #include "qlitehtmlwidget.h"
+#include "render_diagnostics.h"
 
 namespace {
 
@@ -182,8 +183,20 @@ void MarkdownView::initUi() {
 
   html_ = new QLiteHtmlWidget(this);
   html_->setObjectName(QStringLiteral("markdownHtml"));
-  html_->setResourceHandler(
-      [this](const QUrl& url) { return ReadResourceForUrl(url, base_dir_); });
+  html_->setResourceHandler([this](const QUrl& url) {
+    const QByteArray data = ReadResourceForUrl(url, base_dir_);
+    const MarkdownDiagnostics diagnostics = context_->diagnostics();
+    if (diagnostics.trace) {
+      // data URI 的字符串就是整张 PNG，日志里不展开
+      const QString label = url.scheme() == QLatin1String("data")
+                                ? QStringLiteral("data URI")
+                                : url.toString();
+      TraceRender(
+          diagnostics,
+          QStringLiteral("resource %1: %2 bytes").arg(label).arg(data.size()));
+    }
+    return data;
+  });
   // 缩放快捷键与 Ctrl+C 要做成控件的内置能力：Wheel 发到 viewport、
   // KeyPress 发到 widget 本身，两处都装（见 eventFilter）
   html_->setFocusPolicy(Qt::StrongFocus);
@@ -385,6 +398,14 @@ MarkdownRendererStatus MarkdownView::renderer_status() const {
 
 void MarkdownView::ResetRendererStats() { context_->ResetStats(); }
 
+void MarkdownView::SetDiagnostics(const MarkdownDiagnostics& diagnostics) {
+  context_->SetDiagnostics(diagnostics);
+}
+
+MarkdownDiagnostics MarkdownView::diagnostics() const {
+  return context_->diagnostics();
+}
+
 void MarkdownView::ReapplyDocument() {
   if (!has_document()) {
     return;
@@ -428,7 +449,7 @@ void MarkdownView::ApplyDocument() {
       return MermaidToImgTag(*context_, code, MarkdownTheme::Light);
     };
   }
-  html_->setHtml(
+  const QString final_html =
       WrapDocument(MarkdownToHtml(
                        markdown_, formula_sink, mermaid_sink,
                        [this](const QString& id, const QString& code) {
@@ -438,7 +459,27 @@ void MarkdownView::ApplyDocument() {
                          heading_ids_.insert(slug, id);
                        },
                        options),
-                   LoadDefaultCss()));
+                   LoadDefaultCss());
+
+  const MarkdownDiagnostics diagnostics = context_->diagnostics();
+  if (diagnostics.trace) {
+    TraceRender(diagnostics,
+                QStringLiteral("ApplyDocument: source=%1 chars, html=%2 chars")
+                    .arg(markdown_.size())
+                    .arg(final_html.size()));
+  }
+  // 每次 ApplyDocument 一组独立序号：与 formula/N-*、mermaid/N-* 的累积
+  // 语义一致，不会互相覆盖
+  if (DumpEnabled(diagnostics, QStringLiteral("apply/source.md"))) {
+    const int index = ++dump_apply_index_;
+    DumpRenderArtifact(diagnostics,
+                       QStringLiteral("apply/%1-source.md").arg(index),
+                       markdown_.toUtf8());
+    DumpRenderArtifact(diagnostics,
+                       QStringLiteral("apply/%1-final.html").arg(index),
+                       final_html.toUtf8());
+  }
+  html_->setHtml(final_html);
 }
 
 void MarkdownView::ShowMessage(const QString& text) {

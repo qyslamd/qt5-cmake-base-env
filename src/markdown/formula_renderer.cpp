@@ -14,6 +14,7 @@
 #include "default_render_context.h"
 #include "markdown_render_context_internal.h"
 #include "markdown_resources.h"
+#include "render_diagnostics.h"
 #include "renderer_status_internal.h"
 
 namespace {
@@ -101,11 +102,16 @@ bool EnsureLoaded() {
 }
 
 // SVG 字符串 → <img>。失败返回空串。color 有效时替换 currentColor
-QString SvgToImgTag(const QString& svg, bool display, const QColor& color) {
+QString SvgToImgTag(const QString& svg, bool display, const QColor& color,
+                    const MarkdownDiagnostics& diagnostics,
+                    const QString& artifact_prefix) {
   // MathJax 的输出包在 <mjx-container> 里，而 QSvgRenderer 只认 svg 根元素
   const int svg_start = svg.indexOf(QLatin1String("<svg"));
   const int svg_end = svg.lastIndexOf(QLatin1String("</svg>"));
   if (svg_start < 0 || svg_end < 0) {
+    if (diagnostics.trace) {
+      TraceRender(diagnostics, QStringLiteral("formula svg: no <svg> root"));
+    }
     return {};
   }
   QString bare = svg.mid(svg_start, svg_end - svg_start + 6);
@@ -115,6 +121,10 @@ QString SvgToImgTag(const QString& svg, bool display, const QColor& color) {
 
   QSvgRenderer renderer(bare.toUtf8());
   if (!renderer.isValid()) {
+    if (diagnostics.trace) {
+      TraceRender(diagnostics,
+                  QStringLiteral("formula svg: QSvgRenderer rejected it"));
+    }
     return {};
   }
 
@@ -133,6 +143,11 @@ QString SvgToImgTag(const QString& svg, bool display, const QColor& color) {
     height = fallback.height() / 1000.0 * 16.0;
   }
   if (width < 1.0 || height < 1.0) {
+    if (diagnostics.trace) {
+      TraceRender(
+          diagnostics,
+          QStringLiteral("formula svg: bad size %1x%2").arg(width).arg(height));
+    }
     return {};
   }
 
@@ -147,7 +162,14 @@ QString SvgToImgTag(const QString& svg, bool display, const QColor& color) {
   QBuffer buffer;
   buffer.open(QIODevice::WriteOnly);
   if (!image.save(&buffer, "PNG")) {
+    if (diagnostics.trace) {
+      TraceRender(diagnostics, QStringLiteral("formula png: save failed"));
+    }
     return {};  // PNG 编不出：返回空，正文落回原文而不是坏 img
+  }
+  if (DumpEnabled(diagnostics, artifact_prefix)) {
+    DumpRenderArtifact(diagnostics, artifact_prefix + QStringLiteral(".png"),
+                       buffer.data());
   }
 
   // data URI 内联：自定义 scheme 会被 qlitehtml 当主机名做浏览器式扩展
@@ -189,16 +211,35 @@ QString FormulaToImgTag(MarkdownRenderContext& context, const QString& tex,
       color.isValid() ? color.name() : QStringLiteral("legacy");
   const QString key = (display ? QStringLiteral("D") : QStringLiteral("I")) +
                       variant + QLatin1Char('|') + normalized;
+  const MarkdownDiagnostics& diagnostics = state.options.diagnostics;
   if (const QString* cached = state.formula_cache.Find(key)) {
     ++state.formula_stats.memory_cache_hits;
+    if (diagnostics.trace) {
+      TraceRender(
+          diagnostics,
+          QStringLiteral("formula cache hit: %1").arg(normalized.left(60)));
+    }
     return *cached;
   }
   ++state.formula_stats.memory_cache_misses;
   ++state.formula_stats.renders;
+  const bool was_loaded = FormulaEngineStatus().loaded;
   if (!EnsureLoaded()) {
     ++state.formula_stats.failures;
+    if (diagnostics.trace) {
+      TraceRender(
+          diagnostics,
+          QStringLiteral("formula load failed: %1").arg(normalized.left(60)));
+    }
     return {};
   }
+  if (!was_loaded && diagnostics.trace) {
+    // 冷加载单独记账：first_load_ms 已经算好，别混进下面的渲染耗时
+    TraceRender(diagnostics, QStringLiteral("formula engine loaded in %1 ms")
+                                 .arg(FormulaEngineStatus().first_load_ms));
+  }
+  QElapsedTimer render_clock;
+  render_clock.start();
 
   // tex 要进单引号 JS 字符串：反斜杠、引号、换行都得转义。换行尤其不能漏——
   // 块级 $$ 是跨行收集的，裸换行会让 JS 直接语法错误，公式静默落到兜底
@@ -222,25 +263,47 @@ QString FormulaToImgTag(MarkdownRenderContext& context, const QString& tex,
   QString tag;
   if (JS_IsException(value)) {
     JSValue exception = JS_GetException(g_context);
-    const char* message = JS_ToCString(g_context, exception);
-    qWarning() << "formula convert exception:" << (message ? message : "?");
-    if (message != nullptr) {
-      JS_FreeCString(g_context, message);
+    const char* raw_message = JS_ToCString(g_context, exception);
+    const QString message =
+        QString::fromUtf8(raw_message != nullptr ? raw_message : "?");
+    qWarning() << "formula convert exception:" << message;
+    if (raw_message != nullptr) {
+      JS_FreeCString(g_context, raw_message);
     }
     JS_FreeValue(g_context, exception);
+    if (diagnostics.trace) {
+      TraceRender(diagnostics,
+                  QStringLiteral("formula exception: %1").arg(message));
+    }
   } else {
     const char* raw = JS_ToCString(g_context, value);
     if (raw == nullptr) {
       // 分配失败等情况下 QuickJS 返回 null，并可能留下 pending 异常
       qWarning() << "formula convert: JS_ToCString returned null";
       JS_FreeValue(g_context, JS_GetException(g_context));
+      if (diagnostics.trace) {
+        TraceRender(diagnostics,
+                    QStringLiteral("formula convert: JS_ToCString null"));
+      }
     } else {
       const QString converted = QString::fromUtf8(raw);
       JS_FreeCString(g_context, raw);
       if (converted.startsWith(QLatin1String("SVGOK:"))) {
-        tag = SvgToImgTag(converted.mid(6), display, color);
+        static int dump_index = 0;
+        const QString artifact =
+            QStringLiteral("formula/%1-%2").arg(++dump_index).arg(variant);
+        const QString svg = converted.mid(6);
+        if (DumpEnabled(diagnostics, artifact)) {
+          DumpRenderArtifact(diagnostics, artifact + QStringLiteral(".svg"),
+                             svg.toUtf8());
+        }
+        tag = SvgToImgTag(svg, display, color, diagnostics, artifact);
       } else {
         qWarning() << "formula convert failed:" << converted;
+        if (diagnostics.trace) {
+          TraceRender(diagnostics, QStringLiteral("formula convert failed: %1")
+                                       .arg(converted.left(120)));
+        }
       }
     }
   }
@@ -248,6 +311,13 @@ QString FormulaToImgTag(MarkdownRenderContext& context, const QString& tex,
 
   if (tag.isEmpty()) {
     ++state.formula_stats.failures;
+  }
+  if (diagnostics.trace) {
+    TraceRender(diagnostics,
+                QStringLiteral("formula render: %1 ms, %2 bytes, display=%3")
+                    .arg(render_clock.elapsed())
+                    .arg(tag.size())
+                    .arg(display));
   }
   state.formula_cache.Insert(key, tag);
   return tag;

@@ -93,6 +93,10 @@ class MarkdownView : public QWidget {
   // 本视图的渲染状态（不触发加载）与计数清零
   MarkdownRendererStatus renderer_status() const;
   void ResetRendererStats();
+  // 诊断：trace 打 qt.markdown.render；dump_directory 落中间产物。
+  // 只影响观测，不改变 HTML，因此不触发重渲染
+  void SetDiagnostics(const MarkdownDiagnostics& diagnostics);
+  MarkdownDiagnostics diagnostics() const;
 
   // 本视图的渲染上下文（缓存/计数/配置）。需要改缓存目录、容量或读
   // renderer_status() 时用；生命周期跟随 MarkdownView
@@ -140,6 +144,8 @@ class MarkdownView : public QWidget {
   bool code_line_numbers_ = false;
   bool formula_rendering_enabled_ = true;
   bool mermaid_rendering_enabled_ = true;
+  // 转储时给每次 ApplyDocument 的源/最终 HTML 编号（仅诊断用）
+  int dump_apply_index_ = 0;
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(MarkdownView::FindFlags)

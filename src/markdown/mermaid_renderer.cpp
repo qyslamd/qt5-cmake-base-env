@@ -27,6 +27,7 @@
 #include "markdown_types.h"
 #include "mermaid_css_inliner.h"
 #include "mermaid_svg_cleanup.h"
+#include "render_diagnostics.h"
 #include "renderer_status_internal.h"
 
 namespace {
@@ -45,22 +46,25 @@ bool g_theme_initialized = false;
 // 全局对象，纯浪费
 bool g_render_settled = false;
 
-// 排查渲染问题用：设了 MD_MERMAID_DUMP=<目录> 就把各阶段产物落盘。
-// 返回引用：值只读一次，调用点不再复制
-const QString& DumpDir() {
-  static const QString dir = qEnvironmentVariable("MD_MERMAID_DUMP");
-  return dir;
-}
-
-void DumpStage(int index, const QString& stage, const QByteArray& data) {
-  const QString& dir = DumpDir();
-  if (dir.isEmpty()) {
+// 排查渲染问题用：diagnostics.dump_directory 非空（或 MD_MARKDOWN_DUMP /
+// MD_MERMAID_DUMP）时把各阶段产物落盘；目录布局见 render_diagnostics.h。
+// 文本版本先过 DumpEnabled，避免转储关闭时还构造 toUtf8()
+void DumpStageText(const MarkdownDiagnostics& diagnostics, int index,
+                   const QString& stage, const QString& text) {
+  const QString name = QStringLiteral("mermaid/%1-%2").arg(index).arg(stage);
+  if (!DumpEnabled(diagnostics, name)) {
     return;
   }
-  QFile file(dir + QStringLiteral("/dbg_%1_%2").arg(index).arg(stage));
-  if (file.open(QIODevice::WriteOnly)) {
-    file.write(data);
+  DumpRenderArtifact(diagnostics, name, text.toUtf8());
+}
+
+void DumpStageBytes(const MarkdownDiagnostics& diagnostics, int index,
+                    const QString& stage, const QByteArray& data) {
+  const QString name = QStringLiteral("mermaid/%1-%2").arg(index).arg(stage);
+  if (!DumpEnabled(diagnostics, name)) {
+    return;
   }
+  DumpRenderArtifact(diagnostics, name, data);
 }
 
 // ---- 字体 ----
@@ -410,11 +414,18 @@ bool EnsureThemeInitialized(MarkdownTheme theme) {
 
 // 渲染：mermaid.render() 返回 Promise，而 QuickJS 的微任务不会自动跑，必须
 // 手动泵（dom_shim 把 rAF/setTimeout 换成了微任务，所以循环能收敛）
-QString RenderMermaidSvg(const QString& code) {
+QString RenderMermaidSvg(const QString& code,
+                         const MarkdownDiagnostics& diagnostics) {
   if (!EnsureLoaded()) {
+    if (diagnostics.trace) {
+      TraceRender(diagnostics, QStringLiteral("mermaid render: not loaded"));
+    }
     return QString();
   }
   if (!EvalGlobal(QByteArray("__resetDocument();"), "reset")) {
+    if (diagnostics.trace) {
+      TraceRender(diagnostics, QStringLiteral("mermaid render: reset failed"));
+    }
     return QString();
   }
 
@@ -440,6 +451,10 @@ QString RenderMermaidSvg(const QString& code) {
       "                 __setSettled_raw(); });";
   g_render_settled = false;
   if (!EvalGlobal(QByteArray(kCall), "render-call")) {
+    if (diagnostics.trace) {
+      TraceRender(diagnostics,
+                  QStringLiteral("mermaid render: call eval failed"));
+    }
     return QString();
   }
 
@@ -456,13 +471,18 @@ QString RenderMermaidSvg(const QString& code) {
     const int result = JS_ExecutePendingJob(g_runtime, &pump_context);
     if (result < 0) {
       JSValue exception = JS_GetException(g_context);
-      const char* message = JS_ToCString(g_context, exception);
-      qWarning() << "mermaid: pump job exception:"
-                 << (message != nullptr ? message : "?");
-      if (message != nullptr) {
-        JS_FreeCString(g_context, message);
+      const char* raw_message = JS_ToCString(g_context, exception);
+      const QString message =
+          QString::fromUtf8(raw_message != nullptr ? raw_message : "?");
+      qWarning() << "mermaid: pump job exception:" << message;
+      if (raw_message != nullptr) {
+        JS_FreeCString(g_context, raw_message);
       }
       JS_FreeValue(g_context, exception);
+      if (diagnostics.trace) {
+        TraceRender(diagnostics,
+                    QStringLiteral("mermaid pump exception: %1").arg(message));
+      }
       break;
     }
     if (result == 0) {
@@ -470,6 +490,11 @@ QString RenderMermaidSvg(const QString& code) {
     }
     if (pump_clock.elapsed() > kPumpDeadlineMs) {
       qWarning() << "mermaid: pump exceeded" << kPumpDeadlineMs << "ms";
+      if (diagnostics.trace) {
+        TraceRender(
+            diagnostics,
+            QStringLiteral("mermaid pump exceeded %1 ms").arg(kPumpDeadlineMs));
+      }
       break;
     }
     // JS 的 then/catch 调 __setSettled_raw 置的是一面 C 侧旗子，读它
@@ -481,20 +506,29 @@ QString RenderMermaidSvg(const QString& code) {
   }
   if (!done) {
     qWarning() << "mermaid: render did not settle within job budget";
+    if (diagnostics.trace) {
+      TraceRender(diagnostics,
+                  QStringLiteral("mermaid render: did not settle in budget"));
+    }
     return QString();
   }
 
   global = JS_GetGlobalObject(g_context);
   JSValue error = JS_GetPropertyStr(g_context, global, "__renderError");
   if (!JS_IsNull(error) && !JS_IsUndefined(error)) {
-    const char* message = JS_ToCString(g_context, error);
-    qWarning() << "mermaid render error:"
-               << (message != nullptr ? message : "?");
-    if (message != nullptr) {
-      JS_FreeCString(g_context, message);
+    const char* raw_message = JS_ToCString(g_context, error);
+    const QString message =
+        QString::fromUtf8(raw_message != nullptr ? raw_message : "?");
+    qWarning() << "mermaid render error:" << message;
+    if (raw_message != nullptr) {
+      JS_FreeCString(g_context, raw_message);
     }
     JS_FreeValue(g_context, error);
     JS_FreeValue(g_context, global);
+    if (diagnostics.trace) {
+      TraceRender(diagnostics,
+                  QStringLiteral("mermaid render error: %1").arg(message));
+    }
     return QString();
   }
   JS_FreeValue(g_context, error);
@@ -510,19 +544,27 @@ QString RenderMermaidSvg(const QString& code) {
   }
   JS_FreeValue(g_context, value);
   JS_FreeValue(g_context, global);
+  if (svg.isEmpty() && diagnostics.trace) {
+    TraceRender(diagnostics, QStringLiteral("mermaid render: empty result"));
+  }
   return svg;
 }
 
 // 后处理三层，顺序不可颠倒：CleanSvg（文本定标）→ InlineSvgCss（CSS 内联 +
 // 字体族强制）→ InlineSvgMarkers（marker 展开，颜色来自上一步内联的规则）
-QString SvgToImgTag(const QString& svg) {
+QString SvgToImgTag(const QString& svg,
+                    const MarkdownDiagnostics& diagnostics) {
   static int dump_index = 0;
-  const int index = dump_index++;
+  // 与 formula 的索引对齐：都从 1 开始
+  const int index = ++dump_index;
 
   // mermaid 的容器里可能还有别的，只留 <svg>...</svg>
   const int start = svg.indexOf(QLatin1String("<svg"));
   const int end = svg.lastIndexOf(QLatin1String("</svg>"));
   if (start < 0 || end < 0) {
+    if (diagnostics.trace) {
+      TraceRender(diagnostics, QStringLiteral("mermaid svg: no <svg> root"));
+    }
     return QString();
   }
   const QString bare = svg.mid(start, end - start + 6);
@@ -530,11 +572,15 @@ QString SvgToImgTag(const QString& svg) {
   const QString cleaned = CleanSvg(bare);
   const QString inlined = InlineSvgCss(cleaned, MermaidFontFamily());
   const QString marked = InlineSvgMarkers(inlined);
-  DumpStage(index, QStringLiteral("raw.svg"), bare.toUtf8());
-  DumpStage(index, QStringLiteral("clean.svg"), cleaned.toUtf8());
-  DumpStage(index, QStringLiteral("inlined.svg"), inlined.toUtf8());
-  DumpStage(index, QStringLiteral("marked.svg"), marked.toUtf8());
+  DumpStageText(diagnostics, index, QStringLiteral("raw.svg"), bare);
+  DumpStageText(diagnostics, index, QStringLiteral("clean.svg"), cleaned);
+  DumpStageText(diagnostics, index, QStringLiteral("inlined.svg"), inlined);
+  DumpStageText(diagnostics, index, QStringLiteral("marked.svg"), marked);
   if (marked.isEmpty()) {
+    if (diagnostics.trace) {
+      TraceRender(diagnostics,
+                  QStringLiteral("mermaid svg: markers/css inlining empty"));
+    }
     return QString();
   }
 
@@ -557,6 +603,11 @@ QString SvgToImgTag(const QString& svg) {
     height = size.height();
   }
   if (width < 1.0 || height < 1.0) {
+    if (diagnostics.trace) {
+      TraceRender(
+          diagnostics,
+          QStringLiteral("mermaid svg: bad size %1x%2").arg(width).arg(height));
+    }
     return QString();
   }
 
@@ -566,6 +617,10 @@ QString SvgToImgTag(const QString& svg) {
   QSvgRenderer renderer(marked.toUtf8());
   if (!renderer.isValid()) {
     qWarning() << "mermaid: QSvgRenderer rejected the cleaned svg";
+    if (diagnostics.trace) {
+      TraceRender(diagnostics,
+                  QStringLiteral("mermaid svg: QSvgRenderer rejected it"));
+    }
     return QString();
   }
   qreal scale = 2.0;
@@ -584,9 +639,12 @@ QString SvgToImgTag(const QString& svg) {
   QBuffer buffer;
   buffer.open(QIODevice::WriteOnly);
   if (!image.save(&buffer, "PNG")) {
+    if (diagnostics.trace) {
+      TraceRender(diagnostics, QStringLiteral("mermaid png: save failed"));
+    }
     return QString();  // PNG 编不出：返回空，原图位退回代码块
   }
-  DumpStage(index, QStringLiteral("png"), buffer.data());
+  DumpStageBytes(diagnostics, index, QStringLiteral("png"), buffer.data());
 
   return QStringLiteral(
              "<img class=\"mermaid\" src=\"data:image/png;base64,%1\" "
@@ -624,20 +682,41 @@ QString MermaidToImgTag(MarkdownRenderContext& context, const QString& code,
       MarkdownRenderContextAccess::State(context);
   const QString key = QString::fromLatin1(ThemeName(theme)) + QLatin1Char('|') +
                       MermaidFontFamily() + QLatin1Char('|') + code;
+  const MarkdownDiagnostics& diagnostics = state.options.diagnostics;
   if (const QString* cached = state.mermaid_cache.Find(key)) {
     ++state.mermaid_stats.memory_cache_hits;
+    if (diagnostics.trace) {
+      TraceRender(diagnostics,
+                  QStringLiteral("mermaid cache hit: %1").arg(code.left(60)));
+    }
     return *cached;
   }
   ++state.mermaid_stats.memory_cache_misses;
   ++state.mermaid_stats.renders;
+  const bool was_loaded = MermaidEngineStatus().loaded;
   if (!EnsureLoaded() || !EnsureThemeInitialized(theme)) {
     ++state.mermaid_stats.failures;
+    if (diagnostics.trace) {
+      TraceRender(diagnostics, QStringLiteral("mermaid load/init failed"));
+    }
     return {};
   }
-  const QString svg = RenderMermaidSvg(code);
-  const QString tag = svg.isEmpty() ? QString() : SvgToImgTag(svg);
+  if (!was_loaded && diagnostics.trace) {
+    // 冷加载单独记账：first_load_ms 已经算好，别混进下面的渲染耗时
+    TraceRender(diagnostics, QStringLiteral("mermaid engine loaded in %1 ms")
+                                 .arg(MermaidEngineStatus().first_load_ms));
+  }
+  QElapsedTimer render_clock;
+  render_clock.start();
+  const QString svg = RenderMermaidSvg(code, diagnostics);
+  const QString tag = svg.isEmpty() ? QString() : SvgToImgTag(svg, diagnostics);
   if (tag.isEmpty()) {
     ++state.mermaid_stats.failures;
+  }
+  if (diagnostics.trace) {
+    TraceRender(diagnostics, QStringLiteral("mermaid render: %1 ms, %2 bytes")
+                                 .arg(render_clock.elapsed())
+                                 .arg(tag.size()));
   }
   state.mermaid_cache.Insert(key, tag);
   return tag;
