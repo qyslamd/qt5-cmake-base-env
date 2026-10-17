@@ -9,6 +9,7 @@ add_subdirectory(logging)
 add_subdirectory(app)
 add_subdirectory(tour)
 add_subdirectory(markdown)
+add_subdirectory(quickjs)
 add_subdirectory(funq_demo)
 add_subdirectory(funq_app)
 
