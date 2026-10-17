@@ -25,7 +25,9 @@ QString Slugify(const QString& text) {
 
 }  // namespace
 
-QString AddHeadingIds(const QString& html, const HeadingSink& on_heading) {
+QString AddHeadingIds(
+    const QString& html, const HeadingSink& on_heading,
+    const std::function<void(const MarkdownHeading&)>& on_outline) {
   static const QRegularExpression kHeading(
       QStringLiteral("<h([1-6])>(.*?)</h\\1>"),
       QRegularExpression::DotMatchesEverythingOption);
@@ -69,6 +71,13 @@ QString AddHeadingIds(const QString& html, const HeadingSink& on_heading) {
     const QString ascii_id = QStringLiteral("h-%1").arg(index++);
     if (on_heading) {
       on_heading(slug, ascii_id);
+    }
+    if (on_outline) {
+      MarkdownHeading heading;
+      heading.level = level.toInt();
+      heading.text = plain;
+      heading.anchor = slug;
+      on_outline(heading);
     }
 
     out += QStringLiteral("<h%1 id=\"%2\" data-md-slug=\"%3\">%4</h%1>")

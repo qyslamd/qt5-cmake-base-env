@@ -4,35 +4,26 @@
 
 #include <QBuffer>
 #include <QDebug>
+#include <QElapsedTimer>
 #include <QFile>
-#include <QHash>
 #include <QImage>
 #include <QPainter>
 #include <QRegularExpression>
 #include <QSvgRenderer>
 
+#include "default_render_context.h"
+#include "markdown_render_context_internal.h"
 #include "markdown_resources.h"
+#include "renderer_status_internal.h"
 
 namespace {
 
 JSRuntime* g_runtime = nullptr;
 JSContext* g_context = nullptr;
 bool g_load_failed = false;
-// key = 'D'/'I' + tex。失败也缓存空串：同一个坏公式不该每帧重试一遍。
-// 上限 256 条（tag 是 KB 级），FIFO 淘汰——长会话里无限图源会把内存吃穿
-constexpr int kCacheMax = 256;
-QHash<QString, QString> g_cache;
-QList<QString> g_cache_order;
-
-void CacheInsert(const QString& key, const QString& tag) {
-  if (!g_cache.contains(key)) {
-    g_cache_order.append(key);
-  }
-  g_cache.insert(key, tag);
-  while (g_cache_order.size() > kCacheMax) {
-    g_cache.remove(g_cache_order.takeFirst());
-  }
-}
+bool g_load_attempted = false;
+qint64 g_first_load_ms = 0;
+QElapsedTimer g_load_clock;
 
 // 载荷在 qrc 里（resources/mathjax-svg.min.js），只求值一次
 // 加载失败：把 JS 运行时整个还回去。g_load_failed 已经挡住重试，留着
@@ -47,6 +38,7 @@ bool FailLoad() {
     g_runtime = nullptr;
   }
   g_load_failed = true;
+  g_first_load_ms = g_load_clock.isValid() ? g_load_clock.elapsed() : 0;
   return false;
 }
 
@@ -56,6 +48,11 @@ bool EnsureLoaded() {
   }
   if (g_load_failed) {
     return false;
+  }
+
+  if (!g_load_attempted) {
+    g_load_attempted = true;
+    g_load_clock.start();
   }
 
   EnsureMarkdownResources();
@@ -99,18 +96,22 @@ bool EnsureLoaded() {
     return FailLoad();
   }
   JS_FreeValue(g_context, result);
+  g_first_load_ms = g_load_clock.elapsed();
   return true;
 }
 
-// SVG 字符串 → <img>。失败返回空串
-QString SvgToImgTag(const QString& svg, bool display) {
+// SVG 字符串 → <img>。失败返回空串。color 有效时替换 currentColor
+QString SvgToImgTag(const QString& svg, bool display, const QColor& color) {
   // MathJax 的输出包在 <mjx-container> 里，而 QSvgRenderer 只认 svg 根元素
   const int svg_start = svg.indexOf(QLatin1String("<svg"));
   const int svg_end = svg.lastIndexOf(QLatin1String("</svg>"));
   if (svg_start < 0 || svg_end < 0) {
     return {};
   }
-  const QString bare = svg.mid(svg_start, svg_end - svg_start + 6);
+  QString bare = svg.mid(svg_start, svg_end - svg_start + 6);
+  if (color.isValid()) {
+    bare.replace(QLatin1String("currentColor"), color.name());
+  }
 
   QSvgRenderer renderer(bare.toUtf8());
   if (!renderer.isValid()) {
@@ -164,25 +165,44 @@ QString SvgToImgTag(const QString& svg, bool display) {
 
 bool FormulaRendererReady() { return EnsureLoaded(); }
 
-void ClearFormulaCache() {
-  g_cache.clear();
-  g_cache_order.clear();
+MarkdownEngineStatus FormulaEngineStatus() {
+  MarkdownEngineStatus status;
+  status.loaded = g_context != nullptr;
+  status.permanently_failed = g_load_failed;
+  status.first_load_ms = g_first_load_ms;
+  return status;
 }
 
-QString FormulaToImgTag(const QString& tex, bool display) {
-  const QString key =
-      (display ? QStringLiteral("D") : QStringLiteral("I")) + tex;
-  const auto cached = g_cache.constFind(key);
-  if (cached != g_cache.cend()) {
-    return cached.value();
+void ClearFormulaCache() {
+  MarkdownRenderContextAccess::State(DefaultRenderContext())
+      .formula_cache.Clear();
+}
+
+QString FormulaToImgTag(MarkdownRenderContext& context, const QString& tex,
+                        bool display, const QColor& color) {
+  MarkdownRenderContextState& state =
+      MarkdownRenderContextAccess::State(context);
+  // MathJax 在数学模式下对首尾空白不敏感：key 与渲染输入统一用 trim 后的
+  // 文本，避免 "x" 与 " x " 生成两条内容相同的缓存
+  const QString normalized = tex.trimmed();
+  const QString variant =
+      color.isValid() ? color.name() : QStringLiteral("legacy");
+  const QString key = (display ? QStringLiteral("D") : QStringLiteral("I")) +
+                      variant + QLatin1Char('|') + normalized;
+  if (const QString* cached = state.formula_cache.Find(key)) {
+    ++state.formula_stats.memory_cache_hits;
+    return *cached;
   }
+  ++state.formula_stats.memory_cache_misses;
+  ++state.formula_stats.renders;
   if (!EnsureLoaded()) {
+    ++state.formula_stats.failures;
     return {};
   }
 
   // tex 要进单引号 JS 字符串：反斜杠、引号、换行都得转义。换行尤其不能漏——
   // 块级 $$ 是跨行收集的，裸换行会让 JS 直接语法错误，公式静默落到兜底
-  QString escaped = tex.trimmed();
+  QString escaped = normalized;
   escaped.replace(QLatin1Char('\\'), QStringLiteral("\\\\"));
   escaped.replace(QLatin1Char('\''), QStringLiteral("\\'"));
   escaped.replace(QLatin1Char('\n'), QStringLiteral("\\n"));
@@ -218,7 +238,7 @@ QString FormulaToImgTag(const QString& tex, bool display) {
       const QString converted = QString::fromUtf8(raw);
       JS_FreeCString(g_context, raw);
       if (converted.startsWith(QLatin1String("SVGOK:"))) {
-        tag = SvgToImgTag(converted.mid(6), display);
+        tag = SvgToImgTag(converted.mid(6), display, color);
       } else {
         qWarning() << "formula convert failed:" << converted;
       }
@@ -226,6 +246,18 @@ QString FormulaToImgTag(const QString& tex, bool display) {
   }
   JS_FreeValue(g_context, value);
 
-  CacheInsert(key, tag);
+  if (tag.isEmpty()) {
+    ++state.formula_stats.failures;
+  }
+  state.formula_cache.Insert(key, tag);
   return tag;
+}
+
+QString FormulaToImgTag(MarkdownRenderContext& context, const QString& tex,
+                        bool display) {
+  return FormulaToImgTag(context, tex, display, QColor());
+}
+
+QString FormulaToImgTag(const QString& tex, bool display) {
+  return FormulaToImgTag(DefaultRenderContext(), tex, display);
 }

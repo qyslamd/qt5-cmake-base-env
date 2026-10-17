@@ -3,10 +3,17 @@ set(TARGET_NAME ${APP_TARGET_PREFIX}_markdown)
 set(TARGET_SRCS
     code_highlighter.cpp
     code_highlighter.h
+    default_render_context.cpp
+    default_render_context.h
     formula_renderer.cpp
     formula_renderer.h
     heading_ids.cpp
     heading_ids.h
+    markdown_render_context.cpp
+    markdown_render_context.h
+    markdown_render_context_internal.h
+    markdown_types.h
+    renderer_status_internal.h
     html_escape.cpp
     html_escape.h
     mermaid_css_inliner.cpp

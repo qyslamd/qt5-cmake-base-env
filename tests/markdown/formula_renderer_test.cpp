@@ -6,6 +6,11 @@
 #include <QGuiApplication>
 #include <QString>
 
+#include "default_render_context.h"
+#include "markdown_render_context.h"
+#include "markdown_render_context_internal.h"
+#include "markdown_types.h"
+
 // 公式渲染的端到端判据：加载 qrc 里的 MathJax 载荷 → QuickJS 里 tex→svg →
 // QSvgRenderer 画成 PNG → 内联成 <img>。整条链路要么全通要么全不通，中间任何
 // 一环坏了都只能从"像素"看出来——所以在无头环境把产物本身断言掉。
@@ -64,6 +69,59 @@ TEST(FormulaRendererTest, CachesByTexAndDisplay) {
   ASSERT_FALSE(first.isEmpty());
   EXPECT_EQ(first, second);
   EXPECT_NE(first, FormulaToImgTag(QStringLiteral("a^2 + b^2 = c^2"), true));
+}
+
+// 上下文隔离：每个视图一份缓存与计数，清一个不影响另一个
+TEST(FormulaRendererTest, ContextsKeepCachesSeparate) {
+  MarkdownRenderContext first;
+  MarkdownRenderContext second;
+  const QString tag = FormulaToImgTag(first, QStringLiteral("x^2"), false);
+  ASSERT_FALSE(tag.isEmpty());
+  EXPECT_EQ(first.status().formula_context.renders, 1U);
+  EXPECT_EQ(second.status().formula_context.renders, 0U);
+
+  EXPECT_EQ(FormulaToImgTag(second, QStringLiteral("x^2"), false), tag);
+  EXPECT_EQ(second.status().formula_context.renders, 1U);
+
+  EXPECT_EQ(FormulaToImgTag(first, QStringLiteral("x^2"), false), tag);
+  EXPECT_EQ(first.status().formula_context.memory_cache_hits, 1U);
+
+  first.ClearMemoryCaches();
+  EXPECT_EQ(FormulaToImgTag(first, QStringLiteral("x^2"), false), tag);
+  EXPECT_EQ(first.status().formula_context.renders, 2U);
+
+  EXPECT_EQ(FormulaToImgTag(second, QStringLiteral("x^2"), false), tag);
+  EXPECT_EQ(second.status().formula_context.renders, 1U);
+  EXPECT_EQ(second.status().formula_context.memory_cache_hits, 1U);
+}
+
+// 旧 API 的语义要钉住：ClearFormulaCache() 只清进程默认上下文，
+// 自定义/视图上下文必须走 ClearMemoryCaches()
+TEST(FormulaRendererTest, ClearFormulaCacheOnlyTouchesDefaultContext) {
+  MarkdownRenderContext custom;
+  MarkdownRenderContextState& custom_state =
+      MarkdownRenderContextAccess::State(custom);
+  custom_state.formula_cache.Insert(QStringLiteral("key"),
+                                    QStringLiteral("value"));
+  ClearFormulaCache();
+  EXPECT_EQ(custom_state.formula_cache.entries.size(), 1);
+
+  MarkdownRenderContextState& default_state =
+      MarkdownRenderContextAccess::State(DefaultRenderContext());
+  default_state.formula_cache.Insert(QStringLiteral("key"),
+                                     QStringLiteral("value"));
+  ClearFormulaCache();
+  EXPECT_TRUE(default_state.formula_cache.entries.isEmpty());
+}
+
+// MathJax 对首尾空白不敏感：key 与渲染输入都 trim，避免同一条公式存两份
+TEST(FormulaRendererTest, TrimsTexForCacheKey) {
+  MarkdownRenderContext context;
+  const QString first = FormulaToImgTag(context, QStringLiteral(" x "), false);
+  ASSERT_FALSE(first.isEmpty());
+  EXPECT_EQ(FormulaToImgTag(context, QStringLiteral("x"), false), first);
+  EXPECT_EQ(context.status().formula_context.renders, 1U);
+  EXPECT_EQ(context.status().formula_context.memory_cache_hits, 1U);
 }
 
 // 畸形输入不抛、不崩。约定是"空串 = 渲不出来，调用方退回显示原文"，但别指望

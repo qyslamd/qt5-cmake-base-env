@@ -1,7 +1,10 @@
 #ifndef FILE_MARKDOWN_FORMULA_RENDERER_H_
 #define FILE_MARKDOWN_FORMULA_RENDERER_H_
 
+#include <QColor>
 #include <QString>
+
+class MarkdownRenderContext;
 
 // TeX 公式 → 可直接内联进 HTML 的 <img>（src 是 PNG 的 data URI）。
 //
@@ -14,13 +17,23 @@
 //
 // qrc 载荷的初始化由本模块内部完成（Q_INIT_RESOURCE
 // 幂等），宿主不需要做任何事。
+//
+// ctx 版本：缓存与计数记在该上下文；color 有效时替换 SVG 里的
+// currentColor，并参与缓存 key。两参 ctx 重载保持旧输出（不换色）
+QString FormulaToImgTag(MarkdownRenderContext& context, const QString& tex,
+                        bool display);
+QString FormulaToImgTag(MarkdownRenderContext& context, const QString& tex,
+                        bool display, const QColor& color);
+// 便捷重载：进程默认上下文，旧行为
 QString FormulaToImgTag(const QString& tex, bool display);
 
 // JS 载荷是否可用（加载失败即永久不可用，不会反复重试）
 bool FormulaRendererReady();
 
-// 清空公式缓存（tag 是 KB 级，长会话里换文档后旧公式没有复用价值）。
-// 运行时不释放、载荷不重载——只丢结果
+// 清空**进程默认上下文**的公式缓存（tag 是 KB 级，长会话里换文档后旧公式
+// 没有复用价值）。运行时不释放、载荷不重载——只丢结果。
+// MarkdownView 用自己的上下文：宿主请调 MarkdownView::ClearRenderCaches()
+// 或 MarkdownRenderContext::ClearMemoryCaches()
 void ClearFormulaCache();
 
 #endif  // FILE_MARKDOWN_FORMULA_RENDERER_H_

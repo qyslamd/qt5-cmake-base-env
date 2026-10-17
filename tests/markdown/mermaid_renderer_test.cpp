@@ -8,6 +8,9 @@
 #include <QString>
 #include <QStringList>
 
+#include "markdown_render_context.h"
+#include "markdown_types.h"
+
 // 端到端判据：qrc 载荷 → QuickJS 里跑 mermaid → SVG 后处理 → QSvgRenderer 画成
 // PNG → 内联成 <img>。中间任何一环坏了都只能从"产物本身"看出来，所以在无头环境
 // 把产物断言掉。
@@ -76,6 +79,30 @@ TEST(MermaidRendererTest, RenderErrorSettlesPromptly) {
   const qint64 elapsed = clock.elapsed();
   EXPECT_TRUE(tag.isEmpty()) << "这类输入应当被 mermaid 拒绝";
   EXPECT_LT(elapsed, 5000) << "出错路径没有及时落定，泵循环跑满了预算";
+}
+
+// 上下文隔离：每个视图一份缓存与计数，清一个不影响另一个
+TEST(MermaidRendererTest, ContextsKeepCachesSeparate) {
+  MarkdownRenderContext first;
+  MarkdownRenderContext second;
+  const QString source = QStringLiteral("flowchart LR\n    A --> B\n");
+  const QString tag = MermaidToImgTag(first, source, MarkdownTheme::Light);
+  ASSERT_FALSE(tag.isEmpty());
+  EXPECT_EQ(first.status().mermaid_context.renders, 1U);
+  EXPECT_EQ(second.status().mermaid_context.renders, 0U);
+
+  EXPECT_EQ(MermaidToImgTag(second, source, MarkdownTheme::Light), tag);
+  EXPECT_EQ(second.status().mermaid_context.renders, 1U);
+
+  EXPECT_EQ(MermaidToImgTag(first, source, MarkdownTheme::Light), tag);
+  EXPECT_EQ(first.status().mermaid_context.memory_cache_hits, 1U);
+
+  first.ClearMemoryCaches();
+  EXPECT_EQ(MermaidToImgTag(first, source, MarkdownTheme::Light), tag);
+  EXPECT_EQ(first.status().mermaid_context.renders, 2U);
+
+  EXPECT_EQ(MermaidToImgTag(second, source, MarkdownTheme::Light), tag);
+  EXPECT_EQ(second.status().mermaid_context.memory_cache_hits, 1U);
 }
 
 // 畸形输入不抛、不崩。约定是"空串 = 渲不出来，调用方退回代码块"，但别指望畸形

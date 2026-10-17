@@ -6,6 +6,7 @@
 #include <QString>
 
 #include "heading_ids.h"
+#include "markdown_types.h"
 
 // 公式渲染回调：tex 原文 + 是否独立公式 → 可直接内联的 HTML（通常是 <img>）。
 // 返回空串表示渲染不出来，正文里会保留原文（红色 <code class="math-src">）。
@@ -37,6 +38,7 @@ using CodeBlockSink =
 QString MarkdownToHtml(const QString& markdown, const FormulaSink& formula = {},
                        const MermaidSink& mermaid = {},
                        const CodeBlockSink& code_blocks = {},
-                       const HeadingSink& heading_ids = {});
+                       const HeadingSink& heading_ids = {},
+                       const MarkdownRenderOptions& options = {});
 
 #endif  // FILE_MARKDOWN_MARKDOWN_TO_HTML_H_

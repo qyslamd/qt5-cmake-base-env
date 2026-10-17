@@ -409,7 +409,8 @@ QString BuildCodeBlockFrame(const QString& highlighted, const QString& language,
 }
 
 QString HighlightCodeBlocks(const QString& html, const MermaidSink& mermaid,
-                            const CodeBlockSink& code_blocks) {
+                            const CodeBlockSink& code_blocks,
+                            const MarkdownRenderOptions& options) {
   static const QRegularExpression kPreCode(
       QStringLiteral("^(<pre><code([^>]*)>)([\\s\\S]*?)(</code></pre>)"),
       QRegularExpression::MultilineOption);
@@ -453,8 +454,10 @@ QString HighlightCodeBlocks(const QString& html, const MermaidSink& mermaid,
     if (code_blocks) {
       code_blocks(block_id, code);
     }
-    result +=
-        BuildCodeBlockFrame(HighlightCode(code, language), language, block_id);
+    const QString highlighted = options.highlight
+                                    ? options.highlight(code, language)
+                                    : HighlightCode(code, language);
+    result += BuildCodeBlockFrame(highlighted, language, block_id);
   }
   result.append(html.constData() + consumed, html.size() - consumed);
   return result;
@@ -465,7 +468,8 @@ QString HighlightCodeBlocks(const QString& html, const MermaidSink& mermaid,
 QString MarkdownToHtml(const QString& markdown, const FormulaSink& formula,
                        const MermaidSink& mermaid,
                        const CodeBlockSink& code_blocks,
-                       const HeadingSink& heading_ids) {
+                       const HeadingSink& heading_ids,
+                       const MarkdownRenderOptions& options) {
   // 公式在 md4c 之前抽出占位符、之后换回渲染结果；没给回调就整段跳过，
   // 一个字符都不动（$…$ 于是原样显示）
   QVector<MathSegment> segments;
@@ -488,7 +492,7 @@ QString MarkdownToHtml(const QString& markdown, const FormulaSink& formula,
   // 补标题锚点放在最后：前面的高亮/公式回填只会替换标签内部，不动 h1–h6
   // 的外框，这里的 id 因此不会被谁冲掉
   return AddHeadingIds(
-      RestoreMath(HighlightCodeBlocks(html, mermaid, code_blocks), segments,
-                  formula, math_salt),
-      heading_ids);
+      RestoreMath(HighlightCodeBlocks(html, mermaid, code_blocks, options),
+                  segments, formula, math_salt),
+      heading_ids, options.outline);
 }

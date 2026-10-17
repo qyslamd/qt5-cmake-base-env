@@ -15,9 +15,12 @@
 #include <QVBoxLayout>
 #include <QWheelEvent>
 
+#include "code_highlighter.h"
 #include "formula_renderer.h"
+#include "markdown_render_context.h"
 #include "markdown_resources.h"
 #include "markdown_to_html.h"
+#include "markdown_types.h"
 #include "mermaid_renderer.h"
 #include "qlitehtmlwidget.h"
 
@@ -156,7 +159,8 @@ QByteArray ReadResourceForUrl(const QUrl& url, const QString& base_dir) {
   return file.readAll();
 }
 
-MarkdownView::MarkdownView(QWidget* parent) : QWidget(parent) {
+MarkdownView::MarkdownView(QWidget* parent)
+    : QWidget(parent), context_(new MarkdownRenderContext) {
   EnsureMarkdownResources();
   initUi();
   initSignals();
@@ -280,10 +284,11 @@ bool MarkdownView::LoadFile(const QString& path) {
 
   // 换文件才丢缓存：同一文件的重载（watchdog）要留住复用价值；SetContent
   // 是编辑器路径，每次清会把"改一个字重算全部公式"的代价请回来——那条路由
-  // 宿主自己按需调 ClearFormulaCache()/ClearMermaidCache()
+  // 宿主自己按需调 ClearRenderCaches()（或
+  // render_context().ClearMemoryCaches()）。全局 ClearFormulaCache() 清的是
+  // 进程默认上下文，对视图无效
   if (path != current_file_) {
-    ClearFormulaCache();
-    ClearMermaidCache();
+    context_->ClearMemoryCaches();
   }
   markdown_ = text;
   current_file_ = path;
@@ -342,6 +347,14 @@ void MarkdownView::Print(QPrinter* printer) {
   html_->print(printer);
 }
 
+MarkdownRenderContext& MarkdownView::render_context() { return *context_; }
+
+const MarkdownRenderContext& MarkdownView::render_context() const {
+  return *context_;
+}
+
+void MarkdownView::ClearRenderCaches() { context_->ClearMemoryCaches(); }
+
 void MarkdownView::ApplyDocument() {
   // 先 setUrl 再 setHtml：setHtml 会立刻渲染，顺序反了首帧的相对图片与相对
   // 链接会按错误的基准解析。没有基准时也显式清掉，别让上一份文档的目录留下来
@@ -357,16 +370,27 @@ void MarkdownView::ApplyDocument() {
   // 上一份文档的元素上）
   code_blocks_.clear();
   heading_ids_.clear();
-  html_->setHtml(
-      WrapDocument(MarkdownToHtml(
-                       markdown_, FormulaToImgTag, MermaidToImgTag,
-                       [this](const QString& id, const QString& code) {
-                         code_blocks_.insert(id, code);
-                       },
-                       [this](const QString& slug, const QString& id) {
-                         heading_ids_.insert(slug, id);
-                       }),
-                   LoadDefaultCss()));
+  MarkdownRenderOptions options;
+  options.highlight = [this](const QString& code, const QString& language) {
+    return HighlightCode(*context_, code, language);
+  };
+  html_->setHtml(WrapDocument(
+      MarkdownToHtml(
+          markdown_,
+          [this](const QString& tex, bool display) {
+            return FormulaToImgTag(*context_, tex, display);
+          },
+          [this](const QString& code) {
+            return MermaidToImgTag(*context_, code, MarkdownTheme::Light);
+          },
+          [this](const QString& id, const QString& code) {
+            code_blocks_.insert(id, code);
+          },
+          [this](const QString& slug, const QString& id) {
+            heading_ids_.insert(slug, id);
+          },
+          options),
+      LoadDefaultCss()));
 }
 
 void MarkdownView::ShowMessage(const QString& text) {
@@ -379,6 +403,10 @@ void MarkdownView::ClearDocument() {
   markdown_.clear();
   base_dir_.clear();
   current_file_.clear();
+  // 文档级表也要清：错误页现在没有 copy:/锚点，但"清空文档"不能留上一份
+  // 文档的代码块与锚点，否则将来错误页加链接会复制到旧代码
+  code_blocks_.clear();
+  heading_ids_.clear();
   reload_attempts_ = 0;
   if (reload_timer_ != nullptr) {
     reload_timer_->stop();

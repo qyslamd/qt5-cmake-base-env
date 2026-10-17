@@ -3,10 +3,14 @@
 #include <quickjs.h>
 
 #include <QDebug>
+#include <QElapsedTimer>
 #include <QFile>
 
+#include "default_render_context.h"
 #include "html_escape.h"
+#include "markdown_render_context_internal.h"
 #include "markdown_resources.h"
+#include "renderer_status_internal.h"
 
 namespace {
 
@@ -16,6 +20,9 @@ JSContext* g_context = nullptr;
 // JS_Call，不再现译一段 IIFE
 JSValue g_highlight_fn = JS_UNDEFINED;
 bool g_load_failed = false;
+bool g_load_attempted = false;
+qint64 g_first_load_ms = 0;
+QElapsedTimer g_load_clock;
 
 // 加载失败：把 JS 运行时整个还回去。g_load_failed 已经挡住重试，留着
 // context/runtime 只会占着 JS 堆到进程结束
@@ -31,6 +38,7 @@ bool FailLoad() {
     g_runtime = nullptr;
   }
   g_load_failed = true;
+  g_first_load_ms = g_load_clock.isValid() ? g_load_clock.elapsed() : 0;
   return false;
 }
 
@@ -40,6 +48,11 @@ bool EnsureLoaded() {
   }
   if (g_load_failed) {
     return false;
+  }
+
+  if (!g_load_attempted) {
+    g_load_attempted = true;
+    g_load_clock.start();
   }
 
   EnsureMarkdownResources();
@@ -86,16 +99,30 @@ bool EnsureLoaded() {
     qWarning() << "highlight payload lacks __highlight";
     return FailLoad();
   }
+  g_first_load_ms = g_load_clock.elapsed();
   return true;
 }
 
 }  // namespace
 
-QString HighlightCode(const QString& code, const QString& language) {
+MarkdownEngineStatus HighlightEngineStatus() {
+  MarkdownEngineStatus status;
+  status.loaded = g_context != nullptr;
+  status.permanently_failed = g_load_failed;
+  status.first_load_ms = g_first_load_ms;
+  return status;
+}
+
+QString HighlightCode(MarkdownRenderContext& context, const QString& code,
+                      const QString& language) {
   if (code.isEmpty()) {
     return {};
   }
+  MarkdownRenderContextState& state =
+      MarkdownRenderContextAccess::State(context);
+  ++state.highlight_stats.renders;
   if (!EnsureLoaded()) {
+    ++state.highlight_stats.failures;
     return EscapeHtml(code);  // 载荷挂了：纯转义兜底
   }
 
@@ -119,6 +146,7 @@ QString HighlightCode(const QString& code, const QString& language) {
     JS_FreeValue(g_context, exception);
     JS_FreeValue(g_context, argv[0]);
     JS_FreeValue(g_context, argv[1]);
+    ++state.highlight_stats.failures;
     return EscapeHtml(code);
   }
   const JSValue value =
@@ -136,6 +164,7 @@ QString HighlightCode(const QString& code, const QString& language) {
       JS_FreeCString(g_context, message);
     }
     JS_FreeValue(g_context, exception);
+    ++state.highlight_stats.failures;
   } else if (JS_IsNull(value) || JS_IsUndefined(value)) {
     // __highlight 对未注册语言返回 null；JS_ToCString 会把它变成字面 "null"
   } else {
@@ -147,9 +176,14 @@ QString HighlightCode(const QString& code, const QString& language) {
   }
   JS_FreeValue(g_context, value);
 
-  // 空结果（未注册语言、JS 侧异常）都退纯转义：高亮挂了不至于白块
+  // 空结果（未注册语言、JS 侧异常）都退纯转义：高亮挂了不至于白块。
+  // 未注册语言是正常回退，不计 failure
   if (result.isEmpty()) {
     return EscapeHtml(code);
   }
   return result;
+}
+
+QString HighlightCode(const QString& code, const QString& language) {
+  return HighlightCode(DefaultRenderContext(), code, language);
 }

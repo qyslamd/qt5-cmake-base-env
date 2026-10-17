@@ -21,35 +21,29 @@
 #include <QStringList>
 #include <QSvgRenderer>
 
+#include "default_render_context.h"
+#include "markdown_render_context_internal.h"
 #include "markdown_resources.h"
+#include "markdown_types.h"
 #include "mermaid_css_inliner.h"
 #include "mermaid_svg_cleanup.h"
+#include "renderer_status_internal.h"
 
 namespace {
 
 JSRuntime* g_runtime = nullptr;
 JSContext* g_context = nullptr;
 bool g_load_failed = false;
+bool g_load_attempted = false;
+qint64 g_first_load_ms = 0;
+QElapsedTimer g_load_clock;
+// 当前 initialize 过的主题；主题变化时才重新 initialize
+MarkdownTheme g_initialized_theme = MarkdownTheme::Light;
+bool g_theme_initialized = false;
 // 一次 render 是否已落定：JS 的 then/catch 调 __setSettled_raw 置 true。
 // C 侧泵循环只读这个 bool——每次迭代去 JS 里取属性，最坏二十万次构造
 // 全局对象，纯浪费
 bool g_render_settled = false;
-// key = mermaid 源码。失败也缓存空串：同一个坏图不该每次编辑都重试。
-// 上限 32 张（每张是内嵌 PNG 的 data URI，大图能到 MB 级），FIFO 淘汰——
-// 被挤掉的图无非重渲一次，无限增长的缓存会在长会话里把内存吃穿
-constexpr int kCacheMax = 32;
-QHash<QString, QString> g_cache;
-QList<QString> g_cache_order;
-
-void CacheInsert(const QString& key, const QString& tag) {
-  if (!g_cache.contains(key)) {
-    g_cache_order.append(key);
-  }
-  g_cache.insert(key, tag);
-  while (g_cache_order.size() > kCacheMax) {
-    g_cache.remove(g_cache_order.takeFirst());
-  }
-}
 
 // 排查渲染问题用：设了 MD_MERMAID_DUMP=<目录> 就把各阶段产物落盘。
 // 返回引用：值只读一次，调用点不再复制
@@ -268,6 +262,11 @@ bool FailLoad() {
     g_runtime = nullptr;
   }
   g_load_failed = true;
+  // 主题 initialize 失败也会走到这里：保留已经测到的首次加载耗时，
+  // 不要用失败时刻覆盖它
+  if (g_first_load_ms == 0) {
+    g_first_load_ms = g_load_clock.isValid() ? g_load_clock.elapsed() : 0;
+  }
   return false;
 }
 
@@ -277,6 +276,11 @@ bool EnsureLoaded() {
   }
   if (g_load_failed) {
     return false;
+  }
+
+  if (!g_load_attempted) {
+    g_load_attempted = true;
+    g_load_clock.start();
   }
 
   EnsureMarkdownResources();
@@ -344,22 +348,63 @@ bool EnsureLoaded() {
     return FailLoad();
   }
 
-  // 配置与文档无关，加载后设一次即可（initialize 幂等，但每次渲染都走
-  // 一遍配置解析纯属浪费）。htmlLabels:false 是必填项：默认会把节点文字
-  // 放进 <foreignObject>，而 QSvgRenderer 完全不认，文字会全部消失
-  static const char* const kInit =
-      "mermaid.initialize({"
-      "  startOnLoad: false,"
-      "  theme: 'default',"
-      "  htmlLabels: false,"
-      "  flowchart: { htmlLabels: false },"
-      "  class: { htmlLabels: false },"
-      "  state: { htmlLabels: false },"
-      "  er: { useMaxWidth: true }"
-      "});";
-  if (!EvalGlobal(QByteArray(kInit), "init")) {
+  g_first_load_ms = g_load_clock.elapsed();
+  return true;
+}
+
+const char* ThemeName(MarkdownTheme theme) {
+  switch (theme) {
+    case MarkdownTheme::Light:
+      return "default";
+    case MarkdownTheme::Dark:
+      return "dark";
+    case MarkdownTheme::HighContrast:
+      return "base";
+  }
+  return "default";
+}
+
+QString ThemeVariables(MarkdownTheme theme) {
+  if (theme != MarkdownTheme::HighContrast) {
+    return QString();
+  }
+  // mermaid 没有专门的高对比主题：base + themeVariables 自己定
+  return QStringLiteral(
+      ", themeVariables: {"
+      " background: '#000000', primaryColor: '#000000',"
+      " primaryTextColor: '#ffffff', primaryBorderColor: '#ffffff',"
+      " lineColor: '#ffffff', secondaryColor: '#000000',"
+      " tertiaryColor: '#000000', fontSize: '16px'"
+      " }");
+}
+
+// htmlLabels:false 是必填项：默认会把节点文字放进 <foreignObject>，而
+// QSvgRenderer 完全不认，文字会全部消失。主题变化时才重新 initialize，
+// 且每次都要带完整配置（initialize 是整体替换，不是增量）
+bool EnsureThemeInitialized(MarkdownTheme theme) {
+  if (g_theme_initialized && g_initialized_theme == theme) {
+    return true;
+  }
+  const QString init =
+      QStringLiteral(
+          "mermaid.initialize({"
+          "  startOnLoad: false,"
+          "  theme: '%1',"
+          "  htmlLabels: false,"
+          "  flowchart: { htmlLabels: false },"
+          "  class: { htmlLabels: false },"
+          "  state: { htmlLabels: false },"
+          "  er: { useMaxWidth: true }"
+          "%2"
+          "});")
+          .arg(QLatin1String(ThemeName(theme)), ThemeVariables(theme));
+  if (!EvalGlobal(init.toUtf8(), "init")) {
+    // initialize 失败（配置字段变化、OOM 等）不能每次渲染都重试：
+    // 与载荷加载失败同一套一次性语义，直接作废引擎
     return FailLoad();
   }
+  g_initialized_theme = theme;
+  g_theme_initialized = true;
   return true;
 }
 
@@ -555,9 +600,17 @@ QString SvgToImgTag(const QString& svg) {
 
 bool MermaidRendererReady() { return EnsureLoaded(); }
 
+MarkdownEngineStatus MermaidEngineStatus() {
+  MarkdownEngineStatus status;
+  status.loaded = g_context != nullptr;
+  status.permanently_failed = g_load_failed;
+  status.first_load_ms = g_first_load_ms;
+  return status;
+}
+
 void ClearMermaidCache() {
-  g_cache.clear();
-  g_cache_order.clear();
+  MarkdownRenderContextAccess::State(DefaultRenderContext())
+      .mermaid_cache.Clear();
 }
 
 QString MermaidFontFamily() {
@@ -565,13 +618,31 @@ QString MermaidFontFamily() {
   return family;
 }
 
-QString MermaidToImgTag(const QString& code) {
-  const auto cached = g_cache.constFind(code);
-  if (cached != g_cache.cend()) {
-    return cached.value();
+QString MermaidToImgTag(MarkdownRenderContext& context, const QString& code,
+                        MarkdownTheme theme) {
+  MarkdownRenderContextState& state =
+      MarkdownRenderContextAccess::State(context);
+  const QString key = QString::fromLatin1(ThemeName(theme)) + QLatin1Char('|') +
+                      MermaidFontFamily() + QLatin1Char('|') + code;
+  if (const QString* cached = state.mermaid_cache.Find(key)) {
+    ++state.mermaid_stats.memory_cache_hits;
+    return *cached;
+  }
+  ++state.mermaid_stats.memory_cache_misses;
+  ++state.mermaid_stats.renders;
+  if (!EnsureLoaded() || !EnsureThemeInitialized(theme)) {
+    ++state.mermaid_stats.failures;
+    return {};
   }
   const QString svg = RenderMermaidSvg(code);
   const QString tag = svg.isEmpty() ? QString() : SvgToImgTag(svg);
-  CacheInsert(code, tag);
+  if (tag.isEmpty()) {
+    ++state.mermaid_stats.failures;
+  }
+  state.mermaid_cache.Insert(key, tag);
   return tag;
+}
+
+QString MermaidToImgTag(const QString& code) {
+  return MermaidToImgTag(DefaultRenderContext(), code, MarkdownTheme::Light);
 }

@@ -1,11 +1,14 @@
 #ifndef FILE_MARKDOWN_MARKDOWN_VIEW_H_
 #define FILE_MARKDOWN_MARKDOWN_VIEW_H_
 
+#include <memory>
+
 #include <QHash>
 #include <QString>
 #include <QUrl>
 #include <QWidget>
 
+class MarkdownRenderContext;
 class QFileSystemWatcher;
 class QLiteHtmlWidget;
 class QPrinter;
@@ -76,6 +79,14 @@ class MarkdownView : public QWidget {
   // 元素会被切在页缝上
   void Print(QPrinter* printer);
 
+  // 本视图的渲染上下文（缓存/计数/配置）。需要改缓存目录、容量或读
+  // renderer_status() 时用；生命周期跟随 MarkdownView
+  MarkdownRenderContext& render_context();
+  const MarkdownRenderContext& render_context() const;
+  // 清本视图的公式/Mermaid 内存缓存；全局 ClearFormulaCache() 清的是
+  // 进程默认上下文，对视图无效
+  void ClearRenderCaches();
+
  signals:
   void linkClicked(const QUrl& url);
   void loadFailed(const QString& path, const QString& reason);
@@ -94,6 +105,8 @@ class MarkdownView : public QWidget {
   void OnReloadTick();
   void SetZoom(qreal factor);
 
+  // 每视图一份渲染状态（缓存/计数/配置）；引擎是进程级共享的
+  std::unique_ptr<MarkdownRenderContext> context_;
   QLiteHtmlWidget* html_ = nullptr;
   QFileSystemWatcher* watcher_ = nullptr;
   // "先删后建"保存时用来等文件回来，见 OnFileChanged

@@ -3,6 +3,9 @@
 
 #include <QString>
 
+class MarkdownRenderContext;
+enum class MarkdownTheme;
+
 // mermaid 源码 → 可直接内联进 HTML 的 <img>（src 是 PNG 的 data URI）。
 //
 // 为什么不引 Node/WebEngine：与公式那条路同一套约束——QuickJS 里跑官方
@@ -10,18 +13,27 @@
 // 要问宿主"这段字多宽"才决定连线怎么走，所以多一份假 DOM（dom_shim.js）和
 // 一组度量回调（用 QFontMetricsF 回答，与绘制共用同一份字体）。
 //
-// 三份载荷放在 qrc 里（3.5MB），首次调用才求值；结果按源码缓存，**失败也缓存
-// 空串**（同一个坏语法不该每次编辑都重试）。渲染失败返回空串。
+// 三份载荷放在 qrc 里（3.5MB），首次调用才求值；结果按源码缓存，**渲染失败
+// 也缓存空串**（同一个坏语法不该每次编辑都重试）。载荷加载或主题 initialize
+// 失败走一次性标志（FailLoad，作废引擎），不会每次渲染都重试。渲染失败返回空串。
 //
 // qrc 载荷的初始化由本模块内部完成（Q_INIT_RESOURCE
 // 幂等），宿主不需要做任何事。
+//
+// ctx 版本：缓存与计数记在该上下文；theme 参与缓存 key，并在变化时重新
+// initialize。便捷重载固定按 Light 渲染，不继承上一个调用留下的主题态
+QString MermaidToImgTag(MarkdownRenderContext& context, const QString& code,
+                        MarkdownTheme theme);
 QString MermaidToImgTag(const QString& code);
 
 // 载荷是否可用（加载失败即永久不可用，不会反复重试）
 bool MermaidRendererReady();
 
-// 清空图缓存（每张是内嵌 PNG 的 data URI，大图 MB 级；换文档后旧图没有
-// 复用价值，长会话里那几十 MB 该还回去）。运行时不释放、载荷不重载
+// 清空**进程默认上下文**的图缓存（每张是内嵌 PNG 的 data URI，大图 MB 级；
+// 换文档后旧图没有复用价值，长会话里那几十 MB 该还回去）。运行时不释放、
+// 载荷不重载。MarkdownView 用自己的上下文：宿主请调
+// MarkdownView::ClearRenderCaches() 或
+// MarkdownRenderContext::ClearMemoryCaches()
 void ClearMermaidCache();
 
 // 度量与绘制共用的字体族名。空串表示没找到带 CJK 的族，此时不改写 SVG 里的
