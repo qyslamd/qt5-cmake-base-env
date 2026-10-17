@@ -1,6 +1,7 @@
 #include "heading_ids.h"
 
 #include <gtest/gtest.h>
+#include <vector>
 
 #include <QHash>
 #include <QString>
@@ -97,6 +98,25 @@ TEST(HeadingIdsTest, SinkReportsSlugToIdInOrder) {
   EXPECT_EQ(probe.ids.at(0), QStringLiteral("h-0"));
   EXPECT_EQ(probe.ids.at(1), QStringLiteral("h-1"));
   EXPECT_EQ(probe.ids.at(2), QStringLiteral("h-2"));
+}
+
+// 大纲回调：层级、纯文本、最终 slug（含重名后缀）都要能直接给侧栏用
+TEST(HeadingIdsTest, OutlineReportsLevelsTextAndAnchors) {
+  std::vector<MarkdownHeading> headings;
+  AddHeadingIds(QStringLiteral("<h1>Title</h1><h3>Sub <code>code</code></h3>"
+                               "<h3>Sub</h3>"),
+                {}, [&headings](const MarkdownHeading& heading) {
+                  headings.push_back(heading);
+                });
+
+  ASSERT_EQ(headings.size(), 3);
+  EXPECT_EQ(headings.at(0).level, 1);
+  EXPECT_EQ(headings.at(0).text, QStringLiteral("Title"));
+  EXPECT_EQ(headings.at(0).anchor, QStringLiteral("title"));
+  EXPECT_EQ(headings.at(1).level, 3);
+  EXPECT_EQ(headings.at(1).text, QStringLiteral("Sub code"));
+  EXPECT_EQ(headings.at(1).anchor, QStringLiteral("sub-code"));
+  EXPECT_EQ(headings.at(2).anchor, QStringLiteral("sub"));
 }
 
 // 不给回调也照样补 id：页内锚点表是宿主的事，正文的结构不该因此变样

@@ -2,10 +2,12 @@
 #define FILE_MARKDOWN_MARKDOWN_VIEW_H_
 
 #include <memory>
+#include <optional>
 
 #include <QHash>
 #include <QString>
 #include <QUrl>
+#include <QVector>
 #include <QWidget>
 
 #include "markdown_types.h"
@@ -14,6 +16,7 @@ class MarkdownRenderContext;
 class QFileSystemWatcher;
 class QLiteHtmlWidget;
 class QPrinter;
+class QResizeEvent;
 
 // copy: 链接（代码块"复制"按钮）→ 要复制的原文；不是 copy: 或表里查不到
 // 返回空串。抽成自由函数是为了可测：物理点击 funq 驱动不了（html 是
@@ -104,6 +107,13 @@ class MarkdownView : public QWidget {
   void SetDiagnostics(const MarkdownDiagnostics& diagnostics);
   MarkdownDiagnostics diagnostics() const;
 
+  // 本次文档的标题大纲（按出现顺序，anchor 可直接传 ScrollToAnchor）；
+  // 每次 ApplyDocument 重建并发出 outlineChanged
+  const QVector<MarkdownHeading>& outline() const { return outline_; }
+  // 标题的文档 y 坐标（单位与垂直滚动条一致）。0 合法（标题在文档最顶部），
+  // 找不到锚点返回 nullopt
+  std::optional<int> AnchorY(const QString& anchor) const;
+
   // 本视图的渲染上下文（缓存/计数/配置）。需要改缓存目录、容量或读
   // renderer_status() 时用；生命周期跟随 MarkdownView
   MarkdownRenderContext& render_context();
@@ -123,9 +133,14 @@ class MarkdownView : public QWidget {
  signals:
   void linkClicked(const QUrl& url);
   void loadFailed(const QString& path, const QString& reason);
+  // 文档重建后大纲变化（含清空文档）
+  void outlineChanged();
+  // 垂直滚动位置变化，宿主据此反查当前章节
+  void viewportScrolled(int y);
 
  protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
+  void resizeEvent(QResizeEvent* event) override;
 
  private:
   void initUi();
@@ -139,6 +154,8 @@ class MarkdownView : public QWidget {
   void OnFileChanged();
   void OnReloadTick();
   void SetZoom(qreal factor);
+  // 锚点 y 的缓存失效：重排/缩放/换文档后坐标都会变
+  void InvalidateAnchorYCache();
 
   // 每视图一份渲染状态（缓存/计数/配置）；引擎是进程级共享的
   std::unique_ptr<MarkdownRenderContext> context_;
@@ -154,6 +171,12 @@ class MarkdownView : public QWidget {
   QHash<QString, QString> code_blocks_;
   // 标题 slug → 元素 id，供页内锚点反查；同样每次 ApplyDocument 重建
   QHash<QString, QString> heading_ids_;
+  // 本次文档的标题大纲；与 heading_ids_ 同源
+  QVector<MarkdownHeading> outline_;
+  // 锚点 → 文档 y。litehtml 的 anchorY 是 DOM 树搜索，滚动处理器按大纲
+  // 反查当前章节时不能每帧每个标题各查一次；首次查询一次性填满
+  mutable QHash<QString, int> anchor_y_cache_;
+  mutable bool anchor_y_cache_dirty_ = true;
   qreal zoom_ = 1.0;
   bool code_line_numbers_ = false;
   bool formula_rendering_enabled_ = true;

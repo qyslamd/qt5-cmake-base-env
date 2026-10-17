@@ -9,6 +9,8 @@ set(TARGET_SRCS
     formula_renderer.h
     heading_ids.cpp
     heading_ids.h
+    markdown_outline_widget.cpp
+    markdown_outline_widget.h
     markdown_render_context.cpp
     markdown_render_context.h
     markdown_render_context_internal.h

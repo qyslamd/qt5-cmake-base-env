@@ -22,6 +22,7 @@
 #include <QStatusBar>
 #include <QToolBar>
 
+#include "markdown_outline_widget.h"
 #include "markdown_view.h"
 
 namespace {
@@ -108,6 +109,14 @@ void MdViewerWindow::initUi() {
   addDockWidget(Qt::LeftDockWidgetArea, dock);
   view_menu->addAction(dock->toggleViewAction());
 
+  // 大纲：标题层级 + 点击回跳；当前章节由本类按滚动位置反查
+  auto* outline_dock = new QDockWidget(QStringLiteral("大纲"), this);
+  outline_dock->setObjectName(QStringLiteral("outlineDock"));
+  outline_ = new MarkdownOutlineWidget(outline_dock);
+  outline_dock->setWidget(outline_);
+  addDockWidget(Qt::LeftDockWidgetArea, outline_dock);
+  view_menu->addAction(outline_dock->toggleViewAction());
+
   path_label_ = new QLabel(this);
   statusBar()->addPermanentWidget(path_label_);
 
@@ -132,6 +141,29 @@ void MdViewerWindow::initSignals() {
           [this](QListWidgetItem* item) {
             ShowFile(item->data(Qt::UserRole).toString());
           });
+  connect(view_, &MarkdownView::outlineChanged, this,
+          [this] { outline_->SetHeadings(view_->outline()); });
+  connect(outline_, &MarkdownOutlineWidget::headingActivated, view_,
+          &MarkdownView::ScrollToAnchor);
+  // 当前章节由宿主反查：最后一个 AnchorY <= 滚动位置 的标题。
+  // 标题自带 margin，顶部标题的 y 通常大于 0；滚动到顶时留一段容差，
+  // 否则第一项永远选不中
+  connect(view_, &MarkdownView::viewportScrolled, this, [this](int y) {
+    constexpr int kAnchorSlackPx = 32;
+    QString current;
+    for (const MarkdownHeading& heading : view_->outline()) {
+      const std::optional<int> anchor_y = view_->AnchorY(heading.anchor);
+      if (!anchor_y.has_value()) {
+        continue;
+      }
+      if (*anchor_y > y + kAnchorSlackPx) {
+        break;
+      }
+      current = heading.anchor;
+    }
+    outline_->SetCurrentAnchor(current);
+  });
+
   connect(view_, &MarkdownView::loadFailed, this,
           [this](const QString& path, const QString& reason) {
             statusBar()->showMessage(

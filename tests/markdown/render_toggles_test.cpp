@@ -133,6 +133,60 @@ TEST(RenderTogglesTest, ThemeSwitchUpdatesCssAndRerenders) {
   EXPECT_EQ(view.renderer_status().formula_context.renders, renders + 1);
 }
 
+// 大纲与文档坐标：outline 按出现顺序与层级给出，AnchorY 能按 slug 取 y；
+// 找不到返回 nullopt，蒙混不成"在顶部"
+TEST(RenderTogglesTest, OutlineAndAnchorYFollowDocument) {
+  MarkdownView view;
+  view.resize(800, 600);
+  view.show();
+  QApplication::processEvents();
+
+  int changed = 0;
+  QObject::connect(&view, &MarkdownView::outlineChanged,
+                   [&changed] { ++changed; });
+  view.SetContent(QStringLiteral("# A\n\n第一段\n\n## B\n\n第二段\n"),
+                  QString());
+  QApplication::processEvents();
+
+  EXPECT_EQ(changed, 1);
+  ASSERT_EQ(view.outline().size(), 2);
+  EXPECT_EQ(view.outline().at(0).level, 1);
+  EXPECT_EQ(view.outline().at(0).text, QStringLiteral("A"));
+  EXPECT_EQ(view.outline().at(0).anchor, QStringLiteral("a"));
+  EXPECT_EQ(view.outline().at(1).anchor, QStringLiteral("b"));
+
+  const std::optional<int> a = view.AnchorY(QStringLiteral("a"));
+  const std::optional<int> b = view.AnchorY(QStringLiteral("b"));
+  ASSERT_TRUE(a.has_value()) << "顶部标题也该有文档坐标";
+  ASSERT_TRUE(b.has_value());
+  EXPECT_GE(*a, 0);
+  EXPECT_GT(*b, *a);
+  EXPECT_FALSE(view.AnchorY(QStringLiteral("missing")).has_value());
+}
+
+// 重渲染后大纲会被宿主重建、选中清空；滚动位置没变时 valueChanged 不发，
+// 必须显式补报一次坐标，宿主才能恢复当前章节
+TEST(RenderTogglesTest, ReapplyReportsScrollPosition) {
+  MarkdownView view;
+  view.resize(800, 600);
+  view.show();
+  view.SetContent(QStringLiteral("# A\n\n正文\n"), QString());
+  QApplication::processEvents();
+
+  int reports = 0;
+  int last_y = -1;
+  QObject::connect(&view, &MarkdownView::viewportScrolled,
+                   [&reports, &last_y](int y) {
+                     ++reports;
+                     last_y = y;
+                   });
+  view.SetTheme(MarkdownTheme::Dark);
+  QApplication::processEvents();
+
+  EXPECT_GE(reports, 1) << "重渲染后必须补报滚动位置";
+  EXPECT_EQ(last_y, 0) << "文档在顶部，坐标应为 0";
+}
+
 // 持久缓存开关与目录：默认开；指向临时目录后渲染应落盘；清目录只清模块
 // 子目录；关闭后不再写盘
 TEST(RenderTogglesTest, PersistentCacheCanBeConfiguredAndCleared) {

@@ -113,6 +113,16 @@ add_unit_test(
     LABELS MARKDOWN
 )
 
+# 大纲控件：层级结构、点击回跳、当前项高亮。QTest 用于点击命中
+add_unit_test(
+    NAME test_outline_widget
+    SOURCES outline_widget_test.cpp
+    LIBS ${APP_TARGET_PREFIX}_markdown
+    QT_MODULES Widgets Test
+    LABELS MARKDOWN
+    NO_GTEST_MAIN
+)
+
 add_unit_test(
     NAME test_render_toggles
     SOURCES render_toggles_test.cpp

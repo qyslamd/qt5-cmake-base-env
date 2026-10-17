@@ -248,6 +248,13 @@ void MarkdownView::initSignals() {
     emit linkClicked(url);
   });
 
+  // 滚动联动只报位置，不在这里反查章节：策略归宿主（见 outline()）
+  connect(html_->verticalScrollBar(), &QScrollBar::valueChanged, this,
+          &MarkdownView::viewportScrolled);
+  // 重排/缩放/换文档后滚动范围会变，锚点坐标缓存必须重查
+  connect(html_->verticalScrollBar(), &QScrollBar::rangeChanged, this,
+          [this](int, int) { InvalidateAnchorYCache(); });
+
   watcher_ = new QFileSystemWatcher(this);
   connect(watcher_, &QFileSystemWatcher::fileChanged, this,
           [this](const QString&) { OnFileChanged(); });
@@ -310,6 +317,7 @@ void MarkdownView::SetZoom(qreal factor) {
   }
   zoom_ = next;
   html_->setZoomFactor(zoom_);
+  InvalidateAnchorYCache();
 }
 
 bool MarkdownView::LoadFile(const QString& path) {
@@ -353,6 +361,45 @@ void MarkdownView::ScrollToAnchor(const QString& anchor) {
   // 换过去（表在 ApplyDocument 里建好）。查不到就原样透传：手写的
   // <a name="x"> 这类锚点还得靠 litehtml 自己找
   html_->scrollToAnchor(heading_ids_.value(anchor, anchor));
+}
+
+std::optional<int> MarkdownView::AnchorY(const QString& anchor) const {
+  if (heading_ids_.constFind(anchor) == heading_ids_.constEnd()) {
+    return std::nullopt;
+  }
+  if (anchor_y_cache_dirty_) {
+    // 一次性查完整张大表：宿主按滚动位置反查章节时是每帧遍历，逐次下探
+    // litehtml 会把 O(n) 次 DOM 搜索压在滚动路径上
+    anchor_y_cache_.clear();
+    for (const MarkdownHeading& heading : outline_) {
+      const auto id = heading_ids_.constFind(heading.anchor);
+      if (id == heading_ids_.constEnd()) {
+        continue;
+      }
+      const int y = html_->anchorY(id.value());
+      if (y >= 0) {
+        anchor_y_cache_.insert(heading.anchor, y);
+      }
+    }
+    // 布局尚未发生（全都没查到）时保持 dirty，下一次再试；只要查到过就
+    // 认为本帧有效，后续布局变化由 rangeChanged/resize 失效
+    anchor_y_cache_dirty_ = !outline_.isEmpty() && anchor_y_cache_.isEmpty();
+  }
+  const auto cached = anchor_y_cache_.constFind(anchor);
+  if (cached == anchor_y_cache_.constEnd()) {
+    return std::nullopt;
+  }
+  return cached.value();
+}
+
+void MarkdownView::InvalidateAnchorYCache() {
+  anchor_y_cache_.clear();
+  anchor_y_cache_dirty_ = true;
+}
+
+void MarkdownView::resizeEvent(QResizeEvent* event) {
+  QWidget::resizeEvent(event);
+  InvalidateAnchorYCache();
 }
 
 bool MarkdownView::FindText(const QString& text, FindFlags flags,
@@ -476,6 +523,9 @@ void MarkdownView::ReapplyDocument() {
   const int scroll = html_->verticalScrollBar()->value();
   ApplyDocument();
   html_->verticalScrollBar()->setValue(scroll);
+  // 值没变时 Qt 不发 valueChanged（典型：文档在顶部切主题）。大纲刚被
+  // outlineChanged 重建、选中已清空，这里显式报一次坐标让宿主恢复当前章节
+  emit viewportScrolled(html_->verticalScrollBar()->value());
 }
 
 void MarkdownView::ApplyDocument() {
@@ -493,8 +543,12 @@ void MarkdownView::ApplyDocument() {
   // 上一份文档的元素上）
   code_blocks_.clear();
   heading_ids_.clear();
+  outline_.clear();
   MarkdownRenderOptions options;
   options.code_line_numbers = code_line_numbers_;
+  options.outline = [this](const MarkdownHeading& heading) {
+    outline_.append(heading);
+  };
   options.highlight = [this](const QString& code, const QString& language) {
     return HighlightCode(*context_, code, language);
   };
@@ -544,6 +598,8 @@ void MarkdownView::ApplyDocument() {
                        final_html.toUtf8());
   }
   html_->setHtml(final_html);
+  InvalidateAnchorYCache();
+  emit outlineChanged();
 }
 
 void MarkdownView::ShowMessage(const QString& text) {
@@ -560,6 +616,13 @@ void MarkdownView::ClearDocument() {
   // 文档的代码块与锚点，否则将来错误页加链接会复制到旧代码
   code_blocks_.clear();
   heading_ids_.clear();
+  // 没有大纲时不用发信号：SetContent 会先 ClearDocument 再 ApplyDocument，
+  // 第一次载入不该出现两次 outlineChanged
+  if (!outline_.isEmpty()) {
+    outline_.clear();
+    InvalidateAnchorYCache();
+    emit outlineChanged();
+  }
   reload_attempts_ = 0;
   if (reload_timer_ != nullptr) {
     reload_timer_->stop();

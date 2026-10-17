@@ -158,5 +158,10 @@ apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
 apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
     "${PATCHES_DIR}/qlitehtml/0002-print-with-binary-qt.patch")
 
+# qlitehtml：大纲滚动联动要按 slug 取文档 y 坐标；上游只提供
+# scrollToAnchor（直接滚），没有可查询的接口
+apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
+    "${PATCHES_DIR}/qlitehtml/0003-anchor-y.patch")
+
 message(STATUS "Patches applied.")
 message(STATUS "")
