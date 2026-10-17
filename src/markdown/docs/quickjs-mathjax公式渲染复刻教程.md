@@ -95,8 +95,15 @@ ninja -C build mathjax_smoke   :: 只编跑车（cd build && ctest -R mathjax_sm
    | 补什么 | 为什么 |
    |---|---|
    | 六个命令行工具（qjsc / qjs / api-test / lre-test / function_source / run-test262）`EXCLUDE_FROM_ALL` | qjs CLI 在 MSVC 下链接失败（16 个未解析符号） |
-   | `add_qjs_libc_if_needed` 宏里的 `if(NOT QJS_BUILD_LIBC)` → 加 `AND NOT MSVC` | MSVC 下不链接 qjs-libc |
+   | `add_qjs_libc_if_needed` 宏里的 `if(NOT QJS_BUILD_LIBC)` → 加 `AND NOT MSVC` | MSVC 下不链接 qjs-libc（**demo 旧做法**；本仓已改成 0003 原子操作补丁，见下） |
    | `add_library(qjs-libc STATIC quickjs-libc.c)` → 加 `EXCLUDE_FROM_ALL` | **qjs-libc 要 C11 的 `stdatomic.h`，MSVC 2019 没有**；不排除出 ALL，全量 `ninja` 编到它直接 `fatal error C1083: 无法打开包括文件: "stdatomic.h"`（复刻实录 F4） |
+
+   > **本仓（基座）现在的做法不同**：不再把 qjs-libc 从 MSVC 链接里摘掉，
+   > 而是在 `patches/quickjs/0003-msvc-c11-atomics.patch` 里把 SAB 引用计数的
+   > 32 位 fetch-add 换成 `_InterlockedExchangeAdd`。这样需要命令行工具时
+   > 直接构建目标即可（`--target qjsc` / `--target qjs_exe`），不再有
+   > "16 个未解析符号"。下面的 demo 脚本仍保留旧的 `AND NOT MSVC` 做法，
+   > 因为 demo 不需要 qjsc。
 
    > `scripts/patch_quickjs.ps1` 必须**纯 ASCII 注释**，且写回时不能带 BOM（脚本里用
    > `[System.IO.File]::WriteAllText` + `UTF8Encoding $false`）。Windows
@@ -463,7 +470,7 @@ rsync -a --exclude build/ --exclude node_modules/ /mnt/d/trae_workspace/qt-md-re
 
 | # | 症状 | 根因 | 修法 |
 |---|---|---|---|
-| F4 | 全量 `ninja` → `fatal error C1083: "stdatomic.h"` | `qjs-libc` 要 C11 atomics，MSVC 2019 没有；它在 ALL 里 | patch_quickjs.ps1 补两处：`add_qjs_libc_if_needed` 宏的条件加 `AND NOT MSVC`、`add_library(qjs-libc …)` 加 `EXCLUDE_FROM_ALL` |
+| F4 | 全量 `ninja` → `fatal error C1083: "stdatomic.h"` | `qjs-libc` 要 C11 atomics，MSVC 2019 没有；它在 ALL 里 | demo：patch_quickjs.ps1 补两处（`AND NOT MSVC` + `EXCLUDE_FROM_ALL`）。本仓：`EXCLUDE_FROM_ALL` + 0003 原子操作补丁，qjsc/qjs 可直接构建 |
 | F5 | PowerShell 报 `Get-Content: 无法绑定参数 Path，因为该参数是空值`，`$f` 莫名其妙是 null | PS 5.1 把**无 BOM 的 UTF-8 脚本**按 ANSI（GBK）解码，中文注释的尾字节吞掉了下一行的赋值 | patch_quickjs.ps1 纯 ASCII 注释；写回用 `[IO.File]::WriteAllText(..., UTF8Encoding $false)`，`Set-Content -Encoding UTF8` 会带 BOM |
 | F1 | `git status` 里冒出整个解压目录 + `node_modules/` + `dist/` | 起点提交的 `.gitignore` 没有这些条目 | 三行加进 `.gitignore`（Step 1 第 1 条） |
 | F2 | `error C2065: "code": 未声明的标识符`，代码看着完全正确 | 源文件是 UTF-8，MSVC 按 GBK 读，中文注释末字节把下一行的声明吞进注释（和 F5 同一个病，换了个宿主） | 该编译目标加 `/utf-8`——**mathjax_smoke 与 Qt 目标都要**，别只加后者 |

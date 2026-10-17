@@ -135,14 +135,16 @@ apply_patch_to_dir("${3RDPARTY_DIR}/zlib-v1.2.11"
 apply_patch_to_dir("${3RDPARTY_DIR}/FluentUIStyle-4.0"
     "${PATCHES_DIR}/FluentUIStyle/0001-qt5-only.patch")
 
-# quickjs-ng：本仓只用它的库（公式渲染跑 MathJax），它的六个命令行工具与
-# qjs-libc 在 MSVC 下都编不过——qjs CLI 链接失败（16 个未解析符号），
-# qjs-libc 要 C11 的 stdatomic.h 而 MSVC 2019 没有。上游没有能关掉它们的
-# 开关（只有 add_executable/add_library，不在 option 后面），只能补丁
+# quickjs-ng：本仓默认只用它的库（公式渲染跑 MathJax），命令行工具与
+# qjs-libc 都标成 EXCLUDE_FROM_ALL；需要 qjsc/qjs CLI 时显式构建对应目标
+# 即可（CMake 会把 qjs-libc 作为依赖带上）。qjs-libc 在 MSVC 2019 下缺
+# C11 <stdatomic.h>，0003 把唯一的 32 位 fetch-add 换成 Interlocked intrinsic
 apply_patch_to_dir("${3RDPARTY_DIR}/quickjs-0.17.0"
     "${PATCHES_DIR}/quickjs/0001-drop-cli-tools.patch")
 apply_patch_to_dir("${3RDPARTY_DIR}/quickjs-0.17.0"
     "${PATCHES_DIR}/quickjs/0002-drop-qjs-libc.patch")
+apply_patch_to_dir("${3RDPARTY_DIR}/quickjs-0.17.0"
+    "${PATCHES_DIR}/quickjs/0003-msvc-c11-atomics.patch")
 
 # qlitehtml：上游按 Qt ≥ 5.14 写，Qt::SkipEmptyParts 与 QFont::setFamilies 都没加
 # 版本守卫，而 Linux 构建指南让人装的正是 Ubuntu 20.04 自带的 Qt 5.12.8——不加守卫
