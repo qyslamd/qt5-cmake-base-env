@@ -73,6 +73,17 @@ add_unit_test(
     LABELS MARKDOWN
 )
 
+# 开关：公式/Mermaid 关闭时不加载引擎，行号切换改结构。要 Widgets 与
+# QApplication；NO_GTEST_MAIN 是因为要自己建 application
+add_unit_test(
+    NAME test_render_toggles
+    SOURCES render_toggles_test.cpp
+    LIBS ${APP_TARGET_PREFIX}_markdown
+    QT_MODULES Widgets
+    LABELS MARKDOWN
+    NO_GTEST_MAIN
+)
+
 add_unit_test(
     NAME test_markdown_view
     SOURCES markdown_view_test.cpp

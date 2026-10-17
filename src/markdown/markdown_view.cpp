@@ -355,6 +355,45 @@ const MarkdownRenderContext& MarkdownView::render_context() const {
 
 void MarkdownView::ClearRenderCaches() { context_->ClearMemoryCaches(); }
 
+void MarkdownView::SetCodeLineNumbers(bool enabled) {
+  if (code_line_numbers_ == enabled) {
+    return;
+  }
+  code_line_numbers_ = enabled;
+  ReapplyDocument();
+}
+
+void MarkdownView::SetFormulaRenderingEnabled(bool enabled) {
+  if (formula_rendering_enabled_ == enabled) {
+    return;
+  }
+  formula_rendering_enabled_ = enabled;
+  ReapplyDocument();
+}
+
+void MarkdownView::SetMermaidRenderingEnabled(bool enabled) {
+  if (mermaid_rendering_enabled_ == enabled) {
+    return;
+  }
+  mermaid_rendering_enabled_ = enabled;
+  ReapplyDocument();
+}
+
+MarkdownRendererStatus MarkdownView::renderer_status() const {
+  return context_->status();
+}
+
+void MarkdownView::ResetRendererStats() { context_->ResetStats(); }
+
+void MarkdownView::ReapplyDocument() {
+  if (!has_document()) {
+    return;
+  }
+  const int scroll = html_->verticalScrollBar()->value();
+  ApplyDocument();
+  html_->verticalScrollBar()->setValue(scroll);
+}
+
 void MarkdownView::ApplyDocument() {
   // 先 setUrl 再 setHtml：setHtml 会立刻渲染，顺序反了首帧的相对图片与相对
   // 链接会按错误的基准解析。没有基准时也显式清掉，别让上一份文档的目录留下来
@@ -371,26 +410,35 @@ void MarkdownView::ApplyDocument() {
   code_blocks_.clear();
   heading_ids_.clear();
   MarkdownRenderOptions options;
+  options.code_line_numbers = code_line_numbers_;
   options.highlight = [this](const QString& code, const QString& language) {
     return HighlightCode(*context_, code, language);
   };
-  html_->setHtml(WrapDocument(
-      MarkdownToHtml(
-          markdown_,
-          [this](const QString& tex, bool display) {
-            return FormulaToImgTag(*context_, tex, display);
-          },
-          [this](const QString& code) {
-            return MermaidToImgTag(*context_, code, MarkdownTheme::Light);
-          },
-          [this](const QString& id, const QString& code) {
-            code_blocks_.insert(id, code);
-          },
-          [this](const QString& slug, const QString& id) {
-            heading_ids_.insert(slug, id);
-          },
-          options),
-      LoadDefaultCss()));
+  // 关闭时不传对应 sink：MarkdownToHtml 会整段跳过抽取，也不会有任何
+  // JS 载荷加载
+  FormulaSink formula_sink;
+  if (formula_rendering_enabled_) {
+    formula_sink = [this](const QString& tex, bool display) {
+      return FormulaToImgTag(*context_, tex, display);
+    };
+  }
+  MermaidSink mermaid_sink;
+  if (mermaid_rendering_enabled_) {
+    mermaid_sink = [this](const QString& code) {
+      return MermaidToImgTag(*context_, code, MarkdownTheme::Light);
+    };
+  }
+  html_->setHtml(
+      WrapDocument(MarkdownToHtml(
+                       markdown_, formula_sink, mermaid_sink,
+                       [this](const QString& id, const QString& code) {
+                         code_blocks_.insert(id, code);
+                       },
+                       [this](const QString& slug, const QString& id) {
+                         heading_ids_.insert(slug, id);
+                       },
+                       options),
+                   LoadDefaultCss()));
 }
 
 void MarkdownView::ShowMessage(const QString& text) {

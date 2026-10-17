@@ -216,6 +216,101 @@ TEST(MarkdownToHtmlTest, PlaceholderShapedUserTextStaysLiteral) {
       << html.toStdString();
 }
 
+// ---------- 代码块行号（可选） ----------
+
+MarkdownRenderOptions LineNumberOptions() {
+  MarkdownRenderOptions options;
+  options.code_line_numbers = true;
+  return options;
+}
+
+// 默认关闭：结构与不带选项时逐字节一致
+TEST(MarkdownToHtmlTest, CodeLineNumbersOffKeepsPreCode) {
+  const QString html = MarkdownToHtml(QStringLiteral("```cpp\nint a;\n```\n"));
+  EXPECT_TRUE(html.contains(QStringLiteral("<pre><code")))
+      << html.toStdString();
+  EXPECT_FALSE(html.contains(QStringLiteral("md-code"))) << html.toStdString();
+}
+
+TEST(MarkdownToHtmlTest, CodeLineNumbersEmitNumberedRows) {
+  const QString html = MarkdownToHtml(
+      QStringLiteral("```cpp\nint a = 1;\nint b = 2;\n```\n"), FormulaSink(),
+      MermaidSink(), CodeBlockSink(), HeadingSink(), LineNumberOptions());
+  EXPECT_TRUE(html.contains(QStringLiteral("<table class=\"md-code\">")))
+      << html.toStdString();
+  EXPECT_TRUE(html.contains(QStringLiteral("md-code-ln\">1<")))
+      << html.toStdString();
+  EXPECT_TRUE(html.contains(QStringLiteral("md-code-ln\">2<")))
+      << html.toStdString();
+  EXPECT_EQ(html.count(QStringLiteral("<tr>")), 2) << html.toStdString();
+  // 高亮本身不受影响
+  EXPECT_TRUE(html.contains(QStringLiteral("<span class=\"ty\">int</span>")))
+      << html.toStdString();
+}
+
+// 中间空行也要保留一行高度，否则 tr 会塌
+TEST(MarkdownToHtmlTest, CodeLineNumbersKeepBlankRows) {
+  const QString html = MarkdownToHtml(
+      QStringLiteral("```cpp\nint a;\n\nint b;\n```\n"), FormulaSink(),
+      MermaidSink(), CodeBlockSink(), HeadingSink(), LineNumberOptions());
+  EXPECT_EQ(html.count(QStringLiteral("<tr>")), 3) << html.toStdString();
+  EXPECT_TRUE(html.contains(QStringLiteral("&#160;"))) << html.toStdString();
+}
+
+// 空代码块零行；只有一个空行的块是一行
+TEST(MarkdownToHtmlTest, CodeLineNumbersEmptyBlockRules) {
+  const QString empty =
+      MarkdownToHtml(QStringLiteral("```\n```\n"), FormulaSink(), MermaidSink(),
+                     CodeBlockSink(), HeadingSink(), LineNumberOptions());
+  EXPECT_FALSE(empty.contains(QStringLiteral("md-code-ln")))
+      << empty.toStdString();
+
+  const QString one_blank = MarkdownToHtml(
+      QStringLiteral("```\n\n```\n"), FormulaSink(), MermaidSink(),
+      CodeBlockSink(), HeadingSink(), LineNumberOptions());
+  EXPECT_EQ(one_blank.count(QStringLiteral("<tr>")), 1)
+      << one_blank.toStdString();
+}
+
+// 每个 md-code-line 单元格内的 span 必须配平：载荷逐行闭合的契约不能在
+// 拼表格时被打破
+TEST(MarkdownToHtmlTest, CodeLineNumbersKeepSpansBalancedPerCell) {
+  const QString html = MarkdownToHtml(
+      QStringLiteral("```cpp\n/* 第一行\n第二行 */ int a = 1;\n```\n"),
+      FormulaSink(), MermaidSink(), CodeBlockSink(), HeadingSink(),
+      LineNumberOptions());
+  const QString marker = QStringLiteral("<td class=\"md-code-line\">");
+  int pos = 0;
+  int cells = 0;
+  while ((pos = html.indexOf(marker, pos)) >= 0) {
+    const int start = pos + marker.size();
+    const int end = html.indexOf(QStringLiteral("</td>"), start);
+    ASSERT_GE(end, 0);
+    const QString cell = html.mid(start, end - start);
+    EXPECT_EQ(cell.count(QStringLiteral("<span")),
+              cell.count(QStringLiteral("</span>")))
+        << cell.toStdString();
+    pos = end;
+    ++cells;
+  }
+  EXPECT_EQ(cells, 2) << html.toStdString();
+}
+
+// 行号模式不影响复制链路：sink 仍拿原始源码，copy: 链接仍在
+TEST(MarkdownToHtmlTest, CodeLineNumbersKeepCopyLink) {
+  QHash<QString, QString> blocks;
+  const QString html = MarkdownToHtml(
+      QStringLiteral("```cpp\nint a;\n```\n"), FormulaSink(), MermaidSink(),
+      [&blocks](const QString& id, const QString& code) {
+        blocks.insert(id, code);
+      },
+      HeadingSink(), LineNumberOptions());
+  EXPECT_TRUE(html.contains(QStringLiteral("href=\"copy:0\"")))
+      << html.toStdString();
+  ASSERT_EQ(blocks.size(), 1);
+  EXPECT_EQ(blocks.value(QStringLiteral("0")), QStringLiteral("int a;\n"));
+}
+
 // 缩进代码块（4 空格，CommonMark）里的 $ 是字面量。块不能打断段落，
 // 所以用空行隔开的写法
 TEST(MarkdownToHtmlTest, IndentedCodeBlockDollarsStayLiteral) {

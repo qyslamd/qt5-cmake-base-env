@@ -385,8 +385,22 @@ void AppendHtml(const MD_CHAR* text, MD_SIZE size, void* userdata) {
 // 代码块包一层带 header 的框：左边语言标签、右边"复制"链接。复制链接是
 // copy:<id>，id 交给调用方去查原文（见 CodeBlockSink）——这里只负责把 id 写
 // 进 HTML，不碰剪贴板（渲染层不该知道宿主用不用 Qt 剪贴板）
+// 高亮载荷已在 JS 侧逐行闭合/重开 span（highlight_entry.js 的
+// splitSpansPerLine，code_highlighter_test 钉住），这里按换行直切即可。
+// 空块零行；"\n" 是一个空行；末尾一个换行不多出一行
+QStringList SplitCodeLines(const QString& highlighted) {
+  if (highlighted.isEmpty()) {
+    return {};
+  }
+  QString body = highlighted;
+  if (body.endsWith(QLatin1Char('\n'))) {
+    body.chop(1);
+  }
+  return body.split(QLatin1Char('\n'));
+}
+
 QString BuildCodeBlockFrame(const QString& highlighted, const QString& language,
-                            const QString& block_id) {
+                            const QString& block_id, bool line_numbers) {
   const QString lang_text =
       language.isEmpty() ? QStringLiteral("text") : language;
   QString out = QStringLiteral("<div class=\"code-wrap\">");
@@ -396,9 +410,20 @@ QString BuildCodeBlockFrame(const QString& highlighted, const QString& language,
   out += QStringLiteral("<a class=\"copy-btn\" href=\"copy:%1\">复制</a>")
              .arg(block_id);
   out += QStringLiteral("</div>");
-  // 无语言的围栏不写 language- 类：那是"代码块声明了哪种语言"的契约，
-  // header 上显示 text 只是给人看的
-  if (language.isEmpty()) {
+  if (line_numbers) {
+    out += QStringLiteral("<table class=\"md-code\"><tbody>");
+    const QStringList lines = SplitCodeLines(highlighted);
+    for (int i = 0; i < lines.size(); ++i) {
+      out += QStringLiteral("<tr><td class=\"md-code-ln\">%1</td>").arg(i + 1);
+      out += QStringLiteral("<td class=\"md-code-line\">");
+      // 空行也要占一行高，否则整个 tr 可能塌掉
+      out += lines.at(i).isEmpty() ? QStringLiteral("&#160;") : lines.at(i);
+      out += QStringLiteral("</td></tr>");
+    }
+    out += QStringLiteral("</tbody></table>");
+  } else if (language.isEmpty()) {
+    // 无语言的围栏不写 language- 类：那是"代码块声明了哪种语言"的契约，
+    // header 上显示 text 只是给人看的
     out += QStringLiteral("<pre><code>%1</code></pre>").arg(highlighted);
   } else {
     out += QStringLiteral("<pre><code class=\"language-%1\">%2</code></pre>")
@@ -457,7 +482,8 @@ QString HighlightCodeBlocks(const QString& html, const MermaidSink& mermaid,
     const QString highlighted = options.highlight
                                     ? options.highlight(code, language)
                                     : HighlightCode(code, language);
-    result += BuildCodeBlockFrame(highlighted, language, block_id);
+    result += BuildCodeBlockFrame(highlighted, language, block_id,
+                                  options.code_line_numbers);
   }
   result.append(html.constData() + consumed, html.size() - consumed);
   return result;

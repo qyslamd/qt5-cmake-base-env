@@ -100,6 +100,38 @@ a.copy-btn {
   margin: 0;
 }
 
+/* 行号模式：每行一个 <tr>；关闭行号时仍是 <pre><code>。
+   悬挂缩进让折行续行右移 2em，明确"这是续行" */
+.md-code {
+  width: 100%;
+  padding: 10px 0;
+  background: #f6f8fa;
+  border-collapse: collapse;
+}
+.md-code td {
+  border: none;
+  padding: 0;
+  vertical-align: top;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 13px;
+  line-height: 20px;
+  color: #24292e;
+}
+.md-code .md-code-ln {
+  width: 1%;
+  padding: 0 10px 0 12px;
+  text-align: right;
+  color: #8c959f;
+  white-space: nowrap;
+}
+.md-code .md-code-line {
+  padding: 0 12px 0 4px;
+  padding-left: 2em;
+  text-indent: -2em;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
 /* 公式：行内的随文排；独立的居中成块。公式是 QuickJS 里 MathJax 渲出来的图，
    宽高按 1x 摆、位图按 2x 画，所以边缘是锐的 */
 .math-display { display: block; margin: 10px auto; }

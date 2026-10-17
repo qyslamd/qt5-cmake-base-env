@@ -8,6 +8,8 @@
 #include <QUrl>
 #include <QWidget>
 
+#include "markdown_types.h"
+
 class MarkdownRenderContext;
 class QFileSystemWatcher;
 class QLiteHtmlWidget;
@@ -79,6 +81,19 @@ class MarkdownView : public QWidget {
   // 元素会被切在页缝上
   void Print(QPrinter* printer);
 
+  // 代码块行号（默认关）；切换后若有文档立即重渲染并保留滚动位置
+  void SetCodeLineNumbers(bool enabled);
+  bool code_line_numbers() const { return code_line_numbers_; }
+  // 公式/Mermaid 渲染（默认开）。关闭时不传对应 sink：$…$ 原样显示、
+  // mermaid 围栏退回代码块，且不会触发 JS 载荷加载
+  void SetFormulaRenderingEnabled(bool enabled);
+  bool formula_rendering_enabled() const { return formula_rendering_enabled_; }
+  void SetMermaidRenderingEnabled(bool enabled);
+  bool mermaid_rendering_enabled() const { return mermaid_rendering_enabled_; }
+  // 本视图的渲染状态（不触发加载）与计数清零
+  MarkdownRendererStatus renderer_status() const;
+  void ResetRendererStats();
+
   // 本视图的渲染上下文（缓存/计数/配置）。需要改缓存目录、容量或读
   // renderer_status() 时用；生命周期跟随 MarkdownView
   MarkdownRenderContext& render_context();
@@ -98,6 +113,8 @@ class MarkdownView : public QWidget {
   void initUi();
   void initSignals();
   void ApplyDocument();
+  // 重渲染并保留垂直滚动位置（开关切换用）
+  void ReapplyDocument();
   void ShowMessage(const QString& text);
   void ClearDocument();
   void WatchCurrentFile();
@@ -120,6 +137,9 @@ class MarkdownView : public QWidget {
   // 标题 slug → 元素 id，供页内锚点反查；同样每次 ApplyDocument 重建
   QHash<QString, QString> heading_ids_;
   qreal zoom_ = 1.0;
+  bool code_line_numbers_ = false;
+  bool formula_rendering_enabled_ = true;
+  bool mermaid_rendering_enabled_ = true;
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(MarkdownView::FindFlags)
