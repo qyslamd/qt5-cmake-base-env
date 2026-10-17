@@ -3,6 +3,7 @@
 #include <fluentwindowframe.h>
 
 #include <QAction>
+#include <QDesktopServices>
 #include <QDir>
 #include <QDockWidget>
 #include <QFileDialog>
@@ -142,6 +143,40 @@ void MdViewerWindow::initSignals() {
 
   connect(export_pdf_action_, &QAction::triggered, this,
           &MdViewerWindow::ExportPdf);
+  // 链接策略（与 demo_app 的 MarkdownWindow 同一套，宿主各自持有）：
+  // 页内锚点只滚；本地 .md 换篇（带锚点就载入后滚过去）；其余交系统。
+  // 锚点判定要比对"去掉 fragment 是不是当前文档的目录"——qlitehtml 把纯
+  // fragment 拼到基准 URL（目录）上，判 isLocalFile/路径空永远判不中
+  connect(view_, &MarkdownView::linkClicked, this, [this](const QUrl& url) {
+    const QString fragment = url.fragment();
+    if (!fragment.isEmpty()) {
+      const QUrl no_frag = url.adjusted(QUrl::RemoveFragment);
+      const QUrl here =
+          view_->has_document()
+              ? QUrl::fromLocalFile(
+                    QFileInfo(view_->current_file()).absolutePath() +
+                    QLatin1Char('/'))
+              : QUrl();
+      if (no_frag.isEmpty() || no_frag == here) {
+        view_->ScrollToAnchor(fragment);
+        return;
+      }
+    }
+    const QString path = url.isLocalFile() ? url.toLocalFile() : QString();
+    if (!path.isEmpty() &&
+        (path.endsWith(QStringLiteral(".md"), Qt::CaseInsensitive) ||
+         path.endsWith(QStringLiteral(".markdown"), Qt::CaseInsensitive))) {
+      ShowFile(path);
+      view_->ScrollToAnchor(fragment);
+      return;
+    }
+    const bool web_link = url.scheme() == QLatin1String("http") ||
+                          url.scheme() == QLatin1String("https") ||
+                          url.scheme() == QLatin1String("mailto");
+    if (web_link || QFileInfo(path).isFile()) {
+      QDesktopServices::openUrl(url);
+    }
+  });
   connect(find_action_, &QAction::triggered, this,
           &MdViewerWindow::ShowFindBar);
   connect(find_next_action_, &QAction::triggered, this,

@@ -27,8 +27,8 @@
 #include "config/config_manager.h"
 #include "dialogs/about_dialog.h"
 #include "dialogs/log_window.h"
+#include "dialogs/markdown_window.h"
 #include "dialogs/settings_dialog.h"
-#include "markdown_window.h"
 
 namespace {
 QSize LoadWindowSize() {

@@ -1,5 +1,5 @@
-#ifndef FILE_MARKDOWN_MARKDOWN_WINDOW_H_
-#define FILE_MARKDOWN_MARKDOWN_WINDOW_H_
+#ifndef FILE_APP_DIALOGS_MARKDOWN_WINDOW_H_
+#define FILE_APP_DIALOGS_MARKDOWN_WINDOW_H_
 
 #include <QDialog>
 #include <QString>
@@ -37,4 +37,4 @@ class MarkdownWindow : public QDialog {
   QPushButton* open_button_ = nullptr;
 };
 
-#endif  // FILE_MARKDOWN_MARKDOWN_WINDOW_H_
+#endif  // FILE_APP_DIALOGS_MARKDOWN_WINDOW_H_

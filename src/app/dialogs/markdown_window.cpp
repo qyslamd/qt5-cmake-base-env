@@ -115,18 +115,27 @@ void MarkdownWindow::OpenFileDialog() {
 }
 
 void MarkdownWindow::OnLinkClicked(const QUrl& url) {
+  // 页内锚点（[x](#y)）：qlitehtml 会把纯 fragment 拼到基准 URL 上，而基准是
+  // 文档所在**目录**——所以这里不能问"路径空不空"（toLocalFile 得到的是目录，
+  // 非空，一判就走不进滚锚点分支，锚点静默失效），要比"去掉 fragment 之后
+  // 是不是当前文档的目录"。
   const QString fragment = url.fragment();
-  const QString path = url.isLocalFile() ? url.toLocalFile() : QString();
-
-  // 页内锚点（[x](#y)）：qlitehtml 把纯 fragment 解析成"当前基准 URL + 片段"，
-  // 而基准是文档所在**目录**——落到这里 path 就成了那个目录，不拦的话会被当成
-  // 本地文件交给系统打开（表现是弹出资源管理器，文档纹丝不动）
-  if (path.isEmpty()) {
-    view_->ScrollToAnchor(fragment);
-    return;
+  if (!fragment.isEmpty()) {
+    const QUrl no_frag = url.adjusted(QUrl::RemoveFragment);
+    const QUrl here =
+        view_->has_document()
+            ? QUrl::fromLocalFile(
+                  QFileInfo(view_->current_file()).absolutePath() +
+                  QLatin1Char('/'))
+            : QUrl();
+    if (no_frag.isEmpty() || no_frag == here) {
+      view_->ScrollToAnchor(fragment);
+      return;
+    }
   }
 
-  if (IsMarkdownFile(path)) {
+  const QString path = url.isLocalFile() ? url.toLocalFile() : QString();
+  if (!path.isEmpty() && IsMarkdownFile(path)) {
     ShowDocument(path);
     view_->ScrollToAnchor(fragment);  // 跨文件带锚点：载入后滚过去
     return;

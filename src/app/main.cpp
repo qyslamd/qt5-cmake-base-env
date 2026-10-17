@@ -31,10 +31,10 @@
 #include "crashhandler/global_exception_handler.h"
 #include "dialogs/crash_report_dialog.h"
 #include "dialogs/login/login_window.h"
+#include "dialogs/markdown_window.h"
 #include "launch_options.h"
 #include "logger/logger.h"
 #include "mainwindow.h"
-#include "markdown_window.h"
 #include "tour_app_topics.h"
 
 #ifdef APP_ENABLE_QT_TESTING

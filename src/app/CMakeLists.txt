@@ -33,6 +33,8 @@ set(TARGET_SRCS
     dialogs/crash_report_dialog.h
     dialogs/log_window.cpp
     dialogs/log_window.h
+    dialogs/markdown_window.cpp
+    dialogs/markdown_window.h
     dialogs/settings_dialog.cpp
     dialogs/settings_dialog.h
     dialogs/add_edit_user_dialog.cpp

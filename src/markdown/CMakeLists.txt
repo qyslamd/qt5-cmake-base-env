@@ -17,8 +17,6 @@ set(TARGET_SRCS
     markdown_to_html.h
     markdown_view.cpp
     markdown_view.h
-    markdown_window.cpp
-    markdown_window.h
 )
 
 # 公式走 SVG→PNG（QSvgRenderer 在 Gui 里，Svg 模块提供 svg 支持）
