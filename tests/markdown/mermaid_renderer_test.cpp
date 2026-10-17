@@ -3,10 +3,14 @@
 #include <gtest/gtest.h>
 
 #include <QByteArray>
+#include <QDateTime>
+#include <QDir>
 #include <QElapsedTimer>
 #include <QGuiApplication>
+#include <QStandardPaths>
 #include <QString>
 #include <QStringList>
+#include <QTemporaryDir>
 
 #include "markdown_render_context.h"
 #include "markdown_types.h"
@@ -26,12 +30,32 @@
 // 首次调用要 eval 3.5MB 的 bundle（秒级），用例超时在 CMake 里放宽到 120 秒
 int main(int argc, char** argv) {
   qputenv("QT_QPA_PLATFORM", QByteArray("offscreen"));
+  // 测试模式 + 唯一应用名：即便某个用例漏关持久缓存，也不会读写用户真实
+  // 的 CacheLocation，更不会跨运行串数据
+  QStandardPaths::setTestModeEnabled(true);
+  QCoreApplication::setOrganizationName(QStringLiteral("md-tests"));
+  QCoreApplication::setApplicationName(
+      QStringLiteral("mermaid-%1").arg(QDateTime::currentMSecsSinceEpoch()));
   QGuiApplication app(argc, argv);
   ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+  const int result = RUN_ALL_TESTS();
+  QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation) +
+       QStringLiteral("/markdown-render"))
+      .removeRecursively();
+  return result;
 }
 
 namespace {
+
+// 自建上下文默认开启持久缓存；断言"每个上下文各自渲染"的用例要关掉，
+// 否则第二个上下文会直接读盘（磁盘缓存本来就是跨上下文共享的）
+void DisablePersistentCache(MarkdownRenderContext& context) {
+  // SetOptions 是整体替换：先取当前值，只改目标字段，别把调用方已经设好
+  // 的目录/诊断/容量清掉
+  MarkdownRenderContextOptions options = context.options();
+  options.persistent_cache_enabled = false;
+  context.SetOptions(options);
+}
 
 TEST(MermaidRendererTest, RendersFlowchartToInlineImage) {
   ASSERT_TRUE(MermaidRendererReady()) << "qrc 里的三份载荷没加载起来";
@@ -85,6 +109,8 @@ TEST(MermaidRendererTest, RenderErrorSettlesPromptly) {
 TEST(MermaidRendererTest, ContextsKeepCachesSeparate) {
   MarkdownRenderContext first;
   MarkdownRenderContext second;
+  DisablePersistentCache(first);
+  DisablePersistentCache(second);
   const QString source = QStringLiteral("flowchart LR\n    A --> B\n");
   const QString tag = MermaidToImgTag(first, source, MarkdownTheme::Light);
   ASSERT_FALSE(tag.isEmpty());
@@ -103,6 +129,28 @@ TEST(MermaidRendererTest, ContextsKeepCachesSeparate) {
 
   EXPECT_EQ(MermaidToImgTag(second, source, MarkdownTheme::Light), tag);
   EXPECT_EQ(second.status().mermaid_context.memory_cache_hits, 1U);
+}
+
+// 持久缓存跨上下文复用：主题与字体指纹都在 key 里，第二个上下文直接读盘
+TEST(MermaidRendererTest, DiskCacheSurvivesAcrossContexts) {
+  QTemporaryDir dir;
+  ASSERT_TRUE(dir.isValid());
+  MarkdownRenderContextOptions options;
+  options.cache_directory = dir.path();
+  const QString source = QStringLiteral("flowchart LR\n    P --> Q\n");
+
+  MarkdownRenderContext first;
+  first.SetOptions(options);
+  const QString tag = MermaidToImgTag(first, source, MarkdownTheme::Dark);
+  ASSERT_FALSE(tag.isEmpty());
+  EXPECT_EQ(first.status().mermaid_context.renders, 1U);
+  EXPECT_EQ(first.status().mermaid_context.disk_cache_misses, 1U);
+
+  MarkdownRenderContext second;
+  second.SetOptions(options);
+  EXPECT_EQ(MermaidToImgTag(second, source, MarkdownTheme::Dark), tag);
+  EXPECT_EQ(second.status().mermaid_context.renders, 0U);
+  EXPECT_EQ(second.status().mermaid_context.disk_cache_hits, 1U);
 }
 
 // 畸形输入不抛、不崩。约定是"空串 = 渲不出来，调用方退回代码块"，但别指望畸形
@@ -129,6 +177,7 @@ TEST(MermaidRendererTest, MalformedCodeNeverCrashes) {
 // 其他 base 变体串图
 TEST(MermaidRendererTest, ThemeIsPartOfCacheKey) {
   MarkdownRenderContext context;
+  DisablePersistentCache(context);
   const QString source = QStringLiteral("flowchart LR\n    X --> Y\n");
   const QString light = MermaidToImgTag(context, source, MarkdownTheme::Light);
   const QString dark = MermaidToImgTag(context, source, MarkdownTheme::Dark);
@@ -153,6 +202,8 @@ TEST(MermaidRendererTest, ThemeIsPartOfCacheKey) {
 TEST(MermaidRendererTest, ThemesDoNotLeakAcrossContexts) {
   MarkdownRenderContext light_context;
   MarkdownRenderContext dark_context;
+  DisablePersistentCache(light_context);
+  DisablePersistentCache(dark_context);
   const QString source = QStringLiteral("flowchart LR\n    X --> Y\n");
   const QString light =
       MermaidToImgTag(light_context, source, MarkdownTheme::Light);

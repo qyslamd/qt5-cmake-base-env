@@ -14,6 +14,7 @@
 #include "default_render_context.h"
 #include "markdown_render_context_internal.h"
 #include "markdown_resources.h"
+#include "render_cache.h"
 #include "render_diagnostics.h"
 #include "renderer_status_internal.h"
 
@@ -246,6 +247,28 @@ QString FormulaToImgTag(MarkdownRenderContext& context, const QString& tex,
     return *cached;
   }
   ++state.formula_stats.memory_cache_misses;
+  const RenderCacheConfig cache_config =
+      MakeRenderCacheConfig(state.options, QStringLiteral("formula"));
+  QString disk_key;
+  if (cache_config.enabled) {
+    disk_key = MakeRenderCacheKey(
+        QStringLiteral("formula"), normalized,
+        (display ? QStringLiteral("D") : QStringLiteral("I")) +
+            QLatin1Char('|') + variant);
+    QString disk_tag;
+    if (LoadRenderCacheEntry(cache_config, QStringLiteral("formula"), disk_key,
+                             &disk_tag)) {
+      ++state.formula_stats.disk_cache_hits;
+      if (diagnostics.trace) {
+        TraceRender(
+            diagnostics,
+            QStringLiteral("formula disk hit: %1").arg(normalized.left(60)));
+      }
+      state.formula_cache.Insert(key, disk_tag);
+      return disk_tag;
+    }
+    ++state.formula_stats.disk_cache_misses;
+  }
   ++state.formula_stats.renders;
   const bool was_loaded = FormulaEngineStatus().loaded;
   if (!EnsureLoaded()) {
@@ -344,6 +367,10 @@ QString FormulaToImgTag(MarkdownRenderContext& context, const QString& tex,
                     .arg(display));
   }
   state.formula_cache.Insert(key, tag);
+  if (!tag.isEmpty() && !disk_key.isEmpty()) {
+    StoreRenderCacheEntry(cache_config, QStringLiteral("formula"), disk_key,
+                          tag);
+  }
   return tag;
 }
 

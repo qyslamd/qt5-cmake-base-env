@@ -104,6 +104,15 @@ add_unit_test(
     NO_GTEST_MAIN
 )
 
+# 持久缓存：key 组成、命中/损坏/关闭/淘汰/清理。全部用临时目录
+add_unit_test(
+    NAME test_render_cache
+    SOURCES render_cache_test.cpp
+    LIBS ${APP_TARGET_PREFIX}_markdown
+    QT_MODULES Core
+    LABELS MARKDOWN
+)
+
 add_unit_test(
     NAME test_render_toggles
     SOURCES render_toggles_test.cpp

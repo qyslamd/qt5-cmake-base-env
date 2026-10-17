@@ -1,9 +1,11 @@
 #include <gtest/gtest.h>
 
 #include <QApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QMetaObject>
+#include <QStandardPaths>
 #include <QStringList>
 #include <QTemporaryDir>
 #include <QWidget>
@@ -49,10 +51,19 @@ int main(int argc, char** argv) {
     css.write("body { color: #123456; }\n");
   }
   qputenv("MD_MARKDOWN_CSS", css_path.toUtf8());
+  // 视图默认开启持久缓存：测试模式 + 唯一应用名，别读写真实缓存目录
+  QStandardPaths::setTestModeEnabled(true);
+  QCoreApplication::setOrganizationName(QStringLiteral("md-tests"));
+  QCoreApplication::setApplicationName(
+      QStringLiteral("css-override-%1")
+          .arg(QDateTime::currentMSecsSinceEpoch()));
 
   QApplication app(argc, argv);
   ::testing::InitGoogleTest(&argc, argv);
   const int result = RUN_ALL_TESTS();
+  QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation) +
+       QStringLiteral("/markdown-render"))
+      .removeRecursively();
   delete g_dir;
   return result;
 }

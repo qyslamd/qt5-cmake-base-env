@@ -111,6 +111,14 @@ class MarkdownView : public QWidget {
   // 清本视图的公式/Mermaid 内存缓存；全局 ClearFormulaCache() 清的是
   // 进程默认上下文，对视图无效
   void ClearRenderCaches();
+  // 持久化渲染缓存（默认开）：公式/Mermaid 的最终 <img> 落在
+  // QStandardPaths::CacheLocation/markdown-render；SetRenderCacheDirectory
+  // 可换成指定根目录。关闭只跳过磁盘读写，内存缓存照常
+  void SetPersistentRenderCacheEnabled(bool enabled);
+  bool persistent_render_cache_enabled() const;
+  void SetRenderCacheDirectory(const QString& dir);
+  // 只删本模块的 formula/ 与 mermaid/ 子目录，不动根目录下的其他内容
+  void ClearPersistentRenderCache();
 
  signals:
   void linkClicked(const QUrl& url);

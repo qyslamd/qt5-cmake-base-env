@@ -30,6 +30,8 @@ set(TARGET_SRCS
     markdown_to_html.h
     markdown_view.cpp
     markdown_view.h
+    render_cache.cpp
+    render_cache.h
     render_diagnostics.cpp
     render_diagnostics.h
 )

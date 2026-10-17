@@ -3,8 +3,13 @@
 #include <gtest/gtest.h>
 
 #include <QByteArray>
+#include <QDateTime>
+#include <QDir>
 #include <QGuiApplication>
+#include <QStandardPaths>
 #include <QString>
+#include <QStringList>
+#include <QTemporaryDir>
 
 #include "default_render_context.h"
 #include "markdown_render_context.h"
@@ -20,12 +25,32 @@
 // 没有 GUI application 建不出绘图后端。平台用 offscreen，CI/无显示器也能跑。
 int main(int argc, char** argv) {
   qputenv("QT_QPA_PLATFORM", QByteArray("offscreen"));
+  // 测试模式 + 唯一应用名：即便某个用例漏关持久缓存，也不会读写用户真实
+  // 的 CacheLocation，更不会跨运行串数据
+  QStandardPaths::setTestModeEnabled(true);
+  QCoreApplication::setOrganizationName(QStringLiteral("md-tests"));
+  QCoreApplication::setApplicationName(
+      QStringLiteral("formula-%1").arg(QDateTime::currentMSecsSinceEpoch()));
   QGuiApplication app(argc, argv);
   ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+  const int result = RUN_ALL_TESTS();
+  QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation) +
+       QStringLiteral("/markdown-render"))
+      .removeRecursively();
+  return result;
 }
 
 namespace {
+
+// 自建上下文默认开启持久缓存；断言"每个上下文各自渲染"的用例要关掉，
+// 否则第二个上下文会直接读盘（磁盘缓存本来就是跨上下文共享的）
+void DisablePersistentCache(MarkdownRenderContext& context) {
+  // SetOptions 是整体替换：先取当前值，只改目标字段，别把调用方已经设好
+  // 的目录/诊断/容量清掉
+  MarkdownRenderContextOptions options = context.options();
+  options.persistent_cache_enabled = false;
+  context.SetOptions(options);
+}
 
 TEST(FormulaRendererTest, RendersInlineFormulaToInlineImage) {
   ASSERT_TRUE(FormulaRendererReady()) << "qrc 里的 MathJax 载荷没加载起来";
@@ -76,6 +101,8 @@ TEST(FormulaRendererTest, CachesByTexAndDisplay) {
 TEST(FormulaRendererTest, ContextsKeepCachesSeparate) {
   MarkdownRenderContext first;
   MarkdownRenderContext second;
+  DisablePersistentCache(first);
+  DisablePersistentCache(second);
   const QString tag = FormulaToImgTag(first, QStringLiteral("x^2"), false);
   ASSERT_FALSE(tag.isEmpty());
   EXPECT_EQ(first.status().formula_context.renders, 1U);
@@ -118,6 +145,7 @@ TEST(FormulaRendererTest, ClearFormulaCacheOnlyTouchesDefaultContext) {
 // 主题前景色参与 key：亮/暗主题各占一条，切换主题不会拿错图
 TEST(FormulaRendererTest, ThemeColorIsPartOfCacheKey) {
   MarkdownRenderContext context;
+  DisablePersistentCache(context);
   const QColor light = ThemeFormulaColor(MarkdownTheme::Light);
   const QColor dark = ThemeFormulaColor(MarkdownTheme::Dark);
   const QString light_tag =
@@ -135,9 +163,35 @@ TEST(FormulaRendererTest, ThemeColorIsPartOfCacheKey) {
   EXPECT_EQ(context.status().formula_context.memory_cache_hits, 1U);
 }
 
+// 持久缓存跨上下文复用：同一 key 的第二个上下文直接读盘，不再执行渲染
+TEST(FormulaRendererTest, DiskCacheSurvivesAcrossContexts) {
+  QTemporaryDir dir;
+  ASSERT_TRUE(dir.isValid());
+  MarkdownRenderContextOptions options;
+  options.cache_directory = dir.path();
+  const QColor color = ThemeFormulaColor(MarkdownTheme::Dark);
+
+  MarkdownRenderContext first;
+  first.SetOptions(options);
+  const QString tag =
+      FormulaToImgTag(first, QStringLiteral("x+1"), false, color);
+  ASSERT_FALSE(tag.isEmpty());
+  EXPECT_EQ(first.status().formula_context.renders, 1U);
+  EXPECT_EQ(first.status().formula_context.disk_cache_misses, 1U);
+  EXPECT_EQ(QDir(dir.path()).entryList(QDir::Dirs | QDir::NoDotAndDotDot),
+            QStringList{QStringLiteral("formula")});
+
+  MarkdownRenderContext second;
+  second.SetOptions(options);
+  EXPECT_EQ(FormulaToImgTag(second, QStringLiteral("x+1"), false, color), tag);
+  EXPECT_EQ(second.status().formula_context.renders, 0U);
+  EXPECT_EQ(second.status().formula_context.disk_cache_hits, 1U);
+}
+
 // MathJax 对首尾空白不敏感：key 与渲染输入都 trim，避免同一条公式存两份
 TEST(FormulaRendererTest, TrimsTexForCacheKey) {
   MarkdownRenderContext context;
+  DisablePersistentCache(context);
   const QString first = FormulaToImgTag(context, QStringLiteral(" x "), false);
   ASSERT_FALSE(first.isEmpty());
   EXPECT_EQ(FormulaToImgTag(context, QStringLiteral("x"), false), first);

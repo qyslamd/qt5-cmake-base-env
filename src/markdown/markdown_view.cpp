@@ -24,6 +24,7 @@
 #include "markdown_types.h"
 #include "mermaid_renderer.h"
 #include "qlitehtmlwidget.h"
+#include "render_cache.h"
 #include "render_diagnostics.h"
 
 namespace {
@@ -392,6 +393,32 @@ const MarkdownRenderContext& MarkdownView::render_context() const {
 }
 
 void MarkdownView::ClearRenderCaches() { context_->ClearMemoryCaches(); }
+
+void MarkdownView::SetPersistentRenderCacheEnabled(bool enabled) {
+  MarkdownRenderContextOptions options = context_->options();
+  if (options.persistent_cache_enabled == enabled) {
+    return;
+  }
+  options.persistent_cache_enabled = enabled;
+  context_->SetOptions(options);
+}
+
+bool MarkdownView::persistent_render_cache_enabled() const {
+  return context_->options().persistent_cache_enabled;
+}
+
+void MarkdownView::SetRenderCacheDirectory(const QString& dir) {
+  MarkdownRenderContextOptions options = context_->options();
+  if (options.cache_directory == dir) {
+    return;
+  }
+  options.cache_directory = dir;
+  context_->SetOptions(options);
+}
+
+void MarkdownView::ClearPersistentRenderCache() {
+  ClearRenderCacheDirectory(MakeRenderCacheRootConfig(context_->options()));
+}
 
 void MarkdownView::SetCodeLineNumbers(bool enabled) {
   if (code_line_numbers_ == enabled) {

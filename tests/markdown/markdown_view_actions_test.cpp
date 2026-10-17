@@ -8,8 +8,11 @@
 
 #include <QApplication>
 #include <QByteArray>
+#include <QDateTime>
+#include <QDir>
 #include <QFile>
 #include <QPrinter>
+#include <QStandardPaths>
 #include <QString>
 #include <QTemporaryDir>
 
@@ -24,9 +27,19 @@ int main(int argc, char** argv) {
     qputenv("QT_QPA_PLATFORM", "offscreen");
   }
 #endif
+  // 视图默认开启持久缓存：测试模式 + 唯一应用名，别读写真实缓存目录
+  QStandardPaths::setTestModeEnabled(true);
+  QCoreApplication::setOrganizationName(QStringLiteral("md-tests"));
+  QCoreApplication::setApplicationName(
+      QStringLiteral("view-actions-%1")
+          .arg(QDateTime::currentMSecsSinceEpoch()));
   QApplication app(argc, argv);
   testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+  const int result = RUN_ALL_TESTS();
+  QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation) +
+       QStringLiteral("/markdown-render"))
+      .removeRecursively();
+  return result;
 }
 
 namespace {

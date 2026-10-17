@@ -1,9 +1,14 @@
 #include <gtest/gtest.h>
 
 #include <QApplication>
+#include <QDateTime>
+#include <QDir>
 #include <QMetaObject>
+#include <QStandardPaths>
+#include <QTemporaryDir>
 #include <QWidget>
 
+#include "markdown_render_context.h"
 #include "markdown_view.h"
 
 // 开关的行为判据。用真正的 MarkdownView + QLiteHtmlWidget（offscreen），
@@ -16,9 +21,19 @@ int main(int argc, char** argv) {
   // LoadDefaultCss 只在首次 ApplyDocument 读该变量；外部残留会让主题断言
   // 看错 CSS
   qunsetenv("MD_MARKDOWN_CSS");
+  // 持久缓存默认开启：测试模式 + 每次运行唯一应用名，避免读到上一次留下
+  // 的条目（否则 renders 计数会变成 0）
+  QStandardPaths::setTestModeEnabled(true);
+  QCoreApplication::setOrganizationName(QStringLiteral("md-tests"));
+  QCoreApplication::setApplicationName(
+      QStringLiteral("toggle-%1").arg(QDateTime::currentMSecsSinceEpoch()));
   QApplication app(argc, argv);
   ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+  const int result = RUN_ALL_TESTS();
+  QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation) +
+       QStringLiteral("/markdown-render"))
+      .removeRecursively();
+  return result;
 }
 
 namespace {
@@ -116,6 +131,31 @@ TEST(RenderTogglesTest, ThemeSwitchUpdatesCssAndRerenders) {
       << dark_html.toStdString();
   // 新颜色是新的缓存 key，必须真的再渲染一次
   EXPECT_EQ(view.renderer_status().formula_context.renders, renders + 1);
+}
+
+// 持久缓存开关与目录：默认开；指向临时目录后渲染应落盘；清目录只清模块
+// 子目录；关闭后不再写盘
+TEST(RenderTogglesTest, PersistentCacheCanBeConfiguredAndCleared) {
+  QTemporaryDir dir;
+  ASSERT_TRUE(dir.isValid());
+  MarkdownView view;
+  EXPECT_TRUE(view.persistent_render_cache_enabled());
+
+  view.SetRenderCacheDirectory(dir.path());
+  EXPECT_EQ(view.render_context().options().cache_directory, dir.path());
+  view.SetContent(QStringLiteral("$x$\n"), QString());
+  const QString formula_dir =
+      QDir(dir.path()).filePath(QStringLiteral("formula"));
+  EXPECT_FALSE(QDir(formula_dir).entryList(QDir::Files).isEmpty())
+      << "开启持久缓存后应落盘";
+
+  view.ClearPersistentRenderCache();
+  EXPECT_TRUE(QDir(formula_dir).entryList(QDir::Files).isEmpty());
+
+  view.SetPersistentRenderCacheEnabled(false);
+  EXPECT_FALSE(view.persistent_render_cache_enabled());
+  view.SetContent(QStringLiteral("$y$\n"), QString());
+  EXPECT_FALSE(QDir(formula_dir).exists()) << "关闭后不应再写盘";
 }
 
 }  // namespace
