@@ -40,6 +40,21 @@ void CacheInsert(const QString& key, const QString& tag) {
 }
 
 // 载荷在 qrc 里（resources/mathjax-svg.min.js），只求值一次
+// 加载失败：把 JS 运行时整个还回去。g_load_failed 已经挡住重试，留着
+// context/runtime 只会占着 JS 堆到进程结束
+bool FailLoad() {
+  if (g_context != nullptr) {
+    JS_FreeContext(g_context);
+    g_context = nullptr;
+  }
+  if (g_runtime != nullptr) {
+    JS_FreeRuntime(g_runtime);
+    g_runtime = nullptr;
+  }
+  g_load_failed = true;
+  return false;
+}
+
 bool EnsureLoaded() {
   if (g_context != nullptr) {
     return true;
@@ -52,8 +67,7 @@ bool EnsureLoaded() {
   QFile file(QStringLiteral(":/markdown/mathjax-svg.min.js"));
   if (!file.open(QIODevice::ReadOnly)) {
     qWarning() << "mathjax payload missing from resources";
-    g_load_failed = true;
-    return false;
+    return FailLoad();
   }
   const QByteArray code = file.readAll();
   file.close();
@@ -61,8 +75,7 @@ bool EnsureLoaded() {
   g_runtime = JS_NewRuntime();
   if (g_runtime == nullptr) {
     qWarning() << "JS_NewRuntime failed for mathjax payload";
-    g_load_failed = true;
-    return false;
+    return FailLoad();
   }
   // MathJax 解析递归深，默认配额不够。这里放大 JS 侧配额，链接选项再把线程栈
   // 放大——两个数要配对，且**线程栈必须比 JS 配额宽裕**：JS 配额是"软"上限
@@ -74,10 +87,7 @@ bool EnsureLoaded() {
   g_context = JS_NewContext(g_runtime);
   if (g_context == nullptr) {
     qWarning() << "JS_NewContext failed for mathjax payload";
-    g_load_failed = true;
-    JS_FreeRuntime(g_runtime);
-    g_runtime = nullptr;
-    return false;
+    return FailLoad();
   }
 
   const JSValue result = JS_Eval(g_context, code.constData(), code.size(),
@@ -91,8 +101,7 @@ bool EnsureLoaded() {
     }
     JS_FreeValue(g_context, exception);
     JS_FreeValue(g_context, result);
-    g_load_failed = true;
-    return false;
+    return FailLoad();
   }
   JS_FreeValue(g_context, result);
   return true;

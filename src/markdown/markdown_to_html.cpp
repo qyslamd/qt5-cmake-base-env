@@ -82,7 +82,16 @@ QString ExtractMathInLine(const QString& line, QVector<MathSegment>* segments,
 
     // $$…$$：独立公式
     if (i + 1 < size && line.at(i + 1) == QLatin1Char('$')) {
-      const int close = line.indexOf(QStringLiteral("$$"), i + 2);
+      // 跳过 \$$ 这种转义的位置：indexOf 直接取第一个命中会把公式
+      // 截在 \$$ 上（$…$ 分支有 IsEscapedAt，这条曾经漏了）
+      int close = -1;
+      for (int scan = line.indexOf(QStringLiteral("$$"), i + 2); scan >= 0;
+           scan = line.indexOf(QStringLiteral("$$"), scan + 1)) {
+        if (!IsEscapedAt(line, scan)) {
+          close = scan;
+          break;
+        }
+      }
       if (close > i + 2) {
         segments->append({line.mid(i + 2, close - i - 2), true});
         out += MathPlaceholder(salt, segments->size() - 1);
@@ -131,7 +140,8 @@ QString ExtractMath(const QString& markdown, QVector<MathSegment>* segments,
   result.reserve(lines.size());
 
   bool in_fence = false;
-  QString fence_marker;
+  QChar fence_open_char;
+  int fence_open_len = 0;
   QString display_block;
   bool in_display_block = false;
   // 缩进代码块（CommonMark：4 空格或 tab，且不能打断段落——段落开着的时候
@@ -166,14 +176,27 @@ QString ExtractMath(const QString& markdown, QVector<MathSegment>* segments,
       in_indent_code = false;
     }
 
-    if (!in_display_block && !indented &&
-        (trimmed.startsWith(QLatin1String("```")) ||
-         trimmed.startsWith(QLatin1String("~~~")))) {
-      const QString marker = trimmed.left(3);
+    // 围栏行：3 个以上同字符（` 或 ~）打头。开围栏后面可以跟 info
+    // string；闭合围栏要求同字符、长度不短于开启、且后面只剩空白
+    // （CommonMark）——只比前 3 个字符的话，```` 开的块会被 ``` 提前
+    // 收掉，后面的 $ 抽取全乱
+    QChar fence_char;
+    int fence_run = 0;
+    if (!trimmed.isEmpty() && (trimmed.at(0) == QLatin1Char('`') ||
+                               trimmed.at(0) == QLatin1Char('~'))) {
+      fence_char = trimmed.at(0);
+      while (fence_run < trimmed.size() &&
+             trimmed.at(fence_run) == fence_char) {
+        ++fence_run;
+      }
+    }
+    if (!in_display_block && !indented && fence_run >= 3) {
       if (!in_fence) {
         in_fence = true;
-        fence_marker = marker;
-      } else if (marker == fence_marker) {
+        fence_open_char = fence_char;
+        fence_open_len = fence_run;
+      } else if (fence_char == fence_open_char && fence_run >= fence_open_len &&
+                 trimmed.mid(fence_run).trimmed().isEmpty()) {
         in_fence = false;
       }
       result << line;

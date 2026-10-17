@@ -164,8 +164,11 @@ JSValue JsMeasureTextRaw(JSContext* ctx, JSValue, int argc, JSValue* argv) {
   const char* text = JS_ToCString(ctx, argv[0]);
   double size = 16.0;
   JS_ToFloat64(ctx, &size, argv[1]);
-  const char* family = JS_ToCString(ctx, argv[3]);
-  const char* weight = JS_ToCString(ctx, argv[4]);
+  // 参数序是 (t, s, f, w, st)：family 在 argv[2]、weight 在 argv[3]。
+  // 曾经整体错位一位（family 读了 weight、weight 读了 style），粗体
+  // 永远按非粗体度量——长标签会比绘制窄、溢出节点框
+  const char* family = JS_ToCString(ctx, argv[2]);
+  const char* weight = JS_ToCString(ctx, argv[3]);
   const TextMeasure measure =
       MeasureText(QString::fromUtf8(text != nullptr ? text : ""), size,
                   QString::fromUtf8(family != nullptr ? family : ""),
@@ -190,8 +193,11 @@ JSValue JsMeasureTextFullRaw(JSContext* ctx, JSValue, int argc, JSValue* argv) {
   const char* text = JS_ToCString(ctx, argv[0]);
   double size = 16.0;
   JS_ToFloat64(ctx, &size, argv[1]);
-  const char* family = JS_ToCString(ctx, argv[3]);
-  const char* weight = JS_ToCString(ctx, argv[4]);
+  // 参数序是 (t, s, f, w, st)：family 在 argv[2]、weight 在 argv[3]。
+  // 曾经整体错位一位（family 读了 weight、weight 读了 style），粗体
+  // 永远按非粗体度量——长标签会比绘制窄、溢出节点框
+  const char* family = JS_ToCString(ctx, argv[2]);
+  const char* weight = JS_ToCString(ctx, argv[3]);
   const TextMeasure measure =
       MeasureText(QString::fromUtf8(text != nullptr ? text : ""), size,
                   QString::fromUtf8(family != nullptr ? family : ""),
@@ -243,6 +249,21 @@ bool ReadPayload(const QString& path, QByteArray* out) {
   return true;
 }
 
+// 加载失败：把 JS 运行时整个还回去。g_load_failed 已经挡住重试，留着
+// context/runtime 只会占着 JS 堆到进程结束
+bool FailLoad() {
+  if (g_context != nullptr) {
+    JS_FreeContext(g_context);
+    g_context = nullptr;
+  }
+  if (g_runtime != nullptr) {
+    JS_FreeRuntime(g_runtime);
+    g_runtime = nullptr;
+  }
+  g_load_failed = true;
+  return false;
+}
+
 bool EnsureLoaded() {
   if (g_context != nullptr) {
     return true;
@@ -258,14 +279,12 @@ bool EnsureLoaded() {
   if (!ReadPayload(QStringLiteral(":/markdown/path_bbox.js"), &path_bbox) ||
       !ReadPayload(QStringLiteral(":/markdown/dom_shim.js"), &dom_shim) ||
       !ReadPayload(QStringLiteral(":/markdown/mermaid.js"), &mermaid_js)) {
-    g_load_failed = true;
-    return false;
+    return FailLoad();
   }
 
   g_runtime = JS_NewRuntime();
   if (g_runtime == nullptr) {
-    g_load_failed = true;
-    return false;
+    return FailLoad();
   }
   // mermaid 布局递归深，默认配额不够。16MB 与 formula_renderer 一致，且必须
   // ≤ 宿主线程栈（配方见 src/markdown/CMakeLists.txt 的 /STACK）——JS 配额是
@@ -273,10 +292,7 @@ bool EnsureLoaded() {
   JS_SetMaxStackSize(g_runtime, 16U << 20);
   g_context = JS_NewContext(g_runtime);
   if (g_context == nullptr) {
-    g_load_failed = true;
-    JS_FreeRuntime(g_runtime);
-    g_runtime = nullptr;
-    return false;
+    return FailLoad();
   }
 
   JSValue global = JS_GetGlobalObject(g_context);
@@ -299,16 +315,14 @@ bool EnsureLoaded() {
       "globalThis.__measureTextFull = (t,s,f,w,st) => "
       "JSON.parse(__measureTextFull_raw(t,s,f,w,st));\n";
   if (!EvalGlobal(QByteArray(kBridge), "bridge")) {
-    g_load_failed = true;
-    return false;
+    return FailLoad();
   }
 
   // 顺序固定：path_bbox（纯几何）→ dom_shim（假 DOM）→ mermaid（3.5MB bundle）
   if (!EvalGlobal(path_bbox, "path_bbox.js") ||
       !EvalGlobal(dom_shim, "dom_shim.js") ||
       !EvalGlobal(mermaid_js, "mermaid.js")) {
-    g_load_failed = true;
-    return false;
+    return FailLoad();
   }
 
   // mermaid.js 是 esbuild 打的 ESM，手动把 default 暴露出来
@@ -317,8 +331,7 @@ bool EnsureLoaded() {
       "(globalThis.__esbuild_esm_mermaid_nm.mermaid.default"
       " || globalThis.__esbuild_esm_mermaid_nm.mermaid);";
   if (!EvalGlobal(QByteArray(kExpose), "expose")) {
-    g_load_failed = true;
-    return false;
+    return FailLoad();
   }
   return true;
 }
@@ -484,7 +497,9 @@ QString SvgToImgTag(const QString& svg) {
     height = match.captured(4).toDouble();
   }
   if (width < 1.0 || height < 1.0) {
-    QSvgRenderer probe(bare.toUtf8());
+    // 尺寸兜底必须量清理后的 SVG：bare 里还有 <style>/<marker>，QSvgRenderer
+    // 认不了这些节点（"Could not add child element"），defaultSize 未必准
+    QSvgRenderer probe(marked.toUtf8());
     const QSize size = probe.defaultSize();
     width = size.width();
     height = size.height();

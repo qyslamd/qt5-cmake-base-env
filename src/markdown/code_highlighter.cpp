@@ -16,6 +16,21 @@ JSRuntime* g_runtime = nullptr;
 JSContext* g_context = nullptr;
 bool g_load_failed = false;
 
+// 加载失败：把 JS 运行时整个还回去。g_load_failed 已经挡住重试，留着
+// context/runtime 只会占着 JS 堆到进程结束
+bool FailLoad() {
+  if (g_context != nullptr) {
+    JS_FreeContext(g_context);
+    g_context = nullptr;
+  }
+  if (g_runtime != nullptr) {
+    JS_FreeRuntime(g_runtime);
+    g_runtime = nullptr;
+  }
+  g_load_failed = true;
+  return false;
+}
+
 bool EnsureLoaded() {
   if (g_context != nullptr) {
     return true;
@@ -28,25 +43,20 @@ bool EnsureLoaded() {
   QFile file(QStringLiteral(":/markdown/highlight.min.js"));
   if (!file.open(QIODevice::ReadOnly)) {
     qWarning() << "highlight payload missing from resources";
-    g_load_failed = true;
-    return false;
+    return FailLoad();
   }
   const QByteArray code = file.readAll();
   file.close();
 
   g_runtime = JS_NewRuntime();
   if (g_runtime == nullptr) {
-    g_load_failed = true;
-    return false;
+    return FailLoad();
   }
   // 高亮不递归得深，16MB 与 formula/mermaid 两个渲染器同一档
   JS_SetMaxStackSize(g_runtime, 16U << 20);
   g_context = JS_NewContext(g_runtime);
   if (g_context == nullptr) {
-    g_load_failed = true;
-    JS_FreeRuntime(g_runtime);
-    g_runtime = nullptr;
-    return false;
+    return FailLoad();
   }
 
   const JSValue result = JS_Eval(g_context, code.constData(), code.size(),
@@ -61,8 +71,7 @@ bool EnsureLoaded() {
     }
     JS_FreeValue(g_context, exception);
     JS_FreeValue(g_context, result);
-    g_load_failed = true;
-    return false;
+    return FailLoad();
   }
   JS_FreeValue(g_context, result);
   return true;

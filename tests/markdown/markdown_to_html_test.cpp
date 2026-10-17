@@ -203,6 +203,30 @@ TEST(MarkdownToHtmlTest, IndentedCodeBlockDollarsStayLiteral) {
       << html.toStdString();
 }
 
+// 围栏闭合要同字符、不短于开启、后面只剩空白：```` 开的块不能被 ``` 提前
+// 收掉，否则块里的 $ 会被当正文抽走
+TEST(MarkdownToHtmlTest, FenceCloseMustBeAtLeastAsLong) {
+  FormulaProbe probe;
+  const QString html = MarkdownToHtml(
+      QStringLiteral("````\n$x$\n```\n$y$\n````\n\n收尾 $z$ 尾。\n"),
+      probe.Sink());
+  ASSERT_EQ(probe.texes.size(), 1);
+  EXPECT_EQ(probe.texes.at(0), QStringLiteral("z"));
+  EXPECT_TRUE(html.contains(QStringLiteral("$x$"))) << html.toStdString();
+  EXPECT_TRUE(html.contains(QStringLiteral("$y$"))) << html.toStdString();
+}
+
+// $$ 的闭合要跳过转义位置：$$a \$$ b$$ 里第一个 $$ 是转义内容，
+// 直接 indexOf 会把公式截成 "a \"、后半截漏到正文
+TEST(MarkdownToHtmlTest, DisplayCloseSkipsEscapedDollars) {
+  FormulaProbe probe;
+  const QString html =
+      MarkdownToHtml(QStringLiteral("$$a \\$$ b$$ 后文\n"), probe.Sink());
+  ASSERT_EQ(probe.texes.size(), 1);
+  EXPECT_EQ(probe.texes.at(0), QStringLiteral("a \\$$ b"));
+  EXPECT_TRUE(html.contains(QStringLiteral("后文"))) << html.toStdString();
+}
+
 // 段落开着的缩进行只是续行（CommonMark），里面的 $ 照常当公式——
 // 缩进代码块的判定不能过宽
 TEST(MarkdownToHtmlTest, IndentedContinuationStillExtractsFormulas) {

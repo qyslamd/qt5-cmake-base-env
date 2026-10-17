@@ -89,27 +89,6 @@ QString LoadDefaultCss() {
   return DefaultCssFromResources();
 }
 
-// 相对路径的图片与公式图都走这里：qlitehtml 按基准 URL 解析出路径来要数据
-QByteArray ReadLocalFile(const QUrl& url) {
-  // 公式图是 data URI 内联进来的（formula_renderer 产出），这里解码还原。
-  // 用 data URI 而不是自定义 scheme，是因为后者会被 qlitehtml 当主机名做
-  // 浏览器式扩展（实测 mj://0 → mj://0.0.0.0），回调里对不上号
-  static const QString kPngPrefix = QStringLiteral("data:image/png;base64,");
-  const QString text = url.toString();
-  if (text.startsWith(kPngPrefix)) {
-    return QByteArray::fromBase64(text.mid(kPngPrefix.size()).toLatin1());
-  }
-
-  if (!url.isLocalFile()) {
-    return {};
-  }
-  QFile file(url.toLocalFile());
-  if (!file.open(QIODevice::ReadOnly)) {
-    return {};
-  }
-  return file.readAll();
-}
-
 QString WrapDocument(const QString& body, const QString& css) {
   return QStringLiteral(
              "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
@@ -127,6 +106,54 @@ bool ReadMarkdownFile(const QString& path, QString* text) {
 }
 
 }  // namespace
+
+// 实现见头文件注释（两道闸）。留在自由函数里是为了可测：资源回调是
+// qlitehtml 的私有路径，单测从这层进去就够了
+QByteArray ReadResourceForUrl(const QUrl& url, const QString& base_dir) {
+  // 公式图是 data URI 内联进来的（formula_renderer 产出），这里解码还原。
+  // 用 data URI 而不是自定义 scheme，是因为后者会被 qlitehtml 当主机名做
+  // 浏览器式扩展（实测 mj://0 → mj://0.0.0.0），回调里对不上号
+  static const QString kPngPrefix = QStringLiteral("data:image/png;base64,");
+  const QString text = url.toString();
+  if (text.startsWith(kPngPrefix)) {
+    // 编码后长度先卡一刀：解码后再量就晚了（内存已经吃进去）
+    constexpr int kMaxDecodedBytes = 16 * 1024 * 1024;
+    const int encoded_len = text.size() - kPngPrefix.size();
+    if (encoded_len > (kMaxDecodedBytes / 3 + 1) * 4) {
+      qWarning() << "markdown: data URI exceeds the 16MB decode limit";
+      return {};
+    }
+    return QByteArray::fromBase64(text.mid(kPngPrefix.size()).toLatin1());
+  }
+
+  if (!url.isLocalFile() || base_dir.isEmpty()) {
+    return {};
+  }
+  const QString base = QFileInfo(base_dir).canonicalFilePath();
+  if (base.isEmpty()) {
+    return {};
+  }
+  const QString path = QFileInfo(url.toLocalFile()).canonicalFilePath();
+  if (path.isEmpty()) {
+    return {};
+  }
+#ifdef Q_OS_WIN
+  const Qt::CaseSensitivity kCase = Qt::CaseInsensitive;
+#else
+  const Qt::CaseSensitivity kCase = Qt::CaseSensitive;
+#endif
+  if (path.compare(base, kCase) != 0 &&
+      !path.startsWith(base + QLatin1Char('/'), kCase)) {
+    qWarning() << "markdown: local resource outside the document dir, rejected:"
+               << path;
+    return {};
+  }
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly)) {
+    return {};
+  }
+  return file.readAll();
+}
 
 // 静态库里的 qrc 不会被自动初始化。Q_INIT_RESOURCE 展开后是一个 extern 声明
 // 加一次调用，**不能放进匿名命名空间**——那样声明会绑到匿名命名空间上，链接期
@@ -155,7 +182,8 @@ void MarkdownView::initUi() {
 
   html_ = new QLiteHtmlWidget(this);
   html_->setObjectName(QStringLiteral("markdownHtml"));
-  html_->setResourceHandler(ReadLocalFile);
+  html_->setResourceHandler(
+      [this](const QUrl& url) { return ReadResourceForUrl(url, base_dir_); });
   // 缩放快捷键与 Ctrl+C 要做成控件的内置能力：Wheel 发到 viewport、
   // KeyPress 发到 widget 本身，两处都装（见 eventFilter）
   html_->setFocusPolicy(Qt::StrongFocus);

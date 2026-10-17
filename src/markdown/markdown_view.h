@@ -17,6 +17,14 @@ class QPrinter;
 // 剪贴板里原来的东西清掉）
 QString CopyTextForLink(const QUrl& url, const QHash<QString, QString>& blocks);
 
+// 资源回调：图片/公式图的 URL → 字节。两道闸：
+//  - data: URI 只认 PNG，解码量上限 16MB（恶意 md 塞 GB 级 base64 会在
+//    解码那一刻吃满内存）；
+//  - 本地文件必须落在 base_dir 之内（文档里写 <img src="/etc/passwd"> 或
+//    file:///…/.ssh/id_rsa 不该被读出来）。比对 canonical 路径，符号链接
+//    按解析后的位置算；base 为空时本地文件一律拒绝
+QByteArray ReadResourceForUrl(const QUrl& url, const QString& base_dir);
+
 // Markdown 预览控件：加载 .md、套内置样式渲染、跟随文件变化重载。
 // 只做"渲染"这一件事——链接点击原样抛出（copy: 的代码块复制链接除外，那
 // 是控件内部能力：查表放剪贴板，见 ApplyDocument）；本地 .md 是自开还是
