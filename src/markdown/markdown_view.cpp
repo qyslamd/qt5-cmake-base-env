@@ -16,6 +16,7 @@
 #include <QWheelEvent>
 
 #include "formula_renderer.h"
+#include "markdown_resources.h"
 #include "markdown_to_html.h"
 #include "mermaid_renderer.h"
 #include "qlitehtmlwidget.h"
@@ -155,13 +156,8 @@ QByteArray ReadResourceForUrl(const QUrl& url, const QString& base_dir) {
   return file.readAll();
 }
 
-// 静态库里的 qrc 不会被自动初始化。Q_INIT_RESOURCE 展开后是一个 extern 声明
-// 加一次调用，**不能放进匿名命名空间**——那样声明会绑到匿名命名空间上，链接期
-// 找不到 rcc 生成的那个全局函数（src/style、src/tour 都踩过同一条）
-static void InitMarkdownResources() { Q_INIT_RESOURCE(markdown_res); }
-
 MarkdownView::MarkdownView(QWidget* parent) : QWidget(parent) {
-  InitMarkdownResources();
+  EnsureMarkdownResources();
   initUi();
   initSignals();
 }

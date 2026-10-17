@@ -7,12 +7,16 @@ set(TARGET_SRCS
     formula_renderer.h
     heading_ids.cpp
     heading_ids.h
+    html_escape.cpp
+    html_escape.h
     mermaid_css_inliner.cpp
     mermaid_css_inliner.h
     mermaid_renderer.cpp
     mermaid_renderer.h
     mermaid_svg_cleanup.cpp
     mermaid_svg_cleanup.h
+    markdown_resources.cpp
+    markdown_resources.h
     markdown_to_html.cpp
     markdown_to_html.h
     markdown_view.cpp

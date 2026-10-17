@@ -13,10 +13,17 @@ namespace {
 // mermaid 的字号默认 16px（主题 CSS 里写死），tspan 上的 em 单位按它换算
 constexpr double kDefaultFontSize = 16.0;
 
+// 属性名在调用点全是常量，正则按名字缓存：清洗一张图要查几十上百次属性，
+// 每次现编译一条正则是纯浪费（只在 GUI 线程用，QHash 无并发问题）
 QString AttrOf(const QString& tag, const QString& name) {
-  const QRegularExpression re(
-      QStringLiteral("\\b%1\\s*=\\s*\"([^\"]*)\"").arg(name));
-  const QRegularExpressionMatch match = re.match(tag);
+  static QHash<QString, QRegularExpression> pattern_cache;
+  auto pattern = pattern_cache.constFind(name);
+  if (pattern == pattern_cache.constEnd()) {
+    pattern = pattern_cache.insert(
+        name, QRegularExpression(
+                  QStringLiteral("\\b%1\\s*=\\s*\"([^\"]*)\"").arg(name)));
+  }
+  const QRegularExpressionMatch match = pattern->match(tag);
   return match.hasMatch() ? match.captured(1) : QString();
 }
 
@@ -44,12 +51,11 @@ bool ParseNumber(const QString& value, double* out) {
 
 // 剥掉定位属性，其余（class / font-weight / text-anchor）原样保留
 QString StripPositionAttrs(const QString& tag) {
+  // 四个名字合成一条交替式，一次 remove 搞定；否则每个标签要编译四条正则
+  static const QRegularExpression kPositionAttrs(
+      QStringLiteral("\\s+(?:x|y|dx|dy)\\s*=\\s*\"[^\"]*\""));
   QString out = tag;
-  for (const QString& name : {QStringLiteral("x"), QStringLiteral("y"),
-                              QStringLiteral("dx"), QStringLiteral("dy")}) {
-    out.remove(QRegularExpression(
-        QStringLiteral("\\s+%1\\s*=\\s*\"[^\"]*\"").arg(name)));
-  }
+  out.remove(kPositionAttrs);
   return out;
 }
 

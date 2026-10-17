@@ -3,22 +3,13 @@
 #include <QHash>
 #include <QRegularExpression>
 
-namespace {
+#include "html_escape.h"
 
-// HTML 实体解码：md4c 只产出这几个，够用
-QString DecodeEntities(const QString& text) {
-  QString out = text;
-  out.replace(QStringLiteral("&lt;"), QStringLiteral("<"));
-  out.replace(QStringLiteral("&gt;"), QStringLiteral(">"));
-  out.replace(QStringLiteral("&quot;"), QStringLiteral("\""));
-  out.replace(QStringLiteral("&#39;"), QStringLiteral("'"));
-  // & 放最后，免得把前面几种解出来的东西二次解码
-  out.replace(QStringLiteral("&amp;"), QStringLiteral("&"));
-  return out;
-}
+namespace {
 
 QString Slugify(const QString& text) {
   QString out;
+  out.reserve(text.size());
   for (const QChar c : text) {
     if (c.isLetterOrNumber()) {
       out += c.toLower();
@@ -39,14 +30,16 @@ QString AddHeadingIds(const QString& html, const HeadingSink& on_heading) {
       QRegularExpression::DotMatchesEverythingOption);
   static const QRegularExpression kTag(QStringLiteral("<[^>]*>"));
 
+  // 标题标记只会让输出更长：先按原长留底，避免逐段 append 反复扩容
   QString out;
+  out.reserve(html.size());
   int pos = 0;
   int index = 0;  // 全局序号：重名 slug 靠它拿到彼此不同的 id
   QHash<QString, int> seen;
   auto it = kHeading.globalMatch(html);
   while (it.hasNext()) {
     const auto match = it.next();
-    out += html.mid(pos, match.capturedStart() - pos);
+    out.append(html.constData() + pos, match.capturedStart() - pos);
     pos = match.capturedEnd();
 
     const QString level = match.captured(1);
@@ -56,7 +49,7 @@ QString AddHeadingIds(const QString& html, const HeadingSink& on_heading) {
     // #hello-world，不把标签算进去
     QString plain = inner;
     plain.remove(kTag);
-    plain = DecodeEntities(plain);
+    plain = UnescapeHtml(plain);
 
     QString slug = Slugify(plain);
     const int n = seen.value(slug, 0);
@@ -76,6 +69,6 @@ QString AddHeadingIds(const QString& html, const HeadingSink& on_heading) {
     out += QStringLiteral("<h%1 id=\"%2\" data-md-slug=\"%3\">%4</h%1>")
                .arg(level, ascii_id, slug.toHtmlEscaped(), inner);
   }
-  out += html.mid(pos);
+  out.append(html.constData() + pos, html.size() - pos);
   return out;
 }

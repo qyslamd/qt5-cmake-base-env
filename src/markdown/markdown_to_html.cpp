@@ -6,6 +6,7 @@
 #include <QVector>
 
 #include "code_highlighter.h"
+#include "html_escape.h"
 
 extern "C" {
 #include "md4c-html.h"
@@ -44,7 +45,9 @@ bool IsEscapedAt(const QString& line, int index) {
 // 处理一行：跳过行内代码与转义的 \$，剩下的 $…$ / $$…$$ 换成占位符
 QString ExtractMathInLine(const QString& line, QVector<MathSegment>* segments,
                           const QString& salt) {
+  // 占位符比原文短、换行不变：按原长留底，逐段 append 不会反复扩容
   QString out;
+  out.reserve(line.size());
   int i = 0;
   const int size = line.size();
   while (i < size) {
@@ -53,7 +56,7 @@ QString ExtractMathInLine(const QString& line, QVector<MathSegment>* segments,
     // 转义的 \$：原样留着（md4c 会渲染成 $）
     if (current == QLatin1Char('\\') && i + 1 < size &&
         line.at(i + 1) == QLatin1Char('$')) {
-      out += line.mid(i, 2);
+      out.append(line.constData() + i, 2);
       i += 2;
       continue;
     }
@@ -66,10 +69,10 @@ QString ExtractMathInLine(const QString& line, QVector<MathSegment>* segments,
       }
       const int close = line.indexOf(QString(run, QLatin1Char('`')), i + run);
       if (close < 0) {  // 没有配对的收尾，按普通文本处理
-        out += line.mid(i);
+        out.append(line.constData() + i, size - i);
         break;
       }
-      out += line.mid(i, close + run - i);
+      out.append(line.constData() + i, close + run - i);
       i = close + run;
       continue;
     }
@@ -246,12 +249,15 @@ QString RestoreMath(const QString& html, const QVector<MathSegment>& segments,
                     const FormulaSink& formula, const QString& salt) {
   // 盐是十六进制串，对正则安全
   const QRegularExpression kSlot(QStringLiteral("@@mj-%1-(\\d+)@@").arg(salt));
+  // 渲染结果通常比占位符长，按原文留底已经省掉绝大多数扩容
   QString result;
+  result.reserve(html.size());
   int consumed = 0;
   auto matches = kSlot.globalMatch(html);
   while (matches.hasNext()) {
     const QRegularExpressionMatch match = matches.next();
-    result += html.mid(consumed, match.capturedStart() - consumed);
+    result.append(html.constData() + consumed,
+                  match.capturedStart() - consumed);
     consumed = match.capturedEnd();
 
     const int index = match.captured(1).toInt();
@@ -272,26 +278,13 @@ QString RestoreMath(const QString& html, const QVector<MathSegment>& segments,
     result += QStringLiteral("<code class=\"math-src\">%1</code>")
                   .arg(source.toHtmlEscaped());
   }
-  result += html.mid(consumed);
+  result.append(html.constData() + consumed, html.size() - consumed);
   return result;
 }
 
 void AppendHtml(const MD_CHAR* text, MD_SIZE size, void* userdata) {
   static_cast<QString*>(userdata)->append(
       QString::fromUtf8(text, static_cast<int>(size)));
-}
-
-// 还原 md4c 在代码块里做的实体转义，把原文交回给高亮器（它自己会重新转义）。
-// &amp; 放最后：先还原它会把 "&amp;lt;" 变成 "&lt;"，再被下一条当作原文
-QString UnescapeHtml(const QString& text) {
-  QString out = text;
-  out.replace(QStringLiteral("&quot;"), QStringLiteral("\""));
-  out.replace(QStringLiteral("&lt;"), QStringLiteral("<"));
-  out.replace(QStringLiteral("&gt;"), QStringLiteral(">"));
-  // md4c 在 GFM 下一般发 &#39;，补 &apos; 是完整性（同一批实体别漏一个）
-  out.replace(QStringLiteral("&apos;"), QStringLiteral("'"));
-  out.replace(QStringLiteral("&amp;"), QStringLiteral("&"));
-  return out;
 }
 
 // 把 <pre><code class="language-xxx">…</code></pre> 里的代码交给高亮器。
@@ -334,13 +327,16 @@ QString HighlightCodeBlocks(const QString& html, const MermaidSink& mermaid,
   static const QRegularExpression kLanguage(
       QStringLiteral("class=\"language-([^\"]+)\""));
 
+  // 代码块会被包上 header 整体变长：按原文留底，剩下的扩容只发生在块边界
   QString result;
+  result.reserve(html.size());
   int consumed = 0;
   int block_index = 0;  // 每个代码块一个 id，与 copy: 链接里的编号对应
   auto matches = kPreCode.globalMatch(html);
   while (matches.hasNext()) {
     const QRegularExpressionMatch match = matches.next();
-    result += html.mid(consumed, match.capturedStart() - consumed);
+    result.append(html.constData() + consumed,
+                  match.capturedStart() - consumed);
     consumed = match.capturedEnd();
 
     QString language;
@@ -371,7 +367,7 @@ QString HighlightCodeBlocks(const QString& html, const MermaidSink& mermaid,
     result +=
         BuildCodeBlockFrame(HighlightCode(code, language), language, block_id);
   }
-  result += html.mid(consumed);
+  result.append(html.constData() + consumed, html.size() - consumed);
   return result;
 }
 

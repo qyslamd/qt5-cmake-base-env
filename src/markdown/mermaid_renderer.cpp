@@ -21,19 +21,19 @@
 #include <QStringList>
 #include <QSvgRenderer>
 
+#include "markdown_resources.h"
 #include "mermaid_css_inliner.h"
 #include "mermaid_svg_cleanup.h"
-
-// 静态库里的 qrc 不会自动初始化，而载荷就在里面。Q_INIT_RESOURCE 展开的是
-// extern 声明 + 一次调用，**必须留在文件作用域、且不能放进匿名命名空间**
-// （放进去会绑到匿名空间上，链接期找不到 rcc 生成的全局函数）。重复调用幂等
-static void EnsureResourcesInitialized() { Q_INIT_RESOURCE(markdown_res); }
 
 namespace {
 
 JSRuntime* g_runtime = nullptr;
 JSContext* g_context = nullptr;
 bool g_load_failed = false;
+// 一次 render 是否已落定：JS 的 then/catch 调 __setSettled_raw 置 true。
+// C 侧泵循环只读这个 bool——每次迭代去 JS 里取属性，最坏二十万次构造
+// 全局对象，纯浪费
+bool g_render_settled = false;
 // key = mermaid 源码。失败也缓存空串：同一个坏图不该每次编辑都重试。
 // 上限 32 张（每张是内嵌 PNG 的 data URI，大图能到 MB 级），FIFO 淘汰——
 // 被挤掉的图无非重渲一次，无限增长的缓存会在长会话里把内存吃穿
@@ -51,14 +51,15 @@ void CacheInsert(const QString& key, const QString& tag) {
   }
 }
 
-// 排查渲染问题用：设了 MD_MERMAID_DUMP=<目录> 就把各阶段产物落盘
-QString DumpDir() {
+// 排查渲染问题用：设了 MD_MERMAID_DUMP=<目录> 就把各阶段产物落盘。
+// 返回引用：值只读一次，调用点不再复制
+const QString& DumpDir() {
   static const QString dir = qEnvironmentVariable("MD_MERMAID_DUMP");
   return dir;
 }
 
 void DumpStage(int index, const QString& stage, const QByteArray& data) {
-  const QString dir = DumpDir();
+  const QString& dir = DumpDir();
   if (dir.isEmpty()) {
     return;
   }
@@ -145,6 +146,12 @@ TextMeasure MeasureText(const QString& text, double size_px,
 }
 
 // ---- QuickJS ----
+
+// then/catch 落定时调一次：只置文件级标志，不做别的
+JSValue JsSetSettledRaw(JSContext*, JSValue, int, JSValue*) {
+  g_render_settled = true;
+  return JS_UNDEFINED;
+}
 
 JSValue JsLogRaw(JSContext* ctx, JSValue, int argc, JSValue* argv) {
   if (argc >= 1) {
@@ -272,7 +279,7 @@ bool EnsureLoaded() {
     return false;
   }
 
-  EnsureResourcesInitialized();
+  EnsureMarkdownResources();
   QByteArray path_bbox;
   QByteArray dom_shim;
   QByteArray mermaid_js;
@@ -304,6 +311,9 @@ bool EnsureLoaded() {
   JS_SetPropertyStr(g_context, global, "__measureTextFull_raw",
                     JS_NewCFunction(g_context, JsMeasureTextFullRaw,
                                     "__measureTextFull_raw", 5));
+  JS_SetPropertyStr(
+      g_context, global, "__setSettled_raw",
+      JS_NewCFunction(g_context, JsSetSettledRaw, "__setSettled_raw", 0));
   JS_FreeValue(g_context, global);
 
   // dom_shim 期望的是"包过一层"的函数名；__measureTextFull 的契约是对象，
@@ -379,10 +389,11 @@ QString RenderMermaidSvg(const QString& code) {
       "globalThis.__renderSettled = false;\n"
       "mermaid.render(__renderId, __code)\n"
       "  .then(r => { globalThis.__renderResult = r.svg || '';\n"
-      "               globalThis.__renderSettled = true; })\n"
+      "               __setSettled_raw(); })\n"
       "  .catch(e => { globalThis.__renderError = "
       "      (e && e.name ? e.name + ': ' + e.message : String(e));\n"
       "                 globalThis.__renderSettled = true; });";
+  g_render_settled = false;
   if (!EvalGlobal(QByteArray(kCall), "render-call")) {
     return QString();
   }
@@ -416,14 +427,10 @@ QString RenderMermaidSvg(const QString& code) {
       qWarning() << "mermaid: pump exceeded" << kPumpDeadlineMs << "ms";
       break;
     }
-    global = JS_GetGlobalObject(g_context);
-    JSValue settled = JS_GetPropertyStr(g_context, global, "__renderSettled");
-    // 只看显式的 settled 标志（JS 侧 then/catch 都置真）——结果与错误
-    // 值本身的 null/undefined 细节不再参与判据
-    done = JS_ToBool(g_context, settled) == 1;
-    JS_FreeValue(g_context, settled);
-    JS_FreeValue(g_context, global);
-    if (done) {
+    // JS 的 then/catch 调 __setSettled_raw 置的是一面 C 侧旗子，读它
+    // 不进 JS 引擎——最坏二十万次迭代也就是二十万次 bool 读
+    if (g_render_settled) {
+      done = true;
       break;
     }
   }

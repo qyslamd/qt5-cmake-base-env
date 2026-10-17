@@ -5,21 +5,24 @@
 #include <QDebug>
 #include <QFile>
 
-// 静态库里的 qrc 不会自动初始化，而载荷就在里面。Q_INIT_RESOURCE 展开的是
-// extern 声明 + 一次调用，**必须留在文件作用域、且不能放进匿名命名空间**
-// （放进去会绑到匿名空间上，链接期找不到 rcc 生成的全局函数）。重复调用幂等
-static void EnsureResourcesInitialized() { Q_INIT_RESOURCE(markdown_res); }
+#include "html_escape.h"
+#include "markdown_resources.h"
 
 namespace {
 
 JSRuntime* g_runtime = nullptr;
 JSContext* g_context = nullptr;
+// 载荷里的 globalThis.__highlight，加载完成后拿一次引用；每次高亮直接
+// JS_Call，不再现译一段 IIFE
+JSValue g_highlight_fn = JS_UNDEFINED;
 bool g_load_failed = false;
 
 // 加载失败：把 JS 运行时整个还回去。g_load_failed 已经挡住重试，留着
 // context/runtime 只会占着 JS 堆到进程结束
 bool FailLoad() {
   if (g_context != nullptr) {
+    JS_FreeValue(g_context, g_highlight_fn);
+    g_highlight_fn = JS_UNDEFINED;
     JS_FreeContext(g_context);
     g_context = nullptr;
   }
@@ -39,7 +42,7 @@ bool EnsureLoaded() {
     return false;
   }
 
-  EnsureResourcesInitialized();
+  EnsureMarkdownResources();
   QFile file(QStringLiteral(":/markdown/highlight.min.js"));
   if (!file.open(QIODevice::ReadOnly)) {
     qWarning() << "highlight payload missing from resources";
@@ -74,15 +77,16 @@ bool EnsureLoaded() {
     return FailLoad();
   }
   JS_FreeValue(g_context, result);
-  return true;
-}
 
-QString EscapeHtml(const QString& s) {
-  QString out = s;
-  out.replace(QChar('&'), QStringLiteral("&amp;"));
-  out.replace(QChar('<'), QStringLiteral("&lt;"));
-  out.replace(QChar('>'), QStringLiteral("&gt;"));
-  return out;
+  // 只解析一次函数引用；载荷没导出 __highlight 说明资源与入口脚本版本对不上
+  JSValue global = JS_GetGlobalObject(g_context);
+  g_highlight_fn = JS_GetPropertyStr(g_context, global, "__highlight");
+  JS_FreeValue(g_context, global);
+  if (!JS_IsFunction(g_context, g_highlight_fn)) {
+    qWarning() << "highlight payload lacks __highlight";
+    return FailLoad();
+  }
+  return true;
 }
 
 }  // namespace
@@ -95,25 +99,17 @@ QString HighlightCode(const QString& code, const QString& language) {
     return EscapeHtml(code);  // 载荷挂了：纯转义兜底
   }
 
-  // 参数走全局变量传入，避免手写 JS 字符串转义（代码块里什么字符都可能有）
+  // 参数直接以 JS 字符串传入：不用手写 JS 源、不用全局变量，也不牵扯转义
   const QByteArray code_utf8 = code.toUtf8();
   const QByteArray lang_utf8 = language.toUtf8();
-  JSValue global = JS_GetGlobalObject(g_context);
-  JS_SetPropertyStr(
-      g_context, global, "__hl_code",
-      JS_NewStringLen(g_context, code_utf8.constData(), code_utf8.size()));
-  JS_SetPropertyStr(
-      g_context, global, "__hl_lang",
-      JS_NewStringLen(g_context, lang_utf8.constData(), lang_utf8.size()));
-  JS_FreeValue(g_context, global);
-
-  static const QByteArray kCall = QByteArrayLiteral(
-      "(function(){"
-      "  var r = __highlight(__hl_code, __hl_lang);"
-      "  return (r === null || r === undefined) ? '' : r;"
-      "})()");
-  const JSValue value = JS_Eval(g_context, kCall.constData(), kCall.size(),
-                                "hl-call", JS_EVAL_TYPE_GLOBAL);
+  JSValue argv[2] = {
+      JS_NewStringLen(g_context, code_utf8.constData(), code_utf8.size()),
+      JS_NewStringLen(g_context, lang_utf8.constData(), lang_utf8.size()),
+  };
+  const JSValue value =
+      JS_Call(g_context, g_highlight_fn, JS_UNDEFINED, 2, argv);
+  JS_FreeValue(g_context, argv[0]);
+  JS_FreeValue(g_context, argv[1]);
 
   QString result;
   if (JS_IsException(value)) {
@@ -125,6 +121,8 @@ QString HighlightCode(const QString& code, const QString& language) {
       JS_FreeCString(g_context, message);
     }
     JS_FreeValue(g_context, exception);
+  } else if (JS_IsNull(value) || JS_IsUndefined(value)) {
+    // __highlight 对未注册语言返回 null；JS_ToCString 会把它变成字面 "null"
   } else {
     const char* text = JS_ToCString(g_context, value);
     result = QString::fromUtf8(text != nullptr ? text : "");

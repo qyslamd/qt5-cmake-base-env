@@ -8,6 +8,8 @@
 #include <QStringList>
 #include <QVector>
 
+#include "html_escape.h"
+
 namespace {
 
 // 支持的选择器只有 mermaid 实际用到的那几类：#id、.class、tag、tag.class，
@@ -39,25 +41,6 @@ struct CssRule {
   QHash<QString, QString> decls;
   QSet<QString> important;
 };
-
-QString DecodeHtmlEntities(const QString& s) {
-  QString r = s;
-  r.replace(QStringLiteral("&lt;"), QStringLiteral("<"));
-  r.replace(QStringLiteral("&gt;"), QStringLiteral(">"));
-  r.replace(QStringLiteral("&quot;"), QStringLiteral("\""));
-  r.replace(QStringLiteral("&apos;"), QStringLiteral("'"));
-  r.replace(QStringLiteral("&amp;"), QStringLiteral("&"));
-  return r;
-}
-
-QString EncodeForXmlAttr(const QString& s) {
-  QString r = s;
-  r.replace(QChar('&'), QStringLiteral("&amp;"));
-  r.replace(QChar('<'), QStringLiteral("&lt;"));
-  r.replace(QChar('>'), QStringLiteral("&gt;"));
-  r.replace(QChar('"'), QStringLiteral("&quot;"));
-  return r;
-}
 
 bool ParseSimple(const QString& part, SimpleSelector* out) {
   if (part.isEmpty()) {
@@ -305,19 +288,21 @@ QString InlineSvgCss(const QString& svg, const QString& font_family) {
 
   QString css;
   QString svg_without_style;
+  svg_without_style.reserve(svg.size());
   int pos = 0;
   auto it = kStyle.globalMatch(svg);
   while (it.hasNext()) {
     const QRegularExpressionMatch match = it.next();
     css += match.captured(1) + QChar('\n');
-    svg_without_style += svg.mid(pos, match.capturedStart() - pos);
+    svg_without_style.append(svg.constData() + pos,
+                             match.capturedStart() - pos);
     pos = match.capturedEnd();
   }
-  svg_without_style += svg.mid(pos);
+  svg_without_style.append(svg.constData() + pos, svg.size() - pos);
 
   // 实体先解码再解析：font-family:&quot;trebuchet ms&quot; 里的那个 ';' 是实体
   // 的一部分，按 CSS 语法切分会把值截成 &quot，属性损坏、整份 SVG 解析失败
-  css = DecodeHtmlEntities(css);
+  css = UnescapeHtml(css);
 
   const QVector<CssRule> parsed = ParseCssRules(css);
   if (parsed.isEmpty()) {
@@ -371,7 +356,8 @@ QString InlineSvgCss(const QString& svg, const QString& font_family) {
   it = kTag.globalMatch(svg_without_style);
   while (it.hasNext()) {
     const QRegularExpressionMatch match = it.next();
-    out += svg_without_style.mid(pos, match.capturedStart() - pos);
+    out.append(svg_without_style.constData() + pos,
+               match.capturedStart() - pos);
     pos = match.capturedEnd();
 
     const bool is_close = !match.captured(1).isEmpty();
@@ -383,7 +369,9 @@ QString InlineSvgCss(const QString& svg, const QString& font_family) {
       if (!stack.isEmpty()) {
         stack.removeLast();
       }
-      out += match.captured(0);
+      // 直接按区间追加，省掉 captured(0) 的临时 QString
+      out.append(svg_without_style.constData() + match.capturedStart(),
+                 match.capturedLength());
       continue;
     }
 
@@ -409,7 +397,7 @@ QString InlineSvgCss(const QString& svg, const QString& font_family) {
 
     QHash<QString, QString> decls;
     QSet<QString> important;
-    ParseDecls(DecodeHtmlEntities(attrs.value(QStringLiteral("style"))), &decls,
+    ParseDecls(UnescapeHtml(attrs.value(QStringLiteral("style"))), &decls,
                &important);
     // 内联 style 的层叠位次：高于一切"规则 normal"，且内联 !important
     // 高于外部 !important——style 属性的 specificity 是 (1,0,0,0) 级，
@@ -462,9 +450,8 @@ QString InlineSvgCss(const QString& svg, const QString& font_family) {
       if (name == QLatin1String("style")) {
         continue;
       }
-      const QString value = decls.contains(name)
-                                ? EncodeForXmlAttr(decls.value(name))
-                                : attrs.value(name);
+      const QString value = decls.contains(name) ? EscapeHtml(decls.value(name))
+                                                 : attrs.value(name);
       out += QChar(' ') + name + QStringLiteral("=\"") + value + QChar('"');
       written.insert(name);
     }
@@ -472,14 +459,13 @@ QString InlineSvgCss(const QString& svg, const QString& font_family) {
       const QString key = QString::fromLatin1(kPresAttrs[i]);
       if (decls.contains(key) && !written.contains(key)) {
         out += QChar(' ') + key + QStringLiteral("=\"") +
-               EncodeForXmlAttr(decls.value(key)) + QChar('"');
+               EscapeHtml(decls.value(key)) + QChar('"');
         written.insert(key);
       }
     }
     const QString merged = BuildStyle(decls, important);
     if (!merged.isEmpty()) {
-      out +=
-          QStringLiteral(" style=\"") + EncodeForXmlAttr(merged) + QChar('"');
+      out += QStringLiteral(" style=\"") + EscapeHtml(merged) + QChar('"');
     }
     out += self_close ? QStringLiteral("/>") : QStringLiteral(">");
 
@@ -487,6 +473,7 @@ QString InlineSvgCss(const QString& svg, const QString& font_family) {
       stack.removeLast();
     }
   }
-  out += svg_without_style.mid(pos);
+  out.append(svg_without_style.constData() + pos,
+             svg_without_style.size() - pos);
   return out;
 }
