@@ -1,5 +1,23 @@
 # QuickJS + MathJax 公式渲染：从零复刻教程
 
+> **定位（先读这段）**：本文是试验田（qt-md-renderer-demo）时期的"从零复刻"
+> 实录，操作步骤按那边的仓库布局写的。**在本仓照抄复刻不出来，也不需要**——
+> 这套能力已由 `src/markdown` 交付并带测试。本文的价值是踩坑记录与方案推理；
+> 要在全新项目里重走这条路，demo 特有的操作按下表替换：
+>
+> | 文中（demo） | 本仓对应 |
+> |---|---|
+> | `sb.ps1` 手工补 quickjs | `patches/quickjs/` + `cmake/patch_dependencies.cmake`（configure 期自动应用） |
+> | `dist/mathjax-svg.min.js` 运行期相对路径加载 | qrc 内嵌 `src/markdown/resources/mathjax-svg.min.js` |
+> | 打包入口 `tools/mathjax-entry.mjs` | `src/markdown/resources/mathjax_svg_entry.mjs`（头注释即配方） |
+> | 跑车 `mathjax_smoke` / `sb` | `tests/markdown/formula_renderer_test`（端到端、无头、进 ctest） |
+> | GUI 接入 `src/mainwindow` + `formula_renderer` | `src/markdown/formula_renderer.{h,cpp}` + `MarkdownView` |
+> | `/STACK` 64MB + 配额 64MB | `/STACK` 32MB（INTERFACE）+ JS 配额 16MB——32 位地址空间只有 2GB，见模块 CMakeLists 注释 |
+>
+> 载荷重建与校验的**操作口径**看同目录《JS载荷复刻指南》；行为判据看
+> `tests/markdown/`。踩坑总表（F1–F9）与方案层推理（liteAdaptor、fontCache、
+> em/ex 度量、两个 `--define`）在本仓全部仍然成立。
+
 ## 这条路证明了什么
 
 **结论：走通了。** litehtml 排不动 KaTeX 的 vlist 布局（`inline-table` 不收缩、

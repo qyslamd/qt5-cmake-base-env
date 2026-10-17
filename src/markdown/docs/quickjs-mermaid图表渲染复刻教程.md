@@ -1,5 +1,24 @@
 # QuickJS + Mermaid 图表渲染：从零复刻教程
 
+> **定位（先读这段）**：本文是试验田（qt-md-renderer-demo）时期的"从零复刻"
+> 实录，操作步骤按那边的仓库布局写的。**在本仓照抄复刻不出来，也不需要**——
+> 这套能力已由 `src/markdown` 交付并带测试。本文的价值是踩坑记录与方案推理；
+> 要在全新项目里重走这条路，demo 特有的操作按下表替换：
+>
+> | 文中（demo） | 本仓对应 |
+> |---|---|
+> | 三份资产手工拷 `dist/mermaid/` | `src/markdown/resources/` 同名三份，`extract_mermaid_payload.py --check` 对哈希 |
+> | 字体：`dist/mermaid/fonts/CJK.ttf`（SimHei）+ 自解析 TTF 度量（Step 2 全章） | **路线被否**：SimHei 不可再分发；本仓是系统字体 + `QFontMetricsF` 量画同源（`mermaid_renderer.cpp` 的 `PickCjkFamily`），Step 2 别照抄 |
+> | QuickJS 解压 + `sb.ps1` 手工补丁 | `patches/quickjs/` + `cmake/patch_dependencies.cmake`（configure 期自动应用） |
+> | 分阶段转储 `dbg_N_*.svg` | `MD_MERMAID_DUMP` 环境变量（同名机制，随 `MarkdownView` 生效） |
+> | GUI 接入与三层后处理 `svg_cleanup` 等 | `src/markdown/mermaid_renderer.cpp` + `mermaid_svg_cleanup.{h,cpp}`；设计决策见 `docs/plan/mermaid图表渲染设计.md` |
+> | 量化验收 `temp/measure_render.py`（funq 抓图） | `tests/markdown/mermaid_renderer_test`（端到端无头）；像素探针尚未落 `scripts/funq/`（todo 有账） |
+>
+> **仍然成立的部分**：三份资产的来源与"逐字节照搬"口径、eval 顺序
+> （bridge→path_bbox→dom_shim→mermaid）、`htmlLabels:false`、Promise 泵、三层
+> 后处理顺序（cleanSvg→inlineSvgCss→inlineSvgMarkers）、踩坑总表（M1–M18）。
+> 载荷重建看同目录《JS载荷复刻指南》。
+
 ## 这条路证明了什么
 
 **结论：走通了。** 不引 Node.js、不引 Qt WebEngine、不起外部进程：**QuickJS 里跑
