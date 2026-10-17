@@ -67,3 +67,12 @@ if(MSVC)
     # 可执行文件；GCC 不需要（Linux 靠默认栈即可）
     target_link_options(${TARGET_NAME} INTERFACE "/STACK:33554432")
 endif()
+
+option(BUILD_MD_DEBUG_DEMO "启用 tiaoshi Demo" ON)
+if(BUILD_MD_DEBUG_DEMO)
+    add_executable(md_gui_demo gui_debug_demo.cpp)
+    # gui_debug_demo 用 QApplication，得连着 Qt（AUTOMOC 也顺带打开）
+    target_link_libraries(md_gui_demo PRIVATE Qt5::Widgets)
+    set_target_properties(md_gui_demo PROPERTIES AUTOMOC ON)
+    add_executable(md_console_demo console_debug_demo.cpp)
+endif()

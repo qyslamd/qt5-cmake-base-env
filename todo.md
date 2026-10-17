@@ -31,9 +31,9 @@
   - **宽度没变就不重排**：纯高度变化不影响 litehtml 布局（本仓 CSS 不用
     `vh`/`position:fixed`）——这条是一行判断，收益最大；
   - 缩放同样合并（连续滚轮只排最后一档）。
-  qlitehtml 在本仓是**源码入库**（见 `docs/guide/第三方依赖补丁.md`），改动直接落
-  `3rdparty/qlitehtml-180e3eb/src/`；也可以子类化只在 `MarkdownView` 里用。
-  demo 与基座是同一份控件，两边一起受益。
+  qlitehtml 的解压树不入库（`3rdparty/*/` 被 ignore），改动走
+  `patches/qlitehtml/`（见 `docs/guide/第三方依赖补丁.md`）；也可以子类化只在
+  `MarkdownView` 里用。demo 与基座是同一份控件，两边一起受益。
 
 ## 已知偏差（设计 §7.1，暂时没咬到）
 
@@ -105,3 +105,9 @@
 
 架构备注：`MarkdownWindow`（一窗一篇）与 `MarkdownView`（一篇一视图）的划分对"分栏预览 +
 编辑器"是友好的——届时 `MarkdownView::SetContent(markdown, base_dir)` 就够用，不必改结构。
+
+## 文档迁移（已办完，2026-10-17）
+
+demo 的两篇复刻教程已收编 `src/markdown/docs/`；"模块文档随模块走"这条口径
+同样把 `JS载荷复刻指南.md` 从 `docs/guide/` 挪了进去（`第三方依赖补丁.md` 的
+指向已同步）。demo 那边就此不再维护。
