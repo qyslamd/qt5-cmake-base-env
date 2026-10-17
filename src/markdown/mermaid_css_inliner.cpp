@@ -411,14 +411,18 @@ QString InlineSvgCss(const QString& svg, const QString& font_family) {
     QSet<QString> important;
     ParseDecls(DecodeHtmlEntities(attrs.value(QStringLiteral("style"))), &decls,
                &important);
-    // 内联 style 的层叠位次高于一切"规则 normal"声明：它只在规则带
-    // !important 时才让位（内联自己 !important 则谁也盖不动）。
-    // 这套键要从初始解析里记下来——后面 decls 会被规则逐步覆盖，分不清
-    // 谁是内联带来的。
+    // 内联 style 的层叠位次：高于一切"规则 normal"，且内联 !important
+    // 高于外部 !important——style 属性的 specificity 是 (1,0,0,0) 级，
+    // 在 author 源里就是天花板。这两套键要从初始解析里记下来——后面
+    // decls 会被规则逐步覆盖，分不清谁是内联带来的。
     // 不用迭代器构造：QSet(iter, iter) 是 5.15 才有的，本仓支持线是 5.12
     QSet<QString> inline_keys;
+    QSet<QString> inline_important;
     for (auto dit = decls.constBegin(); dit != decls.constEnd(); ++dit) {
       inline_keys.insert(dit.key());
+      if (important.contains(dit.key())) {
+        inline_important.insert(dit.key());
+      }
     }
 
     for (const CssRule& rule : rules) {
@@ -427,6 +431,9 @@ QString InlineSvgCss(const QString& svg, const QString& font_family) {
       }
       for (auto dit = rule.decls.constBegin(); dit != rule.decls.constEnd();
            ++dit) {
+        if (inline_important.contains(dit.key())) {
+          continue;
+        }
         const bool new_important = rule.important.contains(dit.key());
         const bool old_important = important.contains(dit.key());
         if (old_important && !new_important) {

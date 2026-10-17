@@ -358,13 +358,18 @@ QString RenderMermaidSvg(const QString& code) {
                     JS_NewString(g_context, "m0"));
   JS_FreeValue(g_context, global);
 
+  // 完成判据是显式的 __renderSettled：r.svg 缺失时 undefined 的细节不该让
+  // C 侧去猜——JS 侧自己把 settled 置真，结果统一成字符串（svg || ''）
   static const char* const kCall =
       "globalThis.__renderResult = null;\n"
       "globalThis.__renderError = null;\n"
+      "globalThis.__renderSettled = false;\n"
       "mermaid.render(__renderId, __code)\n"
-      "  .then(r => { globalThis.__renderResult = r.svg; })\n"
+      "  .then(r => { globalThis.__renderResult = r.svg || '';\n"
+      "               globalThis.__renderSettled = true; })\n"
       "  .catch(e => { globalThis.__renderError = "
-      "      (e && e.name ? e.name + ': ' + e.message : String(e)); });";
+      "      (e && e.name ? e.name + ': ' + e.message : String(e));\n"
+      "                 globalThis.__renderSettled = true; });";
   if (!EvalGlobal(QByteArray(kCall), "render-call")) {
     return QString();
   }
@@ -399,21 +404,18 @@ QString RenderMermaidSvg(const QString& code) {
       break;
     }
     global = JS_GetGlobalObject(g_context);
-    JSValue value = JS_GetPropertyStr(g_context, global, "__renderResult");
-    JSValue error = JS_GetPropertyStr(g_context, global, "__renderError");
-    // JS_IsNull 只认 null；.then 里赋了 undefined（比如 r.svg 缺失）时
-    // 会被当成"还没完成"，白跑到预算上限还报假错误
-    done = !(JS_IsNull(value) || JS_IsUndefined(value)) ||
-           !(JS_IsNull(error) || JS_IsUndefined(error));
-    JS_FreeValue(g_context, value);
-    JS_FreeValue(g_context, error);
+    JSValue settled = JS_GetPropertyStr(g_context, global, "__renderSettled");
+    // 只看显式的 settled 标志（JS 侧 then/catch 都置真）——结果与错误
+    // 值本身的 null/undefined 细节不再参与判据
+    done = JS_ToBool(g_context, settled) == 1;
+    JS_FreeValue(g_context, settled);
     JS_FreeValue(g_context, global);
     if (done) {
       break;
     }
   }
   if (!done) {
-    qWarning() << "mermaid: render did not complete within job budget";
+    qWarning() << "mermaid: render did not settle within job budget";
     return QString();
   }
 
@@ -530,6 +532,11 @@ QString SvgToImgTag(const QString& svg) {
 }  // namespace
 
 bool MermaidRendererReady() { return EnsureLoaded(); }
+
+void ClearMermaidCache() {
+  g_cache.clear();
+  g_cache_order.clear();
+}
 
 QString MermaidFontFamily() {
   static const QString family = PickCjkFamily();

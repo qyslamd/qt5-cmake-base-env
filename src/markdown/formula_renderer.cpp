@@ -160,6 +160,11 @@ QString SvgToImgTag(const QString& svg, bool display) {
 
 bool FormulaRendererReady() { return EnsureLoaded(); }
 
+void ClearFormulaCache() {
+  g_cache.clear();
+  g_cache_order.clear();
+}
+
 QString FormulaToImgTag(const QString& tex, bool display) {
   const QString key =
       (display ? QStringLiteral("D") : QStringLiteral("I")) + tex;

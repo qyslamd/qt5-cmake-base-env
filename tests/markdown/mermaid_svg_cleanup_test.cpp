@@ -111,6 +111,24 @@ TEST(MermaidSvgCleanupTest, StartMarkerUsesPathDirection) {
   EXPECT_TRUE(out.contains(QStringLiteral("rotate(270)"))) << out.toStdString();
 }
 
+// marker-mid：每个中间拐点都画一个，方向取入/出两段单位向量之和的角平分线
+TEST(MarkerMidTest, EmitsAtEveryInteriorVertex) {
+  const QString svg = QStringLiteral(
+      "<svg><defs>"
+      "<marker id=\"a\" refX=\"0\" refY=\"0\" orient=\"auto\">"
+      "<path d=\"M0,0 L5,5 z\"></path></marker>"
+      "</defs><polyline points=\"0,0 100,0 100,100\""
+      " marker-mid=\"url(#a)\"></polyline></svg>");
+
+  const QString out = InlineSvgMarkers(svg);
+
+  // 内部顶点 (100,0)：入段 (100,0)、出段 (0,100)，和向量 → 45°
+  EXPECT_TRUE(out.contains(QStringLiteral("rotate(45)"))) << out.toStdString();
+  // 引用与定义都清干净，不留悬空 marker
+  EXPECT_FALSE(out.contains(QStringLiteral("marker-mid"))) << out.toStdString();
+  EXPECT_FALSE(out.contains(QStringLiteral("<marker"))) << out.toStdString();
+}
+
 // viewBox 原点非 0：refX/refY 与内容同处一个坐标系，对齐平移只有 −ref——
 // vb 的平移项在对齐差里相消，它只贡献缩放。把它塞进平移会让 marker 整体
 // 偏移 −scale·vb（这里会错成 translate(-45, -25)）
@@ -164,6 +182,20 @@ TEST(MermaidCssInlinerTest, RuleImportantBeatsInlineNormal) {
 // 同属性按 specificity 决胜、同 specificity 才按文档顺序：tag 选择器在前、
 // .class 选择器在后（文档顺序对 class 有利），class 仍应赢——老实现按文档
 // 顺序，这里会错出 green
+TEST(MermaidCssInlinerTest, InlineImportantIsTheCeiling) {
+  const QString svg = QStringLiteral(
+      "<svg><style>rect.node { fill: red !important; }</style>"
+      "<rect class=\"node\" style=\"fill: blue !important\"></rect></svg>");
+
+  const QString out = InlineSvgCss(svg, QString());
+
+  // style 属性的 specificity 是 (1,0,0,0) 级：author 源的天花板，
+  // 外部 !important 也压不动
+  EXPECT_TRUE(out.contains(QStringLiteral("fill=\"blue\"")))
+      << out.toStdString();
+  EXPECT_FALSE(out.contains(QStringLiteral("red"))) << out.toStdString();
+}
+
 TEST(MermaidCssInlinerTest, SpecificityBeatsDocumentOrder) {
   const QString svg = QStringLiteral(
       "<svg><style>rect { fill: green; } .node { fill: red; }</style>"

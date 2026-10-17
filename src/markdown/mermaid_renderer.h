@@ -20,6 +20,10 @@ QString MermaidToImgTag(const QString& code);
 // 载荷是否可用（加载失败即永久不可用，不会反复重试）
 bool MermaidRendererReady();
 
+// 清空图缓存（每张是内嵌 PNG 的 data URI，大图 MB 级；换文档后旧图没有
+// 复用价值，长会话里那几十 MB 该还回去）。运行时不释放、载荷不重载
+void ClearMermaidCache();
+
 // 度量与绘制共用的字体族名。空串表示没找到带 CJK 的族，此时不改写 SVG 里的
 // font-family（度量按 SVG 自己写的族名走）。供排查与单测用。
 //

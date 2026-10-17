@@ -19,4 +19,8 @@ QString FormulaToImgTag(const QString& tex, bool display);
 // JS 载荷是否可用（加载失败即永久不可用，不会反复重试）
 bool FormulaRendererReady();
 
+// 清空公式缓存（tag 是 KB 级，长会话里换文档后旧公式没有复用价值）。
+// 运行时不释放、载荷不重载——只丢结果
+void ClearFormulaCache();
+
 #endif  // FILE_MARKDOWN_FORMULA_RENDERER_H_

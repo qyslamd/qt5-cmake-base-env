@@ -521,6 +521,16 @@ QString InlineSvgMarkers(const QString& svg) {
         arrows +=
             EmitMarker(defs.value(id), pts.first(), pts.at(1) - pts.first(),
                        defs.value(id).auto_start_reverse, stroke_width);
+      } else if (kind == QLatin1String("mid")) {
+        // 中间拐点：每个都画一个，方向取入/出两段的角平分线（SVG 规范是
+        // 两方向单位向量之和）。auto-start-reverse 在 mid 上视同 auto。
+        // 完全折返的拐点两向量相消，EmitMarker 会因长度为 0 拒画
+        for (int i = 1; i + 1 < pts.size(); ++i) {
+          arrows += EmitMarker(
+              defs.value(id), pts.at(i),
+              (pts.at(i) - pts.at(i - 1)) + (pts.at(i + 1) - pts.at(i)), false,
+              stroke_width);
+        }
       } else if (kind == QLatin1String("end")) {
         arrows += EmitMarker(defs.value(id), pts.last(),
                              pts.last() - pts.at(pts.size() - 2), false,

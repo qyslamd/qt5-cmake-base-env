@@ -254,6 +254,13 @@ bool MarkdownView::LoadFile(const QString& path) {
     return false;
   }
 
+  // 换文件才丢缓存：同一文件的重载（watchdog）要留住复用价值；SetContent
+  // 是编辑器路径，每次清会把"改一个字重算全部公式"的代价请回来——那条路由
+  // 宿主自己按需调 ClearFormulaCache()/ClearMermaidCache()
+  if (path != current_file_) {
+    ClearFormulaCache();
+    ClearMermaidCache();
+  }
   markdown_ = text;
   current_file_ = path;
   base_dir_ = QFileInfo(path).absolutePath();
