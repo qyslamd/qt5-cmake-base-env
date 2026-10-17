@@ -2,6 +2,17 @@
 
 记录**已交付但还没做完**的事，做完一条划一条。按"什么时候会疼"排序，不按新旧。
 
+## 渲染能力扩展后续（2026-10-17）
+
+- [ ] **图片懒加载阶段 2**：方案见 `docs/plan/Markdown图片懒加载设计.md`（讨论中）。
+      依赖 qlitehtml 补丁 0004（`setImageSizeHandler` + `replaceImage`）；首屏张数/
+      字节预算、是否并入图片字节 LRU 仍待拍板。
+- [ ] **图片字节 LRU（原阶段 1，暂缓）**：单独做收益低（只省重复读盘/解码）；
+      若做懒加载，建议作为重渲染配套并入阶段 2。
+- [ ] **缩放公开 API + md_viewer 控件**：`MarkdownView` 目前只有私有 `SetZoom`，
+      界面只靠 Ctrl+滚轮 / Ctrl+=/-。要在示例里展示缩放，需补
+      `zoomFactor()` / `SetZoomFactor()`，再加滑块或百分比标签。
+
 ## 渲染性能（设计与硬约束见 `docs/plan/mermaid图表渲染设计.md` §7.2）
 
 - [ ] **把公式与图表的渲染搬进专用 worker 线程。** 现在两者都在 UI 线程同步跑：
@@ -64,29 +75,20 @@
 - [ ] 载荷升级演练：`src/markdown/resources/extract_mermaid_payload.py --check` 的
       用法只写在配方注释里，升级 mermaidx 时按它走一遍，顺带确认 `.gitattributes`
       的 `-text` 让两个平台 checkout 出同样的字节（哈希才可比）。
-- [ ] mermaid 的 `theme` 目前固定 `default`：要跟随应用主题（深色/浅色）得把它
-      接到配置上，并注意主题 CSS 一变，`InlineSvgCss` 的层叠偏差就会被放大。
+- [x] ~~mermaid 的 `theme` 固定 `default`~~（2026-10-17 已随三套主题接入，
+      `InlineSvgCss` 的层叠测试仍在 `mermaid_svg_cleanup_test`）
 
-## 暗色主题（2026-10-16 决定暂不做，先记在这）
+## 暗色主题（2026-10-17 已落地，保留当时的推理备查）
 
-一份 CSS 只能拿到一半。正文/代码高亮/页面底色是纯 CSS 的事（`MD_MARKDOWN_CSS`
-已经验过：改色不重编），但下面三处在**光栅化那一刻就烧死了**，换 CSS 没用：
+三套主题 CSS、公式前景色、Mermaid 主题均已接入 `MarkdownView::SetTheme`
+（提交 `41b7506`）；下面三处"光栅化烧死"的判断是当时的依据：
 
-- [ ] 公式：MathJax 输出 `stroke="currentColor" fill="currentColor"`（用 node 跑
-      基座载荷实测），而我们是光栅化成 PNG——那一刻没有"当前颜色"可继承，
-      QSvgRenderer 也不认 `currentColor`，落成黑。**暗底上黑字＝看不见。**
-      做法：`FormulaToImgTag(tex, display)` 加颜色参数，把 `currentColor` 换成
-      具体色值再光栅化；**缓存 key 必须带上颜色**（现在按 tex 缓存，明暗两套会串）
-- [ ] mermaid：`theme:'default'` 的调色板烧进 PNG（淡紫方块＋深字），暗色下是
-      一块块亮斑。做法：`initialize` 的 theme 接同一个开关（`theme:'dark'` 或
-      `themeVariables`），缓存 key 同样加主题维度
-- [ ] 文档里引用的位图图片不受控（预期内，不做）
-- [ ] 第一步（约半天，纯 CSS）：qrc 加 `markdown_dark.css`，`MarkdownView` 加
-      `SetColorScheme(dark)`（或跟随 `QGuiApplication::palette()` 自动挑）；
-      `MD_MARKDOWN_CSS` 仍是最高优先级
-- [ ] 控件外壳（滚动条、QLiteHtmlWidget 底色、查看窗的"打开…"按钮与路径标签）
-      走的是 Qt QSS/调色板，**不在注入的那份 CSS 范围里**：基座的底座层样式表
-      覆盖得到，要单独调就按项目层规矩加
+- [x] 公式：`currentColor` 在光栅化前替换为具体色值，颜色进缓存 key
+- [x] mermaid：主题走逐图 `%%{init}%%` 指令，themeVariables 进缓存 key
+- [x] 文档里引用的位图图片不受控（预期内，不做）
+- [x] CSS：三份主题样式表 + `MarkdownView::SetTheme()`；`MD_MARKDOWN_CSS`
+      仍是最高优先级，覆盖时只切公式/Mermaid 配色并打警告
+- [x] 控件外壳（滚动条、底色、按钮）由 Fluent/QSS 体系负责，不在文档 CSS 内
 
 ## 审查留档（2026-10-15，一轮外部 review）
 
