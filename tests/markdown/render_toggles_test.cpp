@@ -13,6 +13,9 @@
 // 任何会真正渲染公式/Mermaid 的用例之前（本进程的引擎是共享的）。
 int main(int argc, char** argv) {
   qputenv("QT_QPA_PLATFORM", "offscreen");
+  // LoadDefaultCss 只在首次 ApplyDocument 读该变量；外部残留会让主题断言
+  // 看错 CSS
+  qunsetenv("MD_MARKDOWN_CSS");
   QApplication app(argc, argv);
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
@@ -93,6 +96,26 @@ TEST(RenderTogglesTest, StatusCountsRenders) {
   view.SetContent(QStringLiteral("```cpp\nint a;\n```\n"), QString());
   const MarkdownRendererStatus status = view.renderer_status();
   EXPECT_EQ(status.highlight_context.renders, 1U);
+}
+
+// 主题切换 = 换样式表 + 重渲染（公式颜色变了，缓存 key 也变）
+TEST(RenderTogglesTest, ThemeSwitchUpdatesCssAndRerenders) {
+  MarkdownView view;
+  view.SetContent(QStringLiteral("$x$\n"), QString());
+  EXPECT_EQ(view.theme(), MarkdownTheme::Light);
+  const QString light_html = HtmlOf(view);
+  ASSERT_FALSE(light_html.isEmpty());
+  const quint64 renders = view.renderer_status().formula_context.renders;
+  ASSERT_GE(renders, 1U);
+
+  view.SetTheme(MarkdownTheme::Dark);
+  EXPECT_EQ(view.theme(), MarkdownTheme::Dark);
+  const QString dark_html = HtmlOf(view);
+  EXPECT_NE(light_html, dark_html);
+  EXPECT_TRUE(dark_html.contains(QStringLiteral("#0d1117")))
+      << dark_html.toStdString();
+  // 新颜色是新的缓存 key，必须真的再渲染一次
+  EXPECT_EQ(view.renderer_status().formula_context.renders, renders + 1);
 }
 
 }  // namespace

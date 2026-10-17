@@ -1,6 +1,11 @@
 <RCC>
     <qresource prefix="/markdown">
-        <file alias="markdown_default.css">resources/markdown_default.css</file>
+        <!-- 主题样式表。markdown_default.css 是旧别名，指向 Light，保持既有
+             调用点（测试、诊断脚本）可读 -->
+        <file alias="markdown_default.css">resources/themes/light.css</file>
+        <file alias="themes/light.css">resources/themes/light.css</file>
+        <file alias="themes/dark.css">resources/themes/dark.css</file>
+        <file alias="themes/high_contrast.css">resources/themes/high_contrast.css</file>
         <!-- 公式渲染的 JS 载荷（MathJax tex→svg）。纯 JS 与平台无关，入 qrc 免去
              部署时还要跟着拷一份文件；重建配方见 resources/mathjax_svg_entry.mjs -->
         <file alias="mathjax-svg.min.js">resources/mathjax-svg.min.js</file>

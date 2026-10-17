@@ -12,6 +12,8 @@ set(TARGET_SRCS
     markdown_render_context.cpp
     markdown_render_context.h
     markdown_render_context_internal.h
+    markdown_theme.cpp
+    markdown_theme.h
     markdown_types.h
     renderer_status_internal.h
     html_escape.cpp

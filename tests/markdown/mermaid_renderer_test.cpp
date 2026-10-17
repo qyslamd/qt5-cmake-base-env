@@ -124,4 +124,63 @@ TEST(MermaidRendererTest, MalformedCodeNeverCrashes) {
   }
 }
 
+// 主题进缓存 key：同一张图在 Light/Dark/HighContrast 下各占一条。
+// HighContrast 用 base + themeVariables，变量也必须进 key，否则会和
+// 其他 base 变体串图
+TEST(MermaidRendererTest, ThemeIsPartOfCacheKey) {
+  MarkdownRenderContext context;
+  const QString source = QStringLiteral("flowchart LR\n    X --> Y\n");
+  const QString light = MermaidToImgTag(context, source, MarkdownTheme::Light);
+  const QString dark = MermaidToImgTag(context, source, MarkdownTheme::Dark);
+  ASSERT_FALSE(light.isEmpty());
+  ASSERT_FALSE(dark.isEmpty());
+  EXPECT_NE(light, dark);
+  EXPECT_EQ(context.status().mermaid_context.renders, 2U);
+  EXPECT_EQ(context.status().mermaid_context.memory_cache_hits, 0U);
+
+  const QString high =
+      MermaidToImgTag(context, source, MarkdownTheme::HighContrast);
+  ASSERT_FALSE(high.isEmpty()) << "高对比主题初始化或渲染失败";
+  EXPECT_NE(high, dark);
+  EXPECT_EQ(context.status().mermaid_context.renders, 3U);
+
+  EXPECT_EQ(MermaidToImgTag(context, source, MarkdownTheme::Dark), dark);
+  EXPECT_EQ(context.status().mermaid_context.memory_cache_hits, 1U);
+}
+
+// 主题走 per-diagram 指令，initialize 只做一次：两个视图交替不同主题时，
+// 后渲染的不会污染前面的（回归点：曾用引擎级 initialize 切主题）
+TEST(MermaidRendererTest, ThemesDoNotLeakAcrossContexts) {
+  MarkdownRenderContext light_context;
+  MarkdownRenderContext dark_context;
+  const QString source = QStringLiteral("flowchart LR\n    X --> Y\n");
+  const QString light =
+      MermaidToImgTag(light_context, source, MarkdownTheme::Light);
+  const QString dark =
+      MermaidToImgTag(dark_context, source, MarkdownTheme::Dark);
+  ASSERT_FALSE(light.isEmpty());
+  ASSERT_FALSE(dark.isEmpty());
+  EXPECT_NE(light, dark);
+
+  // 清缓存重渲：结果只由各自主题决定，与渲染顺序无关
+  light_context.ClearMemoryCaches();
+  dark_context.ClearMemoryCaches();
+  EXPECT_EQ(MermaidToImgTag(light_context, source, MarkdownTheme::Light),
+            light);
+  EXPECT_EQ(MermaidToImgTag(dark_context, source, MarkdownTheme::Dark), dark);
+}
+
+// YAML frontmatter 必须留在文档最开头：主题指令要插到它后面，否则 mermaid
+// 认不出 frontmatter，整张图会渲染失败
+TEST(MermaidRendererTest, ThemeDirectiveKeepsFrontmatterFirst) {
+  MarkdownRenderContext context;
+  const QString source =
+      QStringLiteral("---\ntitle: demo\n---\nflowchart LR\n    X --> Y\n");
+  const QString light = MermaidToImgTag(context, source, MarkdownTheme::Light);
+  const QString dark = MermaidToImgTag(context, source, MarkdownTheme::Dark);
+  ASSERT_FALSE(light.isEmpty()) << "带 frontmatter 的图在 Light 下失败";
+  ASSERT_FALSE(dark.isEmpty()) << "主题指令破坏了 frontmatter";
+  EXPECT_NE(light, dark);
+}
+
 }  // namespace

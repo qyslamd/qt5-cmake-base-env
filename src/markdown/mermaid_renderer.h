@@ -20,8 +20,9 @@ enum class MarkdownTheme;
 // qrc 载荷的初始化由本模块内部完成（Q_INIT_RESOURCE
 // 幂等），宿主不需要做任何事。
 //
-// ctx 版本：缓存与计数记在该上下文；theme 参与缓存 key，并在变化时重新
-// initialize。便捷重载固定按 Light 渲染，不继承上一个调用留下的主题态
+// ctx 版本：缓存与计数记在该上下文；theme 参与缓存 key，并通过每张图的
+// %%{init}%% 指令生效（initialize 只做一次，多视图主题互不污染）。便捷重载
+// 固定按 Light 渲染，不依赖引擎里残留的主题状态
 QString MermaidToImgTag(MarkdownRenderContext& context, const QString& code,
                         MarkdownTheme theme);
 QString MermaidToImgTag(const QString& code);

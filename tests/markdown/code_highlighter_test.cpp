@@ -6,7 +6,7 @@
 #include <QStringList>
 
 // 高亮的端到端判据：qrc 载荷 → QuickJS 里跑 highlight.js → 类名映射后的
-// HTML。类名（kw/str/num/cmt/…）是与 markdown_default.css 的唯一契约，这里
+// HTML。类名（kw/str/num/cmt/…）是与主题样式表的唯一契约，这里
 // 钉的是"关键字/字符串有没有被认出来""每行的 span 是否配平"这类静默出错的
 // 地方；配色本身是 CSS 的事
 namespace {

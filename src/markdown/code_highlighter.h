@@ -9,8 +9,8 @@ class MarkdownRenderContext;
 // （载荷在 qrc，66KB，配方见 resources/highlight_entry.js 头注释），qrc 初始化
 // 由本模块内部完成，宿主不需要做任何事。
 //
-// 类名是与样式表（markdown_default.css）的唯一契约：kw/str/num/cmt 之外还有
-// ty/bi/fn/tt/lit/var/re/meta/attr/tag/sel/sym/op——映射表在 entry 的
+// 类名是与主题样式表（resources/themes/*.css）的唯一契约：kw/str/num/cmt
+// 之外还有 ty/bi/fn/tt/lit/var/re/meta/attr/tag/sel/sym/op——映射表在 entry 的
 // CLASS_MAP 里，改配色只动 CSS。language 未注册时返回纯转义的原文（不猜
 // 语言）；输出已做 HTML 转义，可直接进 HTML。
 //

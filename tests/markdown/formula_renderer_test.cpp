@@ -9,6 +9,7 @@
 #include "default_render_context.h"
 #include "markdown_render_context.h"
 #include "markdown_render_context_internal.h"
+#include "markdown_theme.h"
 #include "markdown_types.h"
 
 // 公式渲染的端到端判据：加载 qrc 里的 MathJax 载荷 → QuickJS 里 tex→svg →
@@ -112,6 +113,26 @@ TEST(FormulaRendererTest, ClearFormulaCacheOnlyTouchesDefaultContext) {
                                      QStringLiteral("value"));
   ClearFormulaCache();
   EXPECT_TRUE(default_state.formula_cache.entries.isEmpty());
+}
+
+// 主题前景色参与 key：亮/暗主题各占一条，切换主题不会拿错图
+TEST(FormulaRendererTest, ThemeColorIsPartOfCacheKey) {
+  MarkdownRenderContext context;
+  const QColor light = ThemeFormulaColor(MarkdownTheme::Light);
+  const QColor dark = ThemeFormulaColor(MarkdownTheme::Dark);
+  const QString light_tag =
+      FormulaToImgTag(context, QStringLiteral("x"), false, light);
+  const QString dark_tag =
+      FormulaToImgTag(context, QStringLiteral("x"), false, dark);
+  ASSERT_FALSE(light_tag.isEmpty());
+  ASSERT_FALSE(dark_tag.isEmpty());
+  EXPECT_NE(light_tag, dark_tag);
+  EXPECT_EQ(context.status().formula_context.renders, 2U);
+  EXPECT_EQ(context.status().formula_context.memory_cache_hits, 0U);
+
+  EXPECT_EQ(FormulaToImgTag(context, QStringLiteral("x"), false, light),
+            light_tag);
+  EXPECT_EQ(context.status().formula_context.memory_cache_hits, 1U);
 }
 
 // MathJax 对首尾空白不敏感：key 与渲染输入都 trim，避免同一条公式存两份

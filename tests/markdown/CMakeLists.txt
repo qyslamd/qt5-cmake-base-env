@@ -83,6 +83,27 @@ add_unit_test(
     LABELS MARKDOWN
 )
 
+# 主题 → 样式表/公式色的映射：qrc 别名与代码路径分居两处，需要一条断言
+# 把它们钉在一起
+add_unit_test(
+    NAME test_markdown_theme
+    SOURCES theme_test.cpp
+    LIBS ${APP_TARGET_PREFIX}_markdown
+    QT_MODULES Core
+    LABELS MARKDOWN
+)
+
+# MD_MARKDOWN_CSS 覆盖的语义：CSS 优先、主题只切公式/Mermaid、非 Light
+# 主题切换要提示。必须独立进程——环境变量只在首次 LoadDefaultCss 时读
+add_unit_test(
+    NAME test_css_override
+    SOURCES css_override_test.cpp
+    LIBS ${APP_TARGET_PREFIX}_markdown
+    QT_MODULES Widgets
+    LABELS MARKDOWN
+    NO_GTEST_MAIN
+)
+
 add_unit_test(
     NAME test_render_toggles
     SOURCES render_toggles_test.cpp

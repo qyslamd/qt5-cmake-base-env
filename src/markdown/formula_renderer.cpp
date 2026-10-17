@@ -116,7 +116,31 @@ QString SvgToImgTag(const QString& svg, bool display, const QColor& color,
   }
   QString bare = svg.mid(svg_start, svg_end - svg_start + 6);
   if (color.isValid()) {
-    bare.replace(QLatin1String("currentColor"), color.name());
+    // MathJax 常规输出在根 <g> 上写 fill/stroke="currentColor"；万一某版
+    // 载荷不再写它，退回给根 <g> 补 fill，否则暗色主题下公式仍是黑字
+    if (bare.contains(QLatin1String("currentColor"))) {
+      bare.replace(QLatin1String("currentColor"), color.name());
+    } else {
+      const QString fill = QStringLiteral(" fill=\"%1\"").arg(color.name());
+      int g_start = bare.indexOf(QLatin1String("<g "));
+      if (g_start < 0) {
+        g_start = bare.indexOf(QLatin1String("<g>"));
+      }
+      const int tag_start = g_start >= 0 ? g_start : 0;
+      const int tag_end = bare.indexOf(QLatin1Char('>'), tag_start);
+      // 已有 fill 时不补：重复属性在 XML 里非法，QSvgRenderer 取哪个也
+      // 不可靠；显式配色说明载荷自带颜色，交给它
+      static const QRegularExpression kFillAttribute(
+          QStringLiteral("\\bfill\\s*="));
+      const bool has_fill =
+          tag_end > tag_start &&
+          bare.mid(tag_start, tag_end - tag_start).contains(kFillAttribute);
+      // 自闭合标签（<g/>）或结构异常时同样不动
+      if (tag_end > tag_start && bare.at(tag_end - 1) != QLatin1Char('/') &&
+          !has_fill) {
+        bare.insert(tag_end, fill);
+      }
+    }
   }
 
   QSvgRenderer renderer(bare.toUtf8());

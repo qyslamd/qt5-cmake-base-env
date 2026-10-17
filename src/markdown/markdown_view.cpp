@@ -19,6 +19,7 @@
 #include "formula_renderer.h"
 #include "markdown_render_context.h"
 #include "markdown_resources.h"
+#include "markdown_theme.h"
 #include "markdown_to_html.h"
 #include "markdown_types.h"
 #include "mermaid_renderer.h"
@@ -36,53 +37,77 @@ constexpr qreal kZoomStep = 1.1;
 constexpr qreal kZoomMin = 0.3;
 constexpr qreal kZoomMax = 5.0;
 
-// qrc 里的默认样式，进程内只读一次（qrc 的内容不会变）
-const QString& DefaultCssFromResources() {
-  static const QString kCss = []() -> QString {
-    QFile file(QStringLiteral(":/markdown/markdown_default.css"));
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-      // qrc 读不出来是构建问题、运行时几乎不会发生，但"样式全丢"比"丑一点"
-      // 严重得多（表格/代码块/图都会失去排版），退回一份最小样式并留痕
-      qWarning() << "markdown: default css missing from resources,"
-                    " falling back to built-in minimal css";
-      return QStringLiteral(
-          "body { font-family: sans-serif; font-size: 14px;"
-          " line-height: 1.6; margin: 16px; }\n"
-          "pre, code { font-family: monospace; }\n"
-          "pre { background: #f6f8fa; padding: 8px; overflow-x: auto; }\n"
-          "table { border-collapse: collapse; }\n"
-          "table th, table td { border: 1px solid #d0d7de;"
-          " padding: 4px 8px; }\n"
-          "img { max-width: 100%; }\n"
-          ".math-display { display: block; margin: 10px auto; }\n"
-          ".mermaid-wrap { text-align: center; margin: 12px 0; }\n"
-          "img.mermaid { max-width: 100%; height: auto; }\n");
-    }
-    return QString::fromUtf8(file.readAll());
-  }();
-  return kCss;
+// qrc 读不出来是构建问题、运行时几乎不会发生，但"样式全丢"比"丑一点"
+// 严重得多（表格/代码块/图都会失去排版），退回一份最小样式并留痕
+QString LoadCssResource(const QString& path) {
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    qWarning() << "markdown: theme css missing from resources:" << path;
+    return QStringLiteral(
+        "body { font-family: sans-serif; font-size: 14px;"
+        " line-height: 1.6; margin: 16px; }\n"
+        "pre, code { font-family: monospace; }\n"
+        "pre { background: #f6f8fa; padding: 8px; overflow-x: auto; }\n"
+        "table { border-collapse: collapse; }\n"
+        "table th, table td { border: 1px solid #d0d7de;"
+        " padding: 4px 8px; }\n"
+        "img { max-width: 100%; }\n"
+        ".math-display { display: block; margin: 10px auto; }\n"
+        ".mermaid-wrap { text-align: center; margin: 12px 0; }\n"
+        "img.mermaid { max-width: 100%; height: auto; }\n");
+  }
+  return QString::fromUtf8(file.readAll());
+}
+
+// qrc 里的主题样式，每个主题只读一次（qrc 的内容不会变）
+const QString& DefaultCssFromResources(MarkdownTheme theme) {
+  static const QString kCss[kMarkdownThemeCount] = {
+      LoadCssResource(ThemeCssResource(MarkdownTheme::Light)),
+      LoadCssResource(ThemeCssResource(MarkdownTheme::Dark)),
+      LoadCssResource(ThemeCssResource(MarkdownTheme::HighContrast)),
+  };
+  return kCss[ThemeIndex(theme)];
+}
+
+QString CssOverridePath() {
+  static const QString kPath = qEnvironmentVariable("MD_MARKDOWN_CSS");
+  return kPath;
+}
+
+// 覆盖生效时主题只切公式/Mermaid，CSS 不动；非 Light 主题会静默错位，
+// 所以切换时提示一次（每个进程一次，别刷屏）
+void WarnThemeCssMismatch() {
+  static bool warned = false;
+  if (warned) {
+    return;
+  }
+  warned = true;
+  qWarning() << "markdown: MD_MARKDOWN_CSS overrides theme css;"
+                " SetTheme only changes formula/mermaid colors";
 }
 
 // MD_MARKDOWN_CSS=<文件>：存在就覆盖 qrc 里的样式——调样式不用重编，发布
 // 默认关闭（与 MD_MERMAID_DUMP 同一个模式）。环境变量读一次；**文件**按
 // 变更时间缓存——没变不读盘（每次 ApplyDocument 现读是白读），变了立即
-// 跟上，"改完重开文档就生效"的调样式工作流不破坏。设了但读不了就落回 qrc
-QString LoadDefaultCss() {
-  static const QString kOverridePath = qEnvironmentVariable("MD_MARKDOWN_CSS");
-  if (!kOverridePath.isEmpty()) {
+// 跟上，"改完重开文档就生效"的调样式工作流不破坏。设了但读不了就落回 qrc。
+// 覆盖生效时 theme 参数被忽略：只换 CSS，不换公式/Mermaid 配色
+QString LoadDefaultCss(MarkdownTheme theme) {
+  const QString override_path = CssOverridePath();
+  if (!override_path.isEmpty()) {
     static QString cached_css;
     static QDateTime cached_modified;
     static qint64 cached_size = -1;
     static bool have_cached = false;
-    const QFileInfo info(kOverridePath);
+    const QFileInfo info(override_path);
     const QDateTime modified = info.lastModified();
     if (!have_cached || modified != cached_modified ||
         info.size() != cached_size) {
-      QFile file(kOverridePath);
+      QFile file(override_path);
       if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         qWarning() << "markdown: MD_MARKDOWN_CSS set but unreadable,"
-                   << kOverridePath;
-        return DefaultCssFromResources();  // 失败态不缓存，文件回来了直接用
+                   << override_path;
+        // 失败态不缓存，文件回来了直接用
+        return DefaultCssFromResources(theme);
       }
       cached_css = QString::fromUtf8(file.readAll());
       cached_modified = modified;
@@ -91,7 +116,7 @@ QString LoadDefaultCss() {
     }
     return cached_css;
   }
-  return DefaultCssFromResources();
+  return DefaultCssFromResources(theme);
 }
 
 QString WrapDocument(const QString& body, const QString& css) {
@@ -392,6 +417,17 @@ void MarkdownView::SetMermaidRenderingEnabled(bool enabled) {
   ReapplyDocument();
 }
 
+void MarkdownView::SetTheme(MarkdownTheme theme) {
+  if (theme_ == theme) {
+    return;
+  }
+  if (theme != MarkdownTheme::Light && !CssOverridePath().isEmpty()) {
+    WarnThemeCssMismatch();
+  }
+  theme_ = theme;
+  ReapplyDocument();
+}
+
 MarkdownRendererStatus MarkdownView::renderer_status() const {
   return context_->status();
 }
@@ -440,13 +476,14 @@ void MarkdownView::ApplyDocument() {
   FormulaSink formula_sink;
   if (formula_rendering_enabled_) {
     formula_sink = [this](const QString& tex, bool display) {
-      return FormulaToImgTag(*context_, tex, display);
+      return FormulaToImgTag(*context_, tex, display,
+                             ThemeFormulaColor(theme_));
     };
   }
   MermaidSink mermaid_sink;
   if (mermaid_rendering_enabled_) {
     mermaid_sink = [this](const QString& code) {
-      return MermaidToImgTag(*context_, code, MarkdownTheme::Light);
+      return MermaidToImgTag(*context_, code, theme_);
     };
   }
   const QString final_html =
@@ -459,7 +496,7 @@ void MarkdownView::ApplyDocument() {
                          heading_ids_.insert(slug, id);
                        },
                        options),
-                   LoadDefaultCss());
+                   LoadDefaultCss(theme_));
 
   const MarkdownDiagnostics diagnostics = context_->diagnostics();
   if (diagnostics.trace) {
@@ -485,7 +522,7 @@ void MarkdownView::ApplyDocument() {
 void MarkdownView::ShowMessage(const QString& text) {
   html_->setHtml(WrapDocument(
       QStringLiteral("<p class=\"error\">%1</p>").arg(text.toHtmlEscaped()),
-      LoadDefaultCss()));
+      LoadDefaultCss(theme_)));
 }
 
 void MarkdownView::ClearDocument() {

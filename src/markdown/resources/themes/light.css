@@ -1,8 +1,12 @@
-/* Markdown 预览的默认样式。qlitehtml 自绘，读不到应用级 QSS，这里是它唯一的
-   外观来源：排版规则 + 代码高亮的类名（与 code_highlighter.h 的契约一致，
-   完整映射表见 highlight_entry.js 的 CLASS_MAP）。改配色只动本文件 */
+/* Markdown 预览的 Light 主题。qlitehtml 自绘，读不到应用级 QSS，这里是它
+   唯一的外观来源：排版规则 + 代码高亮的类名（与 code_highlighter.h 的契约
+   一致，完整映射表见 highlight_entry.js 的 CLASS_MAP）。三套主题各一份，
+   改配色只动对应文件 */
+
+html { background-color: #ffffff; }
 
 body {
+  background-color: #ffffff;
   font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
   font-size: 14px;
   line-height: 1.7;

@@ -38,9 +38,9 @@ bool g_load_failed = false;
 bool g_load_attempted = false;
 qint64 g_first_load_ms = 0;
 QElapsedTimer g_load_clock;
-// 当前 initialize 过的主题；主题变化时才重新 initialize
-MarkdownTheme g_initialized_theme = MarkdownTheme::Light;
-bool g_theme_initialized = false;
+// initialize 只做一次：主题走每张图的 %%{init}%% 指令（见 ThemeDirective），
+// 不再把主题放进引擎级状态
+bool g_initialized = false;
 // 一次 render 是否已落定：JS 的 then/catch 调 __setSettled_raw 置 true。
 // C 侧泵循环只读这个 bool——每次迭代去 JS 里取属性，最坏二十万次构造
 // 全局对象，纯浪费
@@ -266,7 +266,8 @@ bool FailLoad() {
     g_runtime = nullptr;
   }
   g_load_failed = true;
-  // 主题 initialize 失败也会走到这里：保留已经测到的首次加载耗时，
+  g_initialized = false;
+  // initialize 失败也会走到这里：保留已经测到的首次加载耗时，
   // 不要用失败时刻覆盖它
   if (g_first_load_ms == 0) {
     g_first_load_ms = g_load_clock.isValid() ? g_load_clock.elapsed() : 0;
@@ -368,47 +369,94 @@ const char* ThemeName(MarkdownTheme theme) {
   return "default";
 }
 
+// HighContrast 的 themeVariables（直接嵌进 %%{init}%% 的配置片段）。
+// mermaid 没有专门的高对比主题：base + 变量自己定
 QString ThemeVariables(MarkdownTheme theme) {
   if (theme != MarkdownTheme::HighContrast) {
     return QString();
   }
-  // mermaid 没有专门的高对比主题：base + themeVariables 自己定
   return QStringLiteral(
-      ", themeVariables: {"
-      " background: '#000000', primaryColor: '#000000',"
-      " primaryTextColor: '#ffffff', primaryBorderColor: '#ffffff',"
-      " lineColor: '#ffffff', secondaryColor: '#000000',"
-      " tertiaryColor: '#000000', fontSize: '16px'"
+      "'themeVariables': {"
+      " 'background': '#000000', 'primaryColor': '#000000',"
+      " 'primaryTextColor': '#ffffff', 'primaryBorderColor': '#ffffff',"
+      " 'lineColor': '#ffffff', 'secondaryColor': '#000000',"
+      " 'tertiaryColor': '#000000', 'fontSize': '16px'"
       " }");
 }
 
+// per-diagram 主题指令：mermaid 公开的 render API 没有 per-call config，
+// 但 %%{init}%% 能覆盖 initialize 的主题，且不泄漏到下一次渲染（实测）。
+// 这样 initialize 不必随视图主题反复重设，多视图也不会互相污染
+QString ThemeDirective(MarkdownTheme theme) {
+  if (theme == MarkdownTheme::Light) {
+    return {};
+  }
+  const QString variables = ThemeVariables(theme);
+  QString init = QStringLiteral("%%{init: {'theme': '%1'")
+                     .arg(QLatin1String(ThemeName(theme)));
+  if (!variables.isEmpty()) {
+    init += QStringLiteral(", ") + variables;
+  }
+  // 依次闭合 config 对象与 %%{init}%% 指令本身
+  init += QStringLiteral("}}%%\n");
+  return init;
+}
+
+// 把主题指令插进源码。YAML frontmatter 必须位于文档最开头（mermaid 用
+// 行首锚点识别），有 frontmatter 时指令要插到它的闭合分隔线之后
+QString ApplyThemeDirective(const QString& code, MarkdownTheme theme) {
+  const QString directive = ThemeDirective(theme);
+  if (directive.isEmpty()) {
+    return code;
+  }
+  const int first_line_end = code.indexOf(QLatin1Char('\n'));
+  if (first_line_end > 0 &&
+      code.left(first_line_end).trimmed() == QLatin1String("---")) {
+    // 闭合分隔线必须单独成行：`---foo` 不是 frontmatter 结尾，不能据此
+    // 插指令，否则渲染失败会被误归因到主题指令
+    int line_start = first_line_end + 1;
+    while (line_start <= code.size()) {
+      const int line_end = code.indexOf(QLatin1Char('\n'), line_start);
+      const int end = line_end < 0 ? code.size() : line_end;
+      if (code.mid(line_start, end - line_start).trimmed() ==
+          QLatin1String("---")) {
+        if (line_end < 0) {
+          return code + QLatin1Char('\n') + directive;
+        }
+        const int insert_at = line_end + 1;
+        return code.left(insert_at) + directive + code.mid(insert_at);
+      }
+      if (line_end < 0) {
+        break;
+      }
+      line_start = line_end + 1;
+    }
+  }
+  return directive + code;
+}
+
 // htmlLabels:false 是必填项：默认会把节点文字放进 <foreignObject>，而
-// QSvgRenderer 完全不认，文字会全部消失。主题变化时才重新 initialize，
-// 且每次都要带完整配置（initialize 是整体替换，不是增量）
-bool EnsureThemeInitialized(MarkdownTheme theme) {
-  if (g_theme_initialized && g_initialized_theme == theme) {
+// QSvgRenderer 完全不认，文字会全部消失。initialize 是整体替换、不是增量，
+// 所以配置一次给全；主题不在这里，由 ThemeDirective 逐图指定
+bool EnsureInitialized() {
+  if (g_initialized) {
     return true;
   }
-  const QString init =
-      QStringLiteral(
-          "mermaid.initialize({"
-          "  startOnLoad: false,"
-          "  theme: '%1',"
-          "  htmlLabels: false,"
-          "  flowchart: { htmlLabels: false },"
-          "  class: { htmlLabels: false },"
-          "  state: { htmlLabels: false },"
-          "  er: { useMaxWidth: true }"
-          "%2"
-          "});")
-          .arg(QLatin1String(ThemeName(theme)), ThemeVariables(theme));
+  const QString init = QStringLiteral(
+      "mermaid.initialize({"
+      "  startOnLoad: false,"
+      "  htmlLabels: false,"
+      "  flowchart: { htmlLabels: false },"
+      "  class: { htmlLabels: false },"
+      "  state: { htmlLabels: false },"
+      "  er: { useMaxWidth: true }"
+      "});");
   if (!EvalGlobal(init.toUtf8(), "init")) {
     // initialize 失败（配置字段变化、OOM 等）不能每次渲染都重试：
     // 与载荷加载失败同一套一次性语义，直接作废引擎
     return FailLoad();
   }
-  g_initialized_theme = theme;
-  g_theme_initialized = true;
+  g_initialized = true;
   return true;
 }
 
@@ -680,7 +728,10 @@ QString MermaidToImgTag(MarkdownRenderContext& context, const QString& code,
                         MarkdownTheme theme) {
   MarkdownRenderContextState& state =
       MarkdownRenderContextAccess::State(context);
+  // themeVariables 也进 key：HighContrast 用的是 base 主题 + 自定义变量，
+  // 只按主题名区分不够
   const QString key = QString::fromLatin1(ThemeName(theme)) + QLatin1Char('|') +
+                      ThemeVariables(theme) + QLatin1Char('|') +
                       MermaidFontFamily() + QLatin1Char('|') + code;
   const MarkdownDiagnostics& diagnostics = state.options.diagnostics;
   if (const QString* cached = state.mermaid_cache.Find(key)) {
@@ -694,7 +745,7 @@ QString MermaidToImgTag(MarkdownRenderContext& context, const QString& code,
   ++state.mermaid_stats.memory_cache_misses;
   ++state.mermaid_stats.renders;
   const bool was_loaded = MermaidEngineStatus().loaded;
-  if (!EnsureLoaded() || !EnsureThemeInitialized(theme)) {
+  if (!EnsureLoaded() || !EnsureInitialized()) {
     ++state.mermaid_stats.failures;
     if (diagnostics.trace) {
       TraceRender(diagnostics, QStringLiteral("mermaid load/init failed"));
@@ -708,7 +759,8 @@ QString MermaidToImgTag(MarkdownRenderContext& context, const QString& code,
   }
   QElapsedTimer render_clock;
   render_clock.start();
-  const QString svg = RenderMermaidSvg(code, diagnostics);
+  const QString svg =
+      RenderMermaidSvg(ApplyThemeDirective(code, theme), diagnostics);
   const QString tag = svg.isEmpty() ? QString() : SvgToImgTag(svg, diagnostics);
   if (tag.isEmpty()) {
     ++state.mermaid_stats.failures;

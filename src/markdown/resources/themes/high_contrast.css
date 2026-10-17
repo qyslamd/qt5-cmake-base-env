@@ -1,0 +1,154 @@
+/* Markdown 预览的 HighContrast 主题：纯黑背景 + 纯白正文，靠亮黄链接与
+   白色边框拉开层次。结构与 light.css 一致；高亮色只保证在 #000 上可读 */
+
+html { background-color: #000000; }
+
+body {
+  background-color: #000000;
+  font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #ffffff;
+  margin: 16px;
+}
+
+h1 { font-size: 24px; border-bottom: 2px solid #ffffff; padding-bottom: 6px; }
+h2 { font-size: 20px; }
+h3 { font-size: 17px; }
+h4, h5, h6 { font-size: 15px; }
+
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+
+code {
+  background: #1a1a1a;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: Consolas, "Courier New", monospace;
+  color: #ffffff;
+}
+
+pre {
+  background: #000000;
+  border: 1px solid #ffffff;
+  padding: 12px;
+  border-radius: 6px;
+  margin: 10px 0;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+pre code {
+  background: transparent;
+  padding: 0;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 13px;
+  line-height: 20px;
+  color: #ffffff;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+blockquote {
+  border-left: 4px solid #ffff00;
+  margin: 8px 0;
+  padding: 0 12px;
+  color: #ffffff;
+}
+
+table { border-collapse: collapse; margin: 10px 0; }
+th, td { border: 1px solid #ffffff; padding: 6px 10px; }
+th { background: #1a1a1a; }
+
+img { max-width: 100%; }
+hr { border: 0; border-top: 2px solid #ffffff; margin: 16px 0; }
+a { color: #ffff00; text-decoration: underline; }
+
+.error { color: #ff6b6b; }
+
+.code-wrap {
+  border: 1px solid #ffffff;
+  border-radius: 6px;
+  margin: 12px 0;
+  overflow: hidden;
+}
+.code-header {
+  background: #1a1a1a;
+  border-bottom: 1px solid #ffffff;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: #ffffff;
+  line-height: 20px;
+}
+.code-lang { font-family: Consolas, "Courier New", monospace; }
+a.copy-btn {
+  float: right;
+  padding: 1px 10px;
+  background: #000000;
+  border: 1px solid #ffffff;
+  border-radius: 4px;
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 12px;
+  line-height: 18px;
+}
+.code-wrap pre {
+  border: 0;
+  border-radius: 0;
+  margin: 0;
+}
+
+.md-code {
+  width: 100%;
+  padding: 10px 0;
+  background: #000000;
+  border-collapse: collapse;
+}
+.md-code td {
+  border: none;
+  padding: 0;
+  vertical-align: top;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 13px;
+  line-height: 20px;
+  color: #ffffff;
+}
+.md-code .md-code-ln {
+  width: 1%;
+  padding: 0 10px 0 12px;
+  text-align: right;
+  color: #cccccc;
+  white-space: nowrap;
+}
+.md-code .md-code-line {
+  padding: 0 12px 0 4px;
+  padding-left: 2em;
+  text-indent: -2em;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.math-display { display: block; margin: 10px auto; }
+.math-src { color: #ff6b6b; }
+
+.mermaid-wrap { text-align: center; margin: 12px 0; }
+img.mermaid { max-width: 100%; height: auto; }
+
+/* 代码高亮：黑底上提高亮度，保持色相可区分 */
+.kw  { color: #ff6b6b; }
+.ty  { color: #ff6b6b; }
+.bi  { color: #d0a0ff; }
+.fn  { color: #d0a0ff; }
+.tt  { color: #d0a0ff; }
+.lit { color: #6bb6ff; }
+.var { color: #ffa657; }
+.str { color: #a5d6ff; }
+.re  { color: #a5d6ff; }
+.num { color: #6bb6ff; }
+.cmt { color: #c0c0c0; }
+.meta{ color: #6bb6ff; }
+.attr{ color: #6bb6ff; }
+.tag { color: #7ee787; }
+.sel { color: #6bb6ff; }
+.sym { color: #ffa657; }
+.op  { color: #ffffff; }

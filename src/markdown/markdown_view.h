@@ -90,6 +90,12 @@ class MarkdownView : public QWidget {
   bool formula_rendering_enabled() const { return formula_rendering_enabled_; }
   void SetMermaidRenderingEnabled(bool enabled);
   bool mermaid_rendering_enabled() const { return mermaid_rendering_enabled_; }
+  // 主题（默认 Light）：样式表、公式前景色、Mermaid 主题一起切。切换后
+  // 有文档立即重渲染并保留滚动；缓存按 key 自然隔离，不清空。
+  // MD_MARKDOWN_CSS 生效时 CSS 保持覆盖文件（theme 对样式表无效），只切
+  // 公式/Mermaid 配色，可能配色错位——切换时打一次 qWarning
+  void SetTheme(MarkdownTheme theme);
+  MarkdownTheme theme() const { return theme_; }
   // 本视图的渲染状态（不触发加载）与计数清零
   MarkdownRendererStatus renderer_status() const;
   void ResetRendererStats();
@@ -144,6 +150,7 @@ class MarkdownView : public QWidget {
   bool code_line_numbers_ = false;
   bool formula_rendering_enabled_ = true;
   bool mermaid_rendering_enabled_ = true;
+  MarkdownTheme theme_ = MarkdownTheme::Light;
   // 转储时给每次 ApplyDocument 的源/最终 HTML 编号（仅诊断用）
   int dump_apply_index_ = 0;
 };
