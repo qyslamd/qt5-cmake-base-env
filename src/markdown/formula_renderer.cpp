@@ -46,6 +46,11 @@ bool EnsureLoaded() {
   file.close();
 
   g_runtime = JS_NewRuntime();
+  if (g_runtime == nullptr) {
+    qWarning() << "JS_NewRuntime failed for mathjax payload";
+    g_load_failed = true;
+    return false;
+  }
   // MathJax 解析递归深，默认配额不够。这里放大 JS 侧配额，链接选项再把线程栈
   // 放大——两个数要配对，且**线程栈必须比 JS 配额宽裕**：JS 配额是"软"上限
   // （超了抛可捕获的异常），线程栈是"硬"的（超了直接崩，没有异常没有日志）。
@@ -54,6 +59,13 @@ bool EnsureLoaded() {
   // 直接失败，报 WinError 8 内存资源不足
   JS_SetMaxStackSize(g_runtime, 16U << 20);
   g_context = JS_NewContext(g_runtime);
+  if (g_context == nullptr) {
+    qWarning() << "JS_NewContext failed for mathjax payload";
+    g_load_failed = true;
+    JS_FreeRuntime(g_runtime);
+    g_runtime = nullptr;
+    return false;
+  }
 
   const JSValue result = JS_Eval(g_context, code.constData(), code.size(),
                                  "mathjax-svg", JS_EVAL_TYPE_GLOBAL);

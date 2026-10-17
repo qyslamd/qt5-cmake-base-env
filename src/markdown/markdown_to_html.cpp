@@ -2,6 +2,7 @@
 
 #include <QRegularExpression>
 #include <QStringList>
+#include <QUuid>
 #include <QVector>
 
 #include "code_highlighter.h"
@@ -21,8 +22,11 @@ struct MathSegment {
 // 公式在 md4c 眼里就是个普通文本占位符。抽出来在两头处理，是因为 $ 在两处
 // 意思不同：代码块/行内代码里是字面量，正文里才是公式——只有源码阶段分得清，
 // 对成品 HTML 正则会把 `awk '{ print $1 }'` 也当公式
-QString MathPlaceholder(int index) {
-  return QStringLiteral("@@mathjax-%1@@").arg(index);
+//
+// 占位符带每次调用的随机盐：占位符要在整份成品 HTML 上全局换回，固定格式
+// （如 @@mathjax-0@@）会被用户文本/代码块里的同形字面量撞上，被错换成公式
+QString MathPlaceholder(const QString& salt, int index) {
+  return QStringLiteral("@@mj-%1-%2@@").arg(salt).arg(index);
 }
 
 // 这个位置上的 $ 是不是被反斜杠转义了。数前面连续的反斜杠：奇数个才算转义
@@ -38,7 +42,8 @@ bool IsEscapedAt(const QString& line, int index) {
 }
 
 // 处理一行：跳过行内代码与转义的 \$，剩下的 $…$ / $$…$$ 换成占位符
-QString ExtractMathInLine(const QString& line, QVector<MathSegment>* segments) {
+QString ExtractMathInLine(const QString& line, QVector<MathSegment>* segments,
+                          const QString& salt) {
   QString out;
   int i = 0;
   const int size = line.size();
@@ -80,7 +85,7 @@ QString ExtractMathInLine(const QString& line, QVector<MathSegment>* segments) {
       const int close = line.indexOf(QStringLiteral("$$"), i + 2);
       if (close > i + 2) {
         segments->append({line.mid(i + 2, close - i - 2), true});
-        out += MathPlaceholder(segments->size() - 1);
+        out += MathPlaceholder(salt, segments->size() - 1);
         i = close + 2;
         continue;
       }
@@ -107,7 +112,7 @@ QString ExtractMathInLine(const QString& line, QVector<MathSegment>* segments) {
     }
     if (close > i + 1) {
       segments->append({line.mid(i + 1, close - i - 1), false});
-      out += MathPlaceholder(segments->size() - 1);
+      out += MathPlaceholder(salt, segments->size() - 1);
       i = close + 1;
       continue;
     }
@@ -119,7 +124,8 @@ QString ExtractMathInLine(const QString& line, QVector<MathSegment>* segments) {
 }
 
 // 逐行抽取：围栏代码块整段跳过；单独成行的 $$ 会把中间的行合并成一段公式
-QString ExtractMath(const QString& markdown, QVector<MathSegment>* segments) {
+QString ExtractMath(const QString& markdown, QVector<MathSegment>* segments,
+                    const QString& salt) {
   const QStringList lines = markdown.split(QLatin1Char('\n'));
   QStringList result;
   result.reserve(lines.size());
@@ -128,9 +134,15 @@ QString ExtractMath(const QString& markdown, QVector<MathSegment>* segments) {
   QString fence_marker;
   QString display_block;
   bool in_display_block = false;
+  // 缩进代码块（CommonMark：4 空格或 tab，且不能打断段落——段落开着的时候
+  // 缩进行只是续行）。近似口径：段落态按"上一非围栏/非代码行是否非空"维护，
+  // 列表项内的深缩进场景不覆盖
+  bool in_indent_code = false;
+  bool paragraph_open = false;
 
   for (const QString& line : lines) {
     const QString trimmed = line.trimmed();
+    const bool blank = trimmed.isEmpty();
 
     if (!in_display_block && (trimmed.startsWith(QLatin1String("```")) ||
                               trimmed.startsWith(QLatin1String("~~~")))) {
@@ -142,6 +154,7 @@ QString ExtractMath(const QString& markdown, QVector<MathSegment>* segments) {
         in_fence = false;
       }
       result << line;
+      paragraph_open = false;  // 围栏行不是段落内容
       continue;
     }
     if (in_fence) {
@@ -149,12 +162,30 @@ QString ExtractMath(const QString& markdown, QVector<MathSegment>* segments) {
       continue;
     }
 
+    if (!in_display_block) {
+      const bool indented = line.startsWith(QLatin1String("    ")) ||
+                            line.startsWith(QLatin1Char('\t'));
+      if (!in_indent_code && indented && !paragraph_open) {
+        in_indent_code = true;
+      }
+      if (in_indent_code) {
+        if (!indented && !blank) {
+          in_indent_code = false;  // 非缩进非空行结束代码块，落到普通处理
+        } else {
+          result << line;
+          paragraph_open = false;
+          continue;
+        }
+      }
+    }
+
     if (in_display_block) {
       if (trimmed == QLatin1String("$$")) {
         segments->append({display_block, true});
         in_display_block = false;
         display_block.clear();
-        result << MathPlaceholder(segments->size() - 1);
+        result << MathPlaceholder(salt, segments->size() - 1);
+        paragraph_open = false;
       } else {
         display_block += line + QLatin1Char('\n');
       }
@@ -163,10 +194,12 @@ QString ExtractMath(const QString& markdown, QVector<MathSegment>* segments) {
     if (trimmed == QLatin1String("$$")) {
       in_display_block = true;
       display_block.clear();
+      paragraph_open = false;
       continue;
     }
 
-    result << ExtractMathInLine(line, segments);
+    result << ExtractMathInLine(line, segments, salt);
+    paragraph_open = !blank;
   }
 
   // 没闭合的块级公式：按原文吐回去，不当公式
@@ -181,8 +214,9 @@ QString ExtractMath(const QString& markdown, QVector<MathSegment>* segments) {
 // 占位符换回渲染结果。渲染不出来（或调用方没给回调）就显示原文——一条坏公式
 // 不该吞掉整页
 QString RestoreMath(const QString& html, const QVector<MathSegment>& segments,
-                    const FormulaSink& formula) {
-  static const QRegularExpression kSlot(QStringLiteral("@@mathjax-(\\d+)@@"));
+                    const FormulaSink& formula, const QString& salt) {
+  // 盐是十六进制串，对正则安全
+  const QRegularExpression kSlot(QStringLiteral("@@mj-%1-(\\d+)@@").arg(salt));
   QString result;
   int consumed = 0;
   auto matches = kSlot.globalMatch(html);
@@ -321,7 +355,11 @@ QString MarkdownToHtml(const QString& markdown, const FormulaSink& formula,
   // 公式在 md4c 之前抽出占位符、之后换回渲染结果；没给回调就整段跳过，
   // 一个字符都不动（$…$ 于是原样显示）
   QVector<MathSegment> segments;
-  const QString source = formula ? ExtractMath(markdown, &segments) : markdown;
+  // 占位符盐：一次渲染一个，抽与还必须同盐（见 MathPlaceholder 的注释）
+  const QString math_salt =
+      QUuid::createUuid().toString(QUuid::WithoutBraces).left(8);
+  const QString source =
+      formula ? ExtractMath(markdown, &segments, math_salt) : markdown;
 
   const QByteArray utf8 = source.toUtf8();
   QString html;
@@ -337,6 +375,6 @@ QString MarkdownToHtml(const QString& markdown, const FormulaSink& formula,
   // 的外框，这里的 id 因此不会被谁冲掉
   return AddHeadingIds(
       RestoreMath(HighlightCodeBlocks(html, mermaid, code_blocks), segments,
-                  formula),
+                  formula, math_salt),
       heading_ids);
 }

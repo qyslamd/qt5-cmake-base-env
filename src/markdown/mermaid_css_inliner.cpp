@@ -1,5 +1,7 @@
 #include "mermaid_css_inliner.h"
 
+#include <algorithm>
+
 #include <QHash>
 #include <QRegularExpression>
 #include <QSet>
@@ -29,6 +31,11 @@ struct ElementInfo {
 
 struct CssRule {
   QVector<SelectorPart> chain;  // 从祖先到后代
+  // specificity 三元组 (id, class, tag)，跨整条链累加——同属性按它决胜，
+  // 而不是文档顺序
+  int spec_ids = 0;
+  int spec_classes = 0;
+  int spec_tags = 0;
   QHash<QString, QString> decls;
   QSet<QString> important;
 };
@@ -205,6 +212,9 @@ QVector<CssRule> ParseCssRules(const QString& css) {
         sp.direct_child = pending_child && !rule.chain.isEmpty();
         pending_child = false;
         rule.chain.append(sp);
+        rule.spec_ids += simple.id.isEmpty() ? 0 : 1;
+        rule.spec_classes += simple.classes.size();
+        rule.spec_tags += simple.tag.isEmpty() ? 0 : 1;
       }
       if (!ok || rule.chain.isEmpty() || pending_child) {
         continue;
@@ -309,10 +319,23 @@ QString InlineSvgCss(const QString& svg, const QString& font_family) {
   // 的一部分，按 CSS 语法切分会把值截成 &quot，属性损坏、整份 SVG 解析失败
   css = DecodeHtmlEntities(css);
 
-  const QVector<CssRule> rules = ParseCssRules(css);
-  if (rules.isEmpty()) {
+  const QVector<CssRule> parsed = ParseCssRules(css);
+  if (parsed.isEmpty()) {
     return svg_without_style;
   }
+  // 同属性按 specificity 决胜、同 specificity 按文档顺序：排序一次，
+  // 下面的应用循环顺序本身就成了优先级
+  QVector<CssRule> rules = parsed;
+  std::stable_sort(rules.begin(), rules.end(),
+                   [](const CssRule& a, const CssRule& b) {
+                     if (a.spec_ids != b.spec_ids) {
+                       return a.spec_ids < b.spec_ids;
+                     }
+                     if (a.spec_classes != b.spec_classes) {
+                       return a.spec_classes < b.spec_classes;
+                     }
+                     return a.spec_tags < b.spec_tags;
+                   });
 
   static const QRegularExpression kTag(
       QStringLiteral("<(/)?([a-zA-Z][a-zA-Z0-9:_-]*)((?:\\s[^>]*?)?)(/)?>"),
@@ -388,6 +411,11 @@ QString InlineSvgCss(const QString& svg, const QString& font_family) {
     QSet<QString> important;
     ParseDecls(DecodeHtmlEntities(attrs.value(QStringLiteral("style"))), &decls,
                &important);
+    // 内联 style 的层叠位次高于一切"规则 normal"声明：它只在规则带
+    // !important 时才让位（内联自己 !important 则谁也盖不动）。
+    // 这套键要从初始解析里记下来——后面 decls 会被规则逐步覆盖，分不清
+    // 谁是内联带来的
+    const QSet<QString> inline_keys(decls.keyBegin(), decls.keyEnd());
 
     for (const CssRule& rule : rules) {
       if (!MatchChain(stack, rule)) {
@@ -398,6 +426,9 @@ QString InlineSvgCss(const QString& svg, const QString& font_family) {
         const bool new_important = rule.important.contains(dit.key());
         const bool old_important = important.contains(dit.key());
         if (old_important && !new_important) {
+          continue;
+        }
+        if (inline_keys.contains(dit.key()) && !new_important) {
           continue;
         }
         decls[dit.key()] = dit.value();

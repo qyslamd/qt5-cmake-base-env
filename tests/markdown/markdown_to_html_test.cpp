@@ -173,6 +173,46 @@ TEST(MarkdownToHtmlTest, UnclosedDisplayBlockStaysText) {
       << html.toStdString();
 }
 
+// 占位符格式与用户字面量撞形：占位符要在整份成品 HTML 上全局换回，固定
+// 格式（老实现是 @@mathjax-0@@）会被正文/代码里的同形字面量撞上、错换成
+// 公式。现在带每次调用的随机盐，同形概率可忽略——字面量必须原样活着
+TEST(MarkdownToHtmlTest, PlaceholderShapedUserTextStaysLiteral) {
+  FormulaProbe probe;
+  const QString html =
+      MarkdownToHtml(QStringLiteral("正文里有字面 @@mathjax-0@@ 和 "
+                                    "@@mj-abc123-0@@ 字样，加公式 $x^2$。\n"),
+                     probe.Sink());
+  ASSERT_EQ(probe.texes.size(), 1);
+  EXPECT_EQ(probe.texes.at(0), QStringLiteral("x^2"));
+  EXPECT_TRUE(html.contains(QStringLiteral("@@mathjax-0@@")))
+      << html.toStdString();
+  EXPECT_TRUE(html.contains(QStringLiteral("@@mj-abc123-0@@")))
+      << html.toStdString();
+}
+
+// 缩进代码块（4 空格，CommonMark）里的 $ 是字面量。块不能打断段落，
+// 所以用空行隔开的写法
+TEST(MarkdownToHtmlTest, IndentedCodeBlockDollarsStayLiteral) {
+  FormulaProbe probe;
+  const QString html = MarkdownToHtml(
+      QStringLiteral("引子\n\n    cost $5 and $10 total\n\n收尾 $x$ 尾。\n"),
+      probe.Sink());
+  ASSERT_EQ(probe.texes.size(), 1);
+  EXPECT_EQ(probe.texes.at(0), QStringLiteral("x"));
+  EXPECT_TRUE(html.contains(QStringLiteral("cost $5 and $10 total")))
+      << html.toStdString();
+}
+
+// 段落开着的缩进行只是续行（CommonMark），里面的 $ 照常当公式——
+// 缩进代码块的判定不能过宽
+TEST(MarkdownToHtmlTest, IndentedContinuationStillExtractsFormulas) {
+  FormulaProbe probe;
+  const QString html = MarkdownToHtml(
+      QStringLiteral("段落首行\n    续行 $y$ 收\n"), probe.Sink());
+  ASSERT_EQ(probe.texes.size(), 1);
+  EXPECT_EQ(probe.texes.at(0), QStringLiteral("y"));
+}
+
 // 回归点：md4c 在 GFM 下放行内联原始 HTML，正文里没闭合的裸 <pre><code> 若不加
 // 行首锚点，会一直匹配到文档后面下一个 </code></pre>，把中间整段正文吞成代码
 TEST(MarkdownToHtmlTest, StrayInlinePreCodeDoesNotSwallowLaterBlocks) {

@@ -37,9 +37,9 @@
 
 ## 已知偏差（设计 §7.1，暂时没咬到）
 
-- [ ] CSS 层叠与规范不一致：内联 `style=""` 本该压过非 `!important` 的作者规则，
-      现在是被覆盖；同属性还按文档顺序而非 specificity 决胜。当前只有字体族一处
-      强制（写在所有规则之后，安全），做别的改写就会撞上。
+- [x] ~~CSS 层叠与规范不一致~~（2026-10-17 已修：规则按 specificity 决胜、
+      内联 style 高于规则 normal、只有规则 `!important` 能压内联；测试钉在
+      `mermaid_svg_cleanup_test` 的 `MermaidCssInlinerTest` 三条）
 - [ ] `d` 属性方向：拿"最后两个坐标对"当方向，小写相对命令（`m`/`l`/`c`）与 `A`
       弧命令会算飞。flowchart classic 边是绝对 `M`/`L`/`C` 恰好没踩到，换图类型要补。
 - [ ] `journey` / `timeline` 要补 `textPlacement: 'tspan'`，否则这两类图走

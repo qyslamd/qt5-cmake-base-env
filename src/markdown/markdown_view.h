@@ -41,7 +41,11 @@ class MarkdownView : public QWidget {
   // 留后门——否则相对图片会悄悄按上次那个目录解析
   void SetContent(const QString& markdown, const QString& base_dir);
   QString current_file() const { return current_file_; }
-  bool has_document() const { return !current_file_.isEmpty(); }
+  // 两种载入都算"有文档"：LoadFile 落 current_file_，SetContent 只落
+  // markdown_——只查后者的话文本直载后这里恒为 false
+  bool has_document() const {
+    return !current_file_.isEmpty() || !markdown_.isEmpty();
+  }
 
   // 滚到页内锚点：用户写的是 slug（`#标题`），这里经内部的 slug→id 表换成
   // 元素再滚；查不到就原样透传（手写的 <a name="x"> 那类归 litehtml 自己找）

@@ -92,4 +92,14 @@ TEST(MarkdownViewActionsTest, PrintNullPrinterIsNoop) {
   view.Print(nullptr);
 }
 
+// 文本直载也算"有文档"：SetContent 只落 markdown_、不动 current_file_，
+// has_document 只查后者的话这里恒为 false（md_viewer 的导出守卫就踩过）
+TEST(MarkdownViewActionsTest, SetContentMarksDocumentAsPresent) {
+  MarkdownView view;
+  EXPECT_FALSE(view.has_document());
+  view.SetContent(SampleMarkdown(), QString());
+  EXPECT_TRUE(view.has_document());
+  EXPECT_TRUE(view.current_file().isEmpty());  // 依旧没有文件归属
+}
+
 }  // namespace

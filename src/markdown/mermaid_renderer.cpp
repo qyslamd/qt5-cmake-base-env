@@ -253,6 +253,8 @@ bool EnsureLoaded() {
   g_context = JS_NewContext(g_runtime);
   if (g_context == nullptr) {
     g_load_failed = true;
+    JS_FreeRuntime(g_runtime);
+    g_runtime = nullptr;
     return false;
   }
 
@@ -369,7 +371,10 @@ QString RenderMermaidSvg(const QString& code) {
     global = JS_GetGlobalObject(g_context);
     JSValue value = JS_GetPropertyStr(g_context, global, "__renderResult");
     JSValue error = JS_GetPropertyStr(g_context, global, "__renderError");
-    done = !JS_IsNull(value) || !JS_IsNull(error);
+    // JS_IsNull 只认 null；.then 里赋了 undefined（比如 r.svg 缺失）时
+    // 会被当成"还没完成"，白跑到预算上限还报假错误
+    done = !(JS_IsNull(value) || JS_IsUndefined(value)) ||
+           !(JS_IsNull(error) || JS_IsUndefined(error));
     JS_FreeValue(g_context, value);
     JS_FreeValue(g_context, error);
     JS_FreeValue(g_context, global);

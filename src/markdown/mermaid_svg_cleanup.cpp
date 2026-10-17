@@ -292,8 +292,6 @@ struct MarkerDef {
   QString content;
   double ref_x = 0.0;
   double ref_y = 0.0;
-  double vb_x = 0.0;
-  double vb_y = 0.0;
   double vb_w = 0.0;
   double vb_h = 0.0;
   bool has_view_box = false;
@@ -338,8 +336,6 @@ QHash<QString, MarkerDef> ParseMarkers(const QString& svg) {
           vm.captured(1).split(QRegularExpression(QStringLiteral("[\\s,]+")));
       nums.removeAll(QString());
       if (nums.size() == 4) {
-        def.vb_x = nums[0].toDouble();
-        def.vb_y = nums[1].toDouble();
         def.vb_w = nums[2].toDouble();
         def.vb_h = nums[3].toDouble();
         def.has_view_box = def.vb_w > 0.0 && def.vb_h > 0.0;
@@ -427,13 +423,14 @@ QString EmitMarker(const MarkerDef& def, const QPointF& anchor,
 
   double sx = 1.0;
   double sy = 1.0;
+  // 对齐平移只有 −ref：refX/refY 与 marker 内容同处 viewBox 坐标系，而
+  // V(p)−V(ref) = scale·(p−ref)，viewBox 的平移项在差里相消——它只贡献
+  // 缩放。把 vb 原点塞进平移会让 marker 整体偏移 −scale·vb
   double tx = def.ref_x;
   double ty = def.ref_y;
   if (def.has_view_box) {
     sx = def.width / def.vb_w;
     sy = def.height / def.vb_h;
-    tx += def.vb_x;
-    ty += def.vb_y;
   }
   if (def.stroke_units) {
     sx *= stroke_width;
