@@ -5,12 +5,15 @@
 #include <QString>
 
 class QAction;
+class QCloseEvent;
 class QLabel;
 class QLineEdit;
 class QListWidget;
 class QListWidgetItem;
+class QMenu;
 class QTimer;
 enum class MarkdownTheme;
+struct MdViewerSettings;
 class FluentWindowFrame;
 class MarkdownOutlineWidget;
 class MarkdownView;
@@ -24,10 +27,17 @@ class MdViewerWindow : public QMainWindow {
   Q_OBJECT
 
  public:
-  explicit MdViewerWindow(QWidget* parent = nullptr);
+  explicit MdViewerWindow(MdViewerSettings* settings,
+                          QWidget* parent = nullptr);
+  ~MdViewerWindow() override;
 
   // 命令行参数进来：目录就铺开侧栏并看第一篇，文件直接看
   void OpenPath(const QString& path);
+  // 没有命令行参数时：打开最近记录里第一个仍存在的文件
+  void OpenLastFile();
+
+ protected:
+  void closeEvent(QCloseEvent* event) override;
 
  private:
   void createActions();
@@ -51,6 +61,9 @@ class MdViewerWindow : public QMainWindow {
   void RefreshDirectoryListing(const QString& dir);
   void ShowFile(const QString& path);
   void SelectInList(const QString& path);
+  void RefreshRecentMenu();
+  // 关闭/退出时把窗口与渲染状态写回 md_viewer.ini
+  void SaveSettings();
 
   // 菜单里挂着；菜单栏在 fluent 壳下会被搬进标题栏
   QAction* open_file_action_ = nullptr;
@@ -80,6 +93,10 @@ class MdViewerWindow : public QMainWindow {
 
   // 无边框窗口壳（QWK + Fluent 标题栏）
   FluentWindowFrame* fluent_frame_ = nullptr;
+
+  // exe 同级的 md_viewer.ini，归 main 持有，生命周期长于本窗口
+  MdViewerSettings* settings_ = nullptr;
+  QMenu* recent_menu_ = nullptr;
 };
 
 #endif  // FILE_EXAMPLES_MD_VIEWER_MD_VIEWER_WINDOW_H_

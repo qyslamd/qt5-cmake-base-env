@@ -5,6 +5,8 @@ set(TARGET_NAME "md_viewer")
 
 set(ALL_SRCS
     main.cpp
+    md_viewer_settings.cpp
+    md_viewer_settings.h
     md_viewer_window.cpp
     md_viewer_window.h
     render_settings_panel.cpp
@@ -65,9 +67,9 @@ endif()
 # 生成运行脚本（Windows 为 .bat，Linux 为 .sh），输出到可执行文件所在目录
 configure_run_script("run_${TARGET_NAME}")
 
-# 部署：与 fft_demo 同一个理由——app 侧的 make_deploy 只对 demo_app.exe 跑
-# windeployqt（按导入表收集），收不到本目标的依赖。顶层再把它挂成 make_deploy
-# 的前置，顺序执行免得两个 windeployqt 同时往 bin/ 写
+# 部署：独立目标，不挂顶层的 make_deploy，也不参与 build_ninja.bat 的 -d/-p。
+# md_viewer 有自己的打包脚本（见文件末尾），windeployqt 由它自己跑；保留这个
+# 目标只是为了需要时手动执行 --target deploy_md_viewer
 if(WIN32 AND EXISTS ${WINDEPLOYQT_EXECUTABLE})
     add_custom_target(deploy_${TARGET_NAME}
         COMMAND ${WINDEPLOYQT_EXECUTABLE}
@@ -80,4 +82,79 @@ if(WIN32 AND EXISTS ${WINDEPLOYQT_EXECUTABLE})
         COMMENT "Running windeployqt for ${TARGET_NAME}..."
     )
     add_dependencies(deploy_${TARGET_NAME} ${TARGET_NAME})
+endif()
+
+#-------------------------------------------------------------------------------
+# 独立 Windows 安装包：信息全部在本文件里设置，不取顶层项目定制区，也不参与
+# 顶层 build_ninja.bat 的 -p / -d。
+#
+#   cmake --build <build_dir> --target package_md_viewer
+#
+# 也可以直接运行 <build_dir>/examples/md_viewer/make_win_install.bat。脚本先跑
+# windeployqt，再调用 Inno Setup 生成安装包，输出到 dist/md_viewer/
+#-------------------------------------------------------------------------------
+if(WIN32)
+    find_program(MD_VIEWER_WINDEPLOYQT
+        NAMES windeployqt
+        HINTS "${QT_BIN_DIR}"
+        NO_DEFAULT_PATH
+    )
+    find_program(MD_VIEWER_ISCC
+        NAMES ISCC
+        HINTS "${CMAKE_SOURCE_DIR}/3rdparty/Inno Setup 6"
+    )
+    if(EXISTS "${MD_VIEWER_WINDEPLOYQT}" AND EXISTS "${MD_VIEWER_ISCC}")
+        if(NOT COMMAND resolve_app_version)
+            include(${CMAKE_SOURCE_DIR}/cmake/version_manage.cmake)
+        endif()
+        resolve_app_version(MD_VIEWER)
+
+        # 产品信息：改动这里即可，不需要动顶层 CMakeLists.txt
+        set(MD_VIEWER_PACKAGE_NAME "Markdown 查看器")
+        set(MD_VIEWER_PACKAGE_PUBLISHER "zhouyonghua")
+        set(MD_VIEWER_PACKAGE_URL "https://github.com/qyslamd/qt5-cmake-base-env")
+        # 每个产品必须独立的 Inno AppId；此 GUID 仅属于 md_viewer
+        set(MD_VIEWER_APP_ID "{{1ff7ae24-b77c-4d93-b454-85bc337dc159}}")
+        set(MD_VIEWER_ICON_ICO "${CMAKE_CURRENT_SOURCE_DIR}/resources/icon.ico")
+        set(MD_VIEWER_WHERE_ARE_FILES "${CMAKE_BINARY_DIR}/bin")
+        set(MD_VIEWER_PACKAGE_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/dist/md_viewer")
+
+        if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+            set(MD_VIEWER_ARCH_SUFFIX "x64")
+            set(MD_VIEWER_USE_64BIT "YES")
+            set(MD_VIEWER_VC_REDIST "vc_redist.x64.exe")
+        else()
+            set(MD_VIEWER_ARCH_SUFFIX "x86")
+            set(MD_VIEWER_USE_64BIT "NO")
+            set(MD_VIEWER_VC_REDIST "vc_redist.x86.exe")
+        endif()
+
+        set(MD_VIEWER_ISS_FILE "${CMAKE_CURRENT_BINARY_DIR}/md_viewer.iss")
+        set(MD_VIEWER_INSTALLER_BAT
+            "${CMAKE_CURRENT_BINARY_DIR}/make_win_install.bat")
+        file(MAKE_DIRECTORY "${MD_VIEWER_PACKAGE_OUTPUT_DIR}")
+
+        configure_file(
+            "${CMAKE_CURRENT_SOURCE_DIR}/md_viewer.iss.in"
+            "${MD_VIEWER_ISS_FILE}"
+            @ONLY
+            NEWLINE_STYLE DOS
+        )
+        configure_file(
+            "${CMAKE_CURRENT_SOURCE_DIR}/make_win_install.bat.in"
+            "${MD_VIEWER_INSTALLER_BAT}"
+            @ONLY
+            NEWLINE_STYLE DOS
+        )
+
+        add_custom_target(package_${TARGET_NAME}
+            COMMAND "${MD_VIEWER_INSTALLER_BAT}"
+            WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+            COMMENT "Packaging ${TARGET_NAME} with windeployqt + Inno Setup..."
+        )
+        add_dependencies(package_${TARGET_NAME} ${TARGET_NAME})
+    else()
+        message(STATUS
+            "md_viewer: windeployqt or ISCC not found; package target skipped")
+    endif()
 endif()

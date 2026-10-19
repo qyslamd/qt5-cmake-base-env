@@ -1,0 +1,94 @@
+#include "md_viewer_settings.h"
+
+#include <QCoreApplication>
+#include <QDebug>
+#include <QFileInfo>
+#include <QSettings>
+
+namespace {
+
+constexpr int kMaxRecentFiles = 10;
+
+constexpr char kKeyGeometry[] = "window/geometry";
+constexpr char kKeyDockState[] = "window/dock_state";
+constexpr char kKeyDarkTheme[] = "appearance/dark_theme";
+constexpr char kKeyWindowBlur[] = "appearance/window_blur";
+constexpr char kKeyCodeLineNumbers[] = "render/code_line_numbers";
+constexpr char kKeyFormula[] = "render/formula";
+constexpr char kKeyMermaid[] = "render/mermaid";
+constexpr char kKeyPersistentCache[] = "render/persistent_cache";
+constexpr char kKeyRecentFiles[] = "recent/files";
+
+// exe 目录不可写时只提示一次，不要每次开文件都刷屏
+void WarnWriteFailed(const QSettings& settings) {
+  if (settings.status() == QSettings::NoError) {
+    return;
+  }
+  static bool warned = false;
+  if (!warned) {
+    warned = true;
+    qWarning() << "md_viewer: 无法写入设置文件" << settings.fileName();
+  }
+}
+
+}  // namespace
+
+QString MdViewerSettings::DefaultPath() {
+  return QCoreApplication::applicationDirPath() +
+         QStringLiteral("/md_viewer.ini");
+}
+
+void MdViewerSettings::Load() {
+  QSettings settings(DefaultPath(), QSettings::IniFormat);
+  settings.setIniCodec("UTF-8");
+  window_geometry = settings.value(kKeyGeometry).toByteArray();
+  dock_state = settings.value(kKeyDockState).toByteArray();
+  dark_theme = settings.value(kKeyDarkTheme, false).toBool();
+  window_blur = settings.value(kKeyWindowBlur, true).toBool();
+  code_line_numbers = settings.value(kKeyCodeLineNumbers, false).toBool();
+  formula_rendering = settings.value(kKeyFormula, true).toBool();
+  mermaid_rendering = settings.value(kKeyMermaid, true).toBool();
+  persistent_cache = settings.value(kKeyPersistentCache, true).toBool();
+  recent_files = settings.value(kKeyRecentFiles).toStringList();
+  while (recent_files.size() > kMaxRecentFiles) {
+    recent_files.removeLast();
+  }
+}
+
+void MdViewerSettings::Save() const {
+  QSettings settings(DefaultPath(), QSettings::IniFormat);
+  settings.setIniCodec("UTF-8");
+  if (!window_geometry.isEmpty()) {
+    settings.setValue(kKeyGeometry, window_geometry);
+  }
+  if (!dock_state.isEmpty()) {
+    settings.setValue(kKeyDockState, dock_state);
+  }
+  settings.setValue(kKeyDarkTheme, dark_theme);
+  settings.setValue(kKeyWindowBlur, window_blur);
+  settings.setValue(kKeyCodeLineNumbers, code_line_numbers);
+  settings.setValue(kKeyFormula, formula_rendering);
+  settings.setValue(kKeyMermaid, mermaid_rendering);
+  settings.setValue(kKeyPersistentCache, persistent_cache);
+  settings.setValue(kKeyRecentFiles, recent_files);
+  settings.sync();
+  WarnWriteFailed(settings);
+}
+
+void MdViewerSettings::SaveRecent() const {
+  QSettings settings(DefaultPath(), QSettings::IniFormat);
+  settings.setIniCodec("UTF-8");
+  settings.setValue(kKeyRecentFiles, recent_files);
+  settings.sync();
+  WarnWriteFailed(settings);
+}
+
+void MdViewerSettings::AddRecentFile(const QString& path) {
+  const QString absolute_path = QFileInfo(path).absoluteFilePath();
+  recent_files.removeAll(absolute_path);
+  recent_files.prepend(absolute_path);
+  while (recent_files.size() > kMaxRecentFiles) {
+    recent_files.removeLast();
+  }
+  SaveRecent();
+}

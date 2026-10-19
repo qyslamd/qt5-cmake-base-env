@@ -6,6 +6,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QCloseEvent>
 #include <QDesktopServices>
 #include <QDir>
 #include <QDockWidget>
@@ -35,6 +36,7 @@
 
 #include "markdown_outline_widget.h"
 #include "markdown_view.h"
+#include "md_viewer_settings.h"
 #include "render_settings_panel.h"
 #include "render_status_panel.h"
 
@@ -80,11 +82,22 @@ QIcon TextActionIcon(const QString& text, bool active) {
 
 }  // namespace
 
-MdViewerWindow::MdViewerWindow(QWidget* parent) : QMainWindow(parent) {
+MdViewerWindow::MdViewerWindow(MdViewerSettings* settings, QWidget* parent)
+    : QMainWindow(parent), settings_(settings) {
+  Q_ASSERT(settings_ != nullptr);
   createActions();
   initUi();
   initSignals();
+  if (!settings_->window_geometry.isEmpty()) {
+    restoreGeometry(settings_->window_geometry);
+  }
+  if (!settings_->dock_state.isEmpty()) {
+    restoreState(settings_->dock_state);
+  }
 }
+
+// qApp->quit() 不会走 closeEvent，析构时补一次落盘
+MdViewerWindow::~MdViewerWindow() { SaveSettings(); }
 
 void MdViewerWindow::createActions() {
   open_file_action_ = new QAction(QStringLiteral("打开文件…"), this);
@@ -118,11 +131,19 @@ void MdViewerWindow::initUi() {
 
   // 渲染全部由模块负责：加载、样式、缩放、锚点、代码块复制都是它的内置能力
   view_ = new MarkdownView(this);
+  // 主题与渲染开关要在面板构造前落到视图上，面板才能显示正确的初始值
+  view_->SetTheme(settings_->dark_theme ? MarkdownTheme::Dark
+                                        : MarkdownTheme::Light);
+  view_->SetCodeLineNumbers(settings_->code_line_numbers);
+  view_->SetFormulaRenderingEnabled(settings_->formula_rendering);
+  view_->SetMermaidRenderingEnabled(settings_->mermaid_rendering);
+  view_->SetPersistentRenderCacheEnabled(settings_->persistent_cache);
   setCentralWidget(view_);
 
   QMenu* file_menu = menuBar()->addMenu(QStringLiteral("文件(&F)"));
   file_menu->addAction(open_file_action_);
   file_menu->addAction(open_dir_action_);
+  recent_menu_ = file_menu->addMenu(QStringLiteral("最近打开"));
   file_menu->addSeparator();
   file_menu->addAction(export_pdf_action_);
   file_menu->addSeparator();
@@ -167,6 +188,7 @@ void MdViewerWindow::initUi() {
   settings_dock->setObjectName(QStringLiteral("renderSettingsDock"));
   settings_dock->setMinimumWidth(280);
   render_settings_ = new RenderSettingsPanel(view_, settings_dock);
+  render_settings_->SetWindowBlurEnabled(settings_->window_blur);
   settings_dock->setWidget(render_settings_);
   addDockWidget(Qt::RightDockWidgetArea, settings_dock);
   view_menu->addAction(settings_dock->toggleViewAction());
@@ -187,7 +209,9 @@ void MdViewerWindow::initUi() {
 #ifdef Q_OS_WIN
   // DWM 在窗口后面做模糊（Win8+ 走 SetWindowCompositionAttribute）。
   // QWK 在拿不到 HWND 时会缓存属性，show 后自动补应用
-  fluent_frame_->setWindowBackdrop(QStringLiteral("dwm-blur"));
+  if (settings_->window_blur) {
+    fluent_frame_->setWindowBackdrop(QStringLiteral("dwm-blur"));
+  }
 #endif
 
   // 直接用标题栏自带的搜索框：模式开关与上一个/下一个内嵌成 Trailing action
@@ -201,6 +225,7 @@ void MdViewerWindow::initUi() {
   search_timer_->setSingleShot(true);
   search_timer_->setInterval(250);
   UpdateSearchActionIcons();
+  RefreshRecentMenu();
 }
 
 void MdViewerWindow::initSignals() {
@@ -221,7 +246,9 @@ void MdViewerWindow::initSignals() {
   connect(about_action_, &QAction::triggered, this, [this] {
     QMessageBox::about(this, QStringLiteral("关于"),
                        QStringLiteral("Markdown 查看器——examples 里的宿主示例，"
-                                      "渲染由 src/markdown 提供。"));
+                                      "渲染由 src/markdown 提供。\n\n"
+                                      "作者：zhouyonghua\n"
+                                      "邮箱：zhouyohu@163.com"));
   });
   // 点列表换文档。UserRole 存的是全路径
   connect(file_list_, &QListWidget::itemClicked, this,
@@ -361,6 +388,15 @@ void MdViewerWindow::OpenPath(const QString& path) {
   ShowFile(info.absoluteFilePath());
 }
 
+void MdViewerWindow::OpenLastFile() {
+  for (const QString& path : settings_->recent_files) {
+    if (QFileInfo(path).isFile()) {
+      OpenPath(path);
+      return;
+    }
+  }
+}
+
 void MdViewerWindow::OpenFileDialog() {
   const QString start_dir =
       listed_dir_.isEmpty() ? QDir::homePath() : listed_dir_;
@@ -442,6 +478,9 @@ void MdViewerWindow::ShowFile(const QString& path) {
   path_label_->setText(info.fileName());
   path_label_->setToolTip(info.absoluteFilePath());
   SelectInList(info.absoluteFilePath());
+  // 最近记录立即落盘：即使随后异常退出，也不会丢这次打开
+  settings_->AddRecentFile(info.absoluteFilePath());
+  RefreshRecentMenu();
 }
 
 void MdViewerWindow::SelectInList(const QString& path) {
@@ -453,6 +492,53 @@ void MdViewerWindow::SelectInList(const QString& path) {
       return;
     }
   }
+}
+
+void MdViewerWindow::RefreshRecentMenu() {
+  if (recent_menu_ == nullptr) {
+    return;
+  }
+  recent_menu_->clear();
+  if (settings_->recent_files.isEmpty()) {
+    QAction* empty = recent_menu_->addAction(QStringLiteral("（无）"));
+    empty->setEnabled(false);
+    return;
+  }
+  for (const QString& path : settings_->recent_files) {
+    QAction* action = recent_menu_->addAction(QFileInfo(path).fileName());
+    action->setToolTip(path);
+    connect(action, &QAction::triggered, this,
+            [this, path] { OpenPath(path); });
+  }
+  recent_menu_->addSeparator();
+  QAction* clear = recent_menu_->addAction(QStringLiteral("清除最近记录"));
+  connect(clear, &QAction::triggered, this, [this] {
+    settings_->recent_files.clear();
+    settings_->SaveRecent();
+    RefreshRecentMenu();
+  });
+}
+
+void MdViewerWindow::SaveSettings() {
+  if (settings_ == nullptr || view_ == nullptr) {
+    return;
+  }
+  settings_->window_geometry = saveGeometry();
+  settings_->dock_state = saveState();
+  settings_->dark_theme = view_->theme() == MarkdownTheme::Dark;
+  settings_->code_line_numbers = view_->code_line_numbers();
+  settings_->formula_rendering = view_->formula_rendering_enabled();
+  settings_->mermaid_rendering = view_->mermaid_rendering_enabled();
+  settings_->persistent_cache = view_->persistent_render_cache_enabled();
+#ifdef Q_OS_WIN
+  settings_->window_blur = qApp->property("_q_widget_mode").toInt() >= 1;
+#endif
+  settings_->Save();
+}
+
+void MdViewerWindow::closeEvent(QCloseEvent* event) {
+  SaveSettings();
+  QMainWindow::closeEvent(event);
 }
 
 void MdViewerWindow::FocusSearch() {

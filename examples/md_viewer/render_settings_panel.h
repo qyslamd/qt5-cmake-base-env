@@ -24,6 +24,8 @@ class RenderSettingsPanel : public QWidget {
 
   // 外部（标题栏主题按钮）改了文档主题时同步下拉框，不再反向触发
   void SetTheme(MarkdownTheme theme);
+  // 启动时按持久化设置同步模糊开关，不触发重新应用
+  void SetWindowBlurEnabled(bool enabled);
 
  signals:
   void statusMessage(const QString& message);

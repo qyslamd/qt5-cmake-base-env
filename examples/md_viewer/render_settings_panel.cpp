@@ -193,6 +193,19 @@ void RenderSettingsPanel::SetTheme(MarkdownTheme theme) {
   theme_->setCurrentIndex(index);
 }
 
+void RenderSettingsPanel::SetWindowBlurEnabled(bool enabled) {
+#ifdef Q_OS_WIN
+  if (window_blur_ == nullptr) {
+    return;
+  }
+  const QSignalBlocker blocker(window_blur_);
+  window_blur_->setChecked(enabled);
+  window_blur_->setText(enabled ? QStringLiteral("开") : QStringLiteral("关"));
+#else
+  Q_UNUSED(enabled);
+#endif
+}
+
 void RenderSettingsPanel::initSignals() {
 #ifdef Q_OS_WIN
   connect(window_blur_, &QCheckBox::toggled, this,

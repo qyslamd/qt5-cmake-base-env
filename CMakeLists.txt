@@ -503,12 +503,10 @@ add_subdirectory(src)
 add_subdirectory(examples)
 
 # 示例自己的部署目标排在 make_deploy 之前：两个 windeployqt 都会往同一个 bin/
-# 写文件，并发跑会打架（原因见 examples/fft_demo/CMakeLists.txt）
+# 写文件，并发跑会打架（原因见 examples/fft_demo/CMakeLists.txt）。
+# md_viewer 不在这里：它有自己的打包脚本，不参与 -d / -p。
 if(TARGET make_deploy AND TARGET deploy_fft_demo)
     add_dependencies(make_deploy deploy_fft_demo)
-endif()
-if(TARGET make_deploy AND TARGET deploy_md_viewer)
-    add_dependencies(make_deploy deploy_md_viewer)
 endif()
 
 # 单元测试
