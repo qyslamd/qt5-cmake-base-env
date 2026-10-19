@@ -1,9 +1,12 @@
 #include "render_status_panel.h"
 
 #include <QFont>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QPalette>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QVBoxLayout>
 
 #include "markdown_types.h"
@@ -38,28 +41,51 @@ QString CounterText(const MarkdownContextStatus& counters) {
 
 RenderStatusPanel::RenderStatusPanel(MarkdownView* view, QWidget* parent)
     : QWidget(parent), view_(view) {
-  auto* layout = new QVBoxLayout(this);
+  // dock 可以被压得很矮：内容放进滚动区，别把计数器挤没
+  auto* panel_layout = new QVBoxLayout(this);
+  panel_layout->setContentsMargins(0, 0, 0, 0);
+
+  auto* scroll = new QScrollArea(this);
+  scroll->setObjectName(QStringLiteral("statusScroll"));
+  scroll->setWidgetResizable(true);
+  scroll->setFrameShape(QFrame::NoFrame);
+  scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  // blur 模式下 dock 本身是半透明的，滚动区不能再自己刷一层底色
+  scroll->setAutoFillBackground(false);
+  scroll->setBackgroundRole(QPalette::NoRole);
+  scroll->viewport()->setAutoFillBackground(false);
+  scroll->viewport()->setBackgroundRole(QPalette::NoRole);
+
+  auto* body = new QWidget;
+  body->setAutoFillBackground(false);
+  body->setBackgroundRole(QPalette::NoRole);
+  auto* layout = new QVBoxLayout(body);
   layout->setContentsMargins(12, 12, 12, 12);
   layout->setSpacing(10);
 
-  auto* title = new QLabel(QStringLiteral("渲染状态"), this);
+  auto* title = new QLabel(QStringLiteral("渲染状态"), body);
   QFont font = title->font();
   font.setBold(true);
   title->setFont(font);
   layout->addWidget(title);
 
-  highlight_ = new QLabel(this);
+  highlight_ = new QLabel(body);
   highlight_->setObjectName(QStringLiteral("statusHighlight"));
-  formula_ = new QLabel(this);
+  formula_ = new QLabel(body);
   formula_->setObjectName(QStringLiteral("statusFormula"));
-  mermaid_ = new QLabel(this);
+  mermaid_ = new QLabel(body);
   mermaid_->setObjectName(QStringLiteral("statusMermaid"));
   for (QLabel* label : {highlight_, formula_, mermaid_}) {
     label->setWordWrap(true);
+    // 纯文本避免计数器里的分隔符被当成富文本；鼠标可选、键盘可 Ctrl+C
+    label->setTextFormat(Qt::PlainText);
+    label->setTextInteractionFlags(Qt::TextSelectableByMouse |
+                                   Qt::TextSelectableByKeyboard);
+    label->setFocusPolicy(Qt::ClickFocus);
     layout->addWidget(label);
   }
 
-  auto* actions = new QWidget(this);
+  auto* actions = new QWidget(body);
   auto* actions_layout = new QHBoxLayout(actions);
   actions_layout->setContentsMargins(0, 0, 0, 0);
   actions_layout->setSpacing(6);
@@ -70,6 +96,9 @@ RenderStatusPanel::RenderStatusPanel(MarkdownView* view, QWidget* parent)
   actions_layout->addStretch(1);
   layout->addWidget(actions);
   layout->addStretch(1);
+
+  scroll->setWidget(body);
+  panel_layout->addWidget(scroll);
 
   connect(refresh, &QPushButton::clicked, this,
           &RenderStatusPanel::RefreshStatus);
