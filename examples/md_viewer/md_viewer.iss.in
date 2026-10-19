@@ -33,12 +33,14 @@ UninstallDisplayIcon={app}\@TARGET_NAME@.exe
 Uninstallable=yes
 UninstallDisplayName={#MyAppName}
 CloseApplications=yes
+ChangesAssociations=yes
 
 [Languages]
 Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: checkablealone
+Name: "associatefiles"; Description: "关联 .md / .markdown 文件"; GroupDescription: "文件关联："; Flags: checkablealone
 
 [Files]
 Source: "{#WhereAreFiles}\@TARGET_NAME@.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -50,6 +52,19 @@ Source: "{#WhereAreFiles}\platforms\*.dll"; DestDir: "{app}\platforms"; Flags: i
 Source: "{#WhereAreFiles}\imageformats\*.dll"; DestDir: "{app}\imageformats"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#WhereAreFiles}\iconengines\*.dll"; DestDir: "{app}\iconengines"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#WhereAreFiles}\styles\*.dll"; DestDir: "{app}\styles"; Flags: ignoreversion skipifsourcedoesntexist
+
+[Registry]
+; 可选任务：注册 .md / .markdown 的 ProgID。Windows 10/11 的默认应用受
+; UserChoice 保护，首次仍可能需要用户在“打开方式”里确认一次。
+Root: HKA; Subkey: "Software\Classes\MDViewer.Markdown"; ValueType: string; ValueName: ""; ValueData: "Markdown 文档"; Flags: uninsdeletekey; Tasks: associatefiles
+Root: HKA; Subkey: "Software\Classes\MDViewer.Markdown\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\@TARGET_NAME@.exe,0"; Tasks: associatefiles
+Root: HKA; Subkey: "Software\Classes\MDViewer.Markdown\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\@TARGET_NAME@.exe"" ""%1"""; Tasks: associatefiles
+Root: HKA; Subkey: "Software\Classes\.md"; ValueType: string; ValueName: ""; ValueData: "MDViewer.Markdown"; Flags: uninsdeletevalue; Tasks: associatefiles
+Root: HKA; Subkey: "Software\Classes\.markdown"; ValueType: string; ValueName: ""; ValueData: "MDViewer.Markdown"; Flags: uninsdeletevalue; Tasks: associatefiles
+Root: HKA; Subkey: "Software\Classes\Applications\@TARGET_NAME@.exe"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "{#MyAppName}"; Flags: uninsdeletekey; Tasks: associatefiles
+Root: HKA; Subkey: "Software\Classes\Applications\@TARGET_NAME@.exe\SupportedTypes"; ValueType: string; ValueName: ".md"; ValueData: ""; Tasks: associatefiles
+Root: HKA; Subkey: "Software\Classes\Applications\@TARGET_NAME@.exe\SupportedTypes"; ValueType: string; ValueName: ".markdown"; ValueData: ""; Tasks: associatefiles
+Root: HKA; Subkey: "Software\Classes\Applications\@TARGET_NAME@.exe\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\@TARGET_NAME@.exe"" ""%1"""; Tasks: associatefiles
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\@TARGET_NAME@.exe"
