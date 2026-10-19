@@ -6,21 +6,27 @@ html { background-color: #000000; }
 body {
   background-color: #000000;
   font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.7;
   color: #ffffff;
-  /* 宽屏下整篇内容限宽居中，代码块与正文同列 */
-  max-width: 960px;
-  margin: 16px auto;
+  margin: 0;
 }
 
-h1 { font-size: 24px; border-bottom: 2px solid #ffffff; padding-bottom: 6px; }
-h2 { font-size: 20px; }
-h3 { font-size: 17px; }
-h4, h5, h6 { font-size: 15px; }
+/* 阅读列：限宽居中 + 内边距。挂在 div 上而不是 body——qlitehtml 里 body
+   尺寸恒等于视口，body 上的限宽与自动边距不可靠 */
+.md-page {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 24px 48px;
+}
 
-p { margin: 8px 0; }
-ul, ol { margin: 8px 0; padding-left: 24px; }
+h1 { font-size: 28px; border-bottom: 2px solid #ffffff; padding-bottom: 6px; }
+h2 { font-size: 22px; }
+h3 { font-size: 18px; }
+h4, h5, h6 { font-size: 16px; }
+
+p { margin: 12px 0; }
+ul, ol { margin: 12px 0; padding-left: 24px; }
 
 code {
   background: #1a1a1a;

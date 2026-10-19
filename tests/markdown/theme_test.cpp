@@ -28,13 +28,11 @@ TEST(MarkdownThemeTest, EveryThemeHasDistinctCss) {
     EXPECT_FALSE(css.isEmpty()) << path.toStdString();
     // 每套主题都有正文颜色与代码块背景，且背景色互不相同
     EXPECT_TRUE(css.contains(QLatin1String("body"))) << path.toStdString();
-    // 整篇限宽居中的阅读列：三套主题必须一起有，漏一套就会在宽屏上
-    // 突然铺满整行
-    EXPECT_TRUE(css.contains(QLatin1String(".code-wrap")))
-        << path.toStdString();
-    EXPECT_TRUE(css.contains(QLatin1String("max-width: 960px")))
-        << path.toStdString();
-    EXPECT_TRUE(css.contains(QLatin1String("margin: 16px auto")))
+    // 页容器（限宽居中 + 内边距）：三套主题必须一起有，漏一套就会在宽屏
+    // 上贴边铺满。注意挂在 .md-page div 上，body 的尺寸在 qlitehtml 里恒
+    // 等于视口，写了也不生效
+    EXPECT_TRUE(css.contains(QLatin1String(".md-page"))) << path.toStdString();
+    EXPECT_TRUE(css.contains(QLatin1String("max-width: 980px")))
         << path.toStdString();
     contents.insert(css);
     indices.insert(ThemeIndex(theme));

@@ -45,8 +45,9 @@ QString LoadCssResource(const QString& path) {
   if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
     qWarning() << "markdown: theme css missing from resources:" << path;
     return QStringLiteral(
-        "body { font-family: sans-serif; font-size: 14px;"
-        " line-height: 1.6; margin: 16px; }\n"
+        "body { font-family: sans-serif; font-size: 15px;"
+        " line-height: 1.6; margin: 0; }\n"
+        ".md-page { max-width: 980px; margin: 0 auto; padding: 24px 48px; }\n"
         "pre, code { font-family: monospace; }\n"
         "pre { background: #f6f8fa; padding: 8px; overflow-x: auto; }\n"
         "table { border-collapse: collapse; }\n"
@@ -121,9 +122,13 @@ QString LoadDefaultCss(MarkdownTheme theme) {
 }
 
 QString WrapDocument(const QString& body, const QString& css) {
+  // 正文包一层 .md-page：限宽/居中/内边距都在这一层做。qlitehtml 里 body
+  // 的尺寸恒等于视口（container_qpainter.cpp 的 hit-test 注释），body 上写
+  // max-width 与自动边距不可靠，必须用普通 div
   return QStringLiteral(
              "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
-             "<style>%1</style></head><body>%2</body></html>")
+             "<style>%1</style></head><body>"
+             "<div class=\"md-page\">%2</div></body></html>")
       .arg(css, body);
 }
 
