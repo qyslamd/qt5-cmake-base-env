@@ -1,14 +1,17 @@
 #include "md_viewer_window.h"
 
+#include <fluenttitlebar.h>
 #include <fluentwindowframe.h>
 
 #include <QAction>
+#include <QApplication>
 #include <QDesktopServices>
 #include <QDir>
 #include <QDockWidget>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFileInfoList>
+#include <QFont>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
@@ -17,10 +20,11 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QPainter>
+#include <QPixmap>
 #include <QPrinter>
 #include <QShortcut>
 #include <QStatusBar>
-#include <QToolBar>
 
 #include "markdown_outline_widget.h"
 #include "markdown_view.h"
@@ -34,6 +38,22 @@ const QStringList& MarkdownFilters() {
   static const QStringList kFilters{QStringLiteral("*.md"),
                                     QStringLiteral("*.markdown")};
   return kFilters;
+}
+
+// 没有图标资源，就把字母/箭头画进 QPixmap：激活态用高亮色加粗
+QIcon TextActionIcon(const QString& text, bool active) {
+  constexpr int kIconSize = 18;
+  QPixmap pixmap(kIconSize, kIconSize);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  QFont font = QApplication::font();
+  font.setPixelSize(12);
+  font.setBold(active);
+  painter.setFont(font);
+  painter.setPen(active ? QApplication::palette().color(QPalette::Highlight)
+                        : QApplication::palette().color(QPalette::WindowText));
+  painter.drawText(pixmap.rect(), Qt::AlignCenter, text);
+  return QIcon(pixmap);
 }
 
 }  // namespace
@@ -53,14 +73,21 @@ void MdViewerWindow::createActions() {
   about_action_ = new QAction(QStringLiteral("关于"), this);
   export_pdf_action_ = new QAction(QStringLiteral("导出 PDF…"), this);
 
-  // 查找三个动作同时挂菜单与查找栏：动作复用，快捷键就不用写两遍
+  // 查找动作不建菜单：快捷键挂在窗口上，按钮内嵌进标题栏搜索框
   find_action_ = new QAction(QStringLiteral("查找…"), this);
   find_action_->setShortcut(QKeySequence::Find);
-  find_next_action_ = new QAction(QStringLiteral("查找下一个"), this);
+  find_next_action_ = new QAction(QStringLiteral("下一个"), this);
   find_next_action_->setShortcut(QKeySequence(Qt::Key_F3));
-  find_prev_action_ = new QAction(QStringLiteral("查找上一个"), this);
+  find_next_action_->setToolTip(QStringLiteral("查找下一个（F3）"));
+  find_prev_action_ = new QAction(QStringLiteral("上一个"), this);
   find_prev_action_->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_F3));
-  find_close_action_ = new QAction(QStringLiteral("关闭查找"), this);
+  find_prev_action_->setToolTip(QStringLiteral("查找上一个（Shift+F3）"));
+  case_action_ = new QAction(QStringLiteral("区分大小写"), this);
+  case_action_->setCheckable(true);
+  case_action_->setToolTip(QStringLiteral("区分大小写"));
+  word_action_ = new QAction(QStringLiteral("全词匹配"), this);
+  word_action_->setCheckable(true);
+  word_action_->setToolTip(QStringLiteral("全词匹配"));
 }
 
 void MdViewerWindow::initUi() {
@@ -79,28 +106,14 @@ void MdViewerWindow::initUi() {
   file_menu->addSeparator();
   file_menu->addAction(quit_action_);
 
-  QMenu* edit_menu = menuBar()->addMenu(QStringLiteral("编辑(&E)"));
-  edit_menu->addAction(find_action_);
-  edit_menu->addAction(find_next_action_);
-  edit_menu->addAction(find_prev_action_);
-
   QMenu* view_menu = menuBar()->addMenu(QStringLiteral("视图(&V)"));
   QMenu* help_menu = menuBar()->addMenu(QStringLiteral("帮助(&H)"));
   help_menu->addAction(about_action_);
 
-  // 查找栏：标题栏下方一条工具栏，默认藏起来。objectName 留给 funq 按名字定位
-  find_bar_ = new QToolBar(QStringLiteral("查找"), this);
-  find_bar_->setObjectName(QStringLiteral("findBar"));
-  find_edit_ = new QLineEdit(find_bar_);
-  find_edit_->setObjectName(QStringLiteral("findEdit"));
-  find_edit_->setPlaceholderText(QStringLiteral("查找…"));
-  find_edit_->setClearButtonEnabled(true);
-  find_bar_->addWidget(find_edit_);
-  find_bar_->addAction(find_prev_action_);
-  find_bar_->addAction(find_next_action_);
-  find_bar_->addAction(find_close_action_);
-  find_bar_->hide();
-  addToolBar(find_bar_);
+  // 没有菜单承载也要让快捷键生效：动作挂到窗口上
+  addAction(find_action_);
+  addAction(find_next_action_);
+  addAction(find_prev_action_);
 
   // 目录里扫到的 Markdown 铺在这：显示文件名，UserRole 存全路径
   auto* dock = new QDockWidget(QStringLiteral("文档"), this);
@@ -142,6 +155,15 @@ void MdViewerWindow::initUi() {
   // 无边框壳 + Fluent 标题栏；菜单栏挂进标题栏（官方 Gallery 与 demo_app 同款）
   fluent_frame_ = new FluentWindowFrame(this, this);
   fluent_frame_->installChromeHeader(menuBar());
+
+  // 直接用标题栏自带的搜索框：模式开关与上一个/下一个内嵌成 Trailing action
+  search_edit_ = fluent_frame_->titleBar()->searchLineEdit();
+  search_edit_->setObjectName(QStringLiteral("titleSearchEdit"));
+  search_edit_->addAction(case_action_, QLineEdit::TrailingPosition);
+  search_edit_->addAction(word_action_, QLineEdit::TrailingPosition);
+  search_edit_->addAction(find_prev_action_, QLineEdit::TrailingPosition);
+  search_edit_->addAction(find_next_action_, QLineEdit::TrailingPosition);
+  UpdateSearchActionIcons();
 }
 
 void MdViewerWindow::initSignals() {
@@ -236,23 +258,31 @@ void MdViewerWindow::initSignals() {
     }
   });
   connect(find_action_, &QAction::triggered, this,
-          &MdViewerWindow::ShowFindBar);
+          &MdViewerWindow::FocusSearch);
   connect(find_next_action_, &QAction::triggered, this,
           [this] { FindNext(/*backward=*/false); });
   connect(find_prev_action_, &QAction::triggered, this,
           [this] { FindNext(/*backward=*/true); });
-  connect(find_close_action_, &QAction::triggered, this, [this] {
-    find_bar_->hide();
-    view_->setFocus();  // 焦点还回正文，方向键/滚轮立刻能用
+  connect(case_action_, &QAction::toggled, this, [this] {
+    UpdateSearchActionIcons();
+    if (!search_edit_->text().isEmpty()) {
+      FindNext(/*backward=*/false);
+    }
   });
-  // 回车 = 下一个（查找框里的输入法/回车不该抢这个语义）
-  connect(find_edit_, &QLineEdit::returnPressed, this,
+  connect(word_action_, &QAction::toggled, this, [this] {
+    UpdateSearchActionIcons();
+    if (!search_edit_->text().isEmpty()) {
+      FindNext(/*backward=*/false);
+    }
+  });
+  // 回车 = 下一个
+  connect(search_edit_, &QLineEdit::returnPressed, this,
           [this] { FindNext(/*backward=*/false); });
-  // Esc 关查找栏。QShortcut 是与 Ctrl+F 那类动作快捷键不冲突的写法
+  // Esc 把焦点还给正文；搜索框与它的 action 保持常驻，不再有"关闭查找栏"
   auto* escape = new QShortcut(QKeySequence(Qt::Key_Escape), this);
   connect(escape, &QShortcut::activated, this, [this] {
-    if (find_bar_->isVisible()) {
-      find_close_action_->trigger();
+    if (search_edit_->hasFocus()) {
+      view_->setFocus();
     }
   });
 }
@@ -329,20 +359,34 @@ void MdViewerWindow::SelectInList(const QString& path) {
   }
 }
 
-void MdViewerWindow::ShowFindBar() {
-  find_bar_->show();
-  find_edit_->setFocus();
-  find_edit_->selectAll();  // 再按 Ctrl+F 是"改查找词"，不是接着找
+void MdViewerWindow::FocusSearch() {
+  search_edit_->setFocus();
+  search_edit_->selectAll();  // 再按 Ctrl+F 是"改查找词"，不是接着找
+}
+
+void MdViewerWindow::UpdateSearchActionIcons() {
+  case_action_->setIcon(
+      TextActionIcon(QStringLiteral("A"), case_action_->isChecked()));
+  word_action_->setIcon(
+      TextActionIcon(QStringLiteral("T"), word_action_->isChecked()));
+  find_prev_action_->setIcon(TextActionIcon(QStringLiteral("↑"), false));
+  find_next_action_->setIcon(TextActionIcon(QStringLiteral("↓"), false));
 }
 
 void MdViewerWindow::FindNext(bool backward) {
-  const QString needle = find_edit_->text();
+  const QString needle = search_edit_->text();
   if (needle.isEmpty()) {
     return;
   }
   bool wrapped = false;
-  const MarkdownView::FindFlags flags =
+  MarkdownView::FindFlags flags =
       backward ? MarkdownView::FindBackward : MarkdownView::FindNoFlag;
+  if (case_action_->isChecked()) {
+    flags |= MarkdownView::FindCaseSensitively;
+  }
+  if (word_action_->isChecked()) {
+    flags |= MarkdownView::FindWholeWords;
+  }
   if (!view_->FindText(needle, flags, &wrapped)) {
     statusBar()->showMessage(QStringLiteral("未找到：%1").arg(needle), 3000);
     return;
