@@ -9,6 +9,8 @@ set(ALL_SRCS
     md_viewer_window.h
     render_settings_panel.cpp
     render_settings_panel.h
+    render_status_panel.cpp
+    render_status_panel.h
     md_viewer.qrc
 )
 

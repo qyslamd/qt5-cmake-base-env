@@ -14,6 +14,7 @@ class FluentWindowFrame;
 class MarkdownOutlineWidget;
 class MarkdownView;
 class RenderSettingsPanel;
+class RenderStatusPanel;
 
 // 独立的 Markdown 查看器：单篇与"整个目录"两种打开方式，目录铺在左侧文件
 // 列表里。渲染全交给 src/markdown 的 MarkdownView——本类只管宿主策略：
@@ -60,6 +61,7 @@ class MdViewerWindow : public QMainWindow {
   MarkdownView* view_ = nullptr;
   MarkdownOutlineWidget* outline_ = nullptr;
   RenderSettingsPanel* render_settings_ = nullptr;
+  RenderStatusPanel* render_status_ = nullptr;
   QListWidget* file_list_ = nullptr;
   QLabel* path_label_ = nullptr;
   // 列表当前列的是哪个目录（ShowFile 据此决定要不要重扫）

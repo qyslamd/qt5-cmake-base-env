@@ -12,8 +12,8 @@ class QVBoxLayout;
 class MarkdownView;
 
 // 渲染设置面板：主题、行号、公式/Mermaid 开关、持久缓存、诊断。
-// 直接读写 MarkdownView 的状态；控件只用 Fluent 的属性驱动
-// （isCard / isSwitchButton），不写样式表
+// 渲染状态在独立的 RenderStatusPanel（另一个 dock）。直接读写 MarkdownView
+// 的状态；控件只用 Fluent 的属性驱动（isCard / isSwitchButton），不写样式表
 class RenderSettingsPanel : public QWidget {
   Q_OBJECT
 
@@ -29,7 +29,6 @@ class RenderSettingsPanel : public QWidget {
   void ApplyDiagnostics();
   void BrowseCacheDirectory();
   void BrowseDumpDirectory();
-  void RefreshStatus();
   // 开关默认文字跟状态走（Fluent Gallery 同款写法）
   QCheckBox* CreateSwitch(bool checked);
 
@@ -48,11 +47,6 @@ class RenderSettingsPanel : public QWidget {
   QLineEdit* dump_directory_ = nullptr;
   QPushButton* choose_dump_ = nullptr;
   QPushButton* reset_dump_ = nullptr;
-  QLabel* status_highlight_ = nullptr;
-  QLabel* status_formula_ = nullptr;
-  QLabel* status_mermaid_ = nullptr;
-  QPushButton* refresh_status_ = nullptr;
-  QPushButton* reset_stats_ = nullptr;
 };
 
 #endif  // FILE_EXAMPLES_MD_VIEWER_RENDER_SETTINGS_PANEL_H_

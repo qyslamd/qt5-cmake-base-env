@@ -8,9 +8,9 @@
 #include <QTemporaryDir>
 
 #include "markdown_view.h"
-#include "render_settings_panel.h"
+#include "render_status_panel.h"
 
-// 状态卡片的刷新链路：文档重建后 outlineChanged 触发 RefreshStatus，
+// 渲染状态面板的刷新链路：文档重建后 outlineChanged 触发 RefreshStatus，
 // Mermaid 的计数必须已经落进上下文。独立进程方便控制环境
 int main(int argc, char** argv) {
   qputenv("QT_QPA_PLATFORM", "offscreen");
@@ -30,11 +30,11 @@ int main(int argc, char** argv) {
 
 namespace {
 
-TEST(RenderSettingsPanelTest, MermaidCountersReachTheStatusLabel) {
+TEST(RenderStatusPanelTest, MermaidCountersReachTheStatusLabel) {
   MarkdownView view;
   // 关掉磁盘缓存：否则可能直接命中旧条目，renders 仍是 0
   view.SetPersistentRenderCacheEnabled(false);
-  RenderSettingsPanel panel(&view);
+  RenderStatusPanel panel(&view);
 
   view.SetContent(
       QStringLiteral("```mermaid\nflowchart LR\n    A --> B\n```\n"),
@@ -53,7 +53,7 @@ TEST(RenderSettingsPanelTest, MermaidCountersReachTheStatusLabel) {
 
 // 磁盘命中时引擎不加载、renders 不增长；状态必须把"调用"和"命中缓存"
 // 显示出来，否则看起来像完全没统计
-TEST(RenderSettingsPanelTest, DiskCacheHitStillShowsActivity) {
+TEST(RenderStatusPanelTest, DiskCacheHitStillShowsActivity) {
   QTemporaryDir dir;
   ASSERT_TRUE(dir.isValid());
   {
@@ -66,7 +66,7 @@ TEST(RenderSettingsPanelTest, DiskCacheHitStillShowsActivity) {
 
   MarkdownView view;
   view.SetRenderCacheDirectory(dir.path());
-  RenderSettingsPanel panel(&view);
+  RenderStatusPanel panel(&view);
   view.SetContent(
       QStringLiteral("```mermaid\nflowchart LR\n    C --> D\n```\n"),
       QString());

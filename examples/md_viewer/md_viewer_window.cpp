@@ -25,6 +25,7 @@
 #include "markdown_outline_widget.h"
 #include "markdown_view.h"
 #include "render_settings_panel.h"
+#include "render_status_panel.h"
 
 namespace {
 
@@ -118,6 +119,14 @@ void MdViewerWindow::initUi() {
   addDockWidget(Qt::LeftDockWidgetArea, outline_dock);
   view_menu->addAction(outline_dock->toggleViewAction());
 
+  // 渲染状态：引擎加载情况与渲染/命中计数，独立成 dock 便于常开观察
+  auto* status_dock = new QDockWidget(QStringLiteral("渲染状态"), this);
+  status_dock->setObjectName(QStringLiteral("renderStatusDock"));
+  render_status_ = new RenderStatusPanel(view_, status_dock);
+  status_dock->setWidget(render_status_);
+  addDockWidget(Qt::RightDockWidgetArea, status_dock);
+  view_menu->addAction(status_dock->toggleViewAction());
+
   // 渲染设置：主题、行号、渲染开关、持久缓存、诊断
   auto* settings_dock = new QDockWidget(QStringLiteral("渲染设置"), this);
   settings_dock->setObjectName(QStringLiteral("renderSettingsDock"));
@@ -156,6 +165,10 @@ void MdViewerWindow::initSignals() {
   connect(outline_, &MarkdownOutlineWidget::headingActivated, view_,
           &MarkdownView::ScrollToAnchor);
   connect(render_settings_, &RenderSettingsPanel::statusMessage, this,
+          [this](const QString& message) {
+            statusBar()->showMessage(message, 5000);
+          });
+  connect(render_status_, &RenderStatusPanel::statusMessage, this,
           [this](const QString& message) {
             statusBar()->showMessage(message, 5000);
           });

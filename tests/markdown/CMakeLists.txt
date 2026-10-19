@@ -123,11 +123,11 @@ add_unit_test(
     NO_GTEST_MAIN
 )
 
-# 示例里的状态卡片：验证 outlineChanged -> RefreshStatus 这条刷新链路
+# 示例里的渲染状态面板：验证 outlineChanged -> RefreshStatus 这条刷新链路
 add_unit_test(
     NAME test_render_settings_panel
     SOURCES status_panel_test.cpp
-            ../../examples/md_viewer/render_settings_panel.cpp
+            ../../examples/md_viewer/render_status_panel.cpp
     INCLUDES ${CMAKE_SOURCE_DIR}/examples/md_viewer
     LIBS ${APP_TARGET_PREFIX}_markdown
     QT_MODULES Widgets
