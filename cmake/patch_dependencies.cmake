@@ -171,5 +171,10 @@ apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
 apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
     "${PATCHES_DIR}/qlitehtml/0005-print-device-to-logical.patch")
 
+# qlitehtml：基准 URL 的路径已编码却被交给 QUrl::setPath（按未编码处理），
+# 含空格/中文的文档目录会被二次编码成 %2520/%25E4，相对图片全部加载失败
+apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
+    "${PATCHES_DIR}/qlitehtml/0006-fix-base-url-encoding.patch")
+
 message(STATUS "Patches applied.")
 message(STATUS "")
