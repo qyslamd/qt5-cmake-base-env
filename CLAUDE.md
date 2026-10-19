@@ -136,6 +136,70 @@ scripts/build_ninja.bat -t relwithdebinfo -m demo_app -p
 20. 代码注释必须言简意赅。只写意图，不要写emoji，也无需引用docs目录下的文档，不必为了写注释而注释，一定要简洁，如果非要写一大段注释，那我认为就是代码没写好！！！
 21. **提交前，改动的 C++ 文件必须先过 clang-format**（用仓库自带的 `3rdparty/clang/clang-format.exe`，或直接跑 `scripts\clang_format.bat`——它默认就处理改动过的文件；不在 PATH 上）。仓库风格（`.clang-format`）与手写折行不一致时，人工编辑保存会产生纯格式的噪声 diff。**与规则 12 不冲突**：clang-tidy 默认不跑，clang-format 是提交前的必做项
 
+## 本机环境与已知坑
+
+以下都是实测过的结论，症状与做法成对出现。新踩到的按同一格式补进对应小节。
+
+### 脚本
+
+- **`.bat` / `.bat.in` 必须是 CRLF，`*.sh` 必须是 LF**（`.gitattributes` 定的）。
+  LF 的 bat 在 cmd 下会散架：`'enabledelayedexpansion' is not recognized`、参数错位、
+  vcvars 退化成 x64。两个来源：Write 工具写出来是 LF；`sed -i` 会把 CRLF 剥成 LF。
+  新建或整体重写脚本后补一次检查，修正按字节归一化，别用 sed：
+
+  ```bash
+  git ls-files --eol | grep "eol=crlf" | grep "w/lf"     # 该 CRLF 却是 LF
+  git ls-files --eol | grep "eol=lf"   | grep "w/crlf"   # 该 LF 却是 CRLF
+  ```
+
+- **启动 `.bat` 用绝对路径。** shell 设了 `NoDefaultCurrentDirectoryInExePath` 时，
+  `cd` 过去再 `cmd /c xxx.bat` 报 "not recognized"——文件是在的，是 cmd 被禁止在
+  当前目录找可执行文件。Bash（MSYS）还会把 `cmd /c` 的 `/c` 转成 `C:\`，要写
+  `cmd //c`。两种表现都是"命令跑完了但什么也没干"。
+
+### 构建
+
+- **worktree 里第一次构建前先拷 `local.cmake`。** 它不入库，缺了 configure 直接失败：
+  "Please change local.cmake to set your own Qt paths..."。
+- **WSL 侧 cmake 装在 `~/env_software`，PATH 写在 `~/.profile`。** 系统那份 3.16 太旧。
+  若 configure 秒失败报 "CMake 3.19 or higher is required"，先查 `~/.profile` 那行还在
+  不在——登录非交互 shell 走 `.profile`，`.bashrc` 开头那段 `case $-` 会挡回去。
+
+### 仓库与历史
+
+- **远端只有 `master`**：`origin` = `https://gitee.com/slamdd/qt5-cmake-base-env.git`
+  （带 `5`，老库已删）。标签 `v1.0.0` 是 annotated，要显式 `git push origin --tags`。
+- **`docs/inputs/` 已从全部历史抹除**（2026-10-03 filter-repo，10-04 删库重建）。
+  10-03 之前记下的 SHA 全部解析不出，`docs/plan/` 里按老 SHA 命名的 diff 归档已失效。
+  别再把它加回仓库。
+- **强推挪不动远端对象。** 实测强推后旧 tip 仍可 fetch、树仍能列出；要真删干净只能
+  删库重建。别拿"强推 + gc"当清理手段。
+- 访问 gitee 的 HTTPS 若报 `schannel: AcquireCredentialsHandle failed`，加
+  `-c http.sslBackend=openssl` 能过（本机实测）。
+
+### funq 写 UI 用例
+
+- **只认静态 `Q_PROPERTY`。** `setProperty()` 建的动态属性 `properties()` 读不到，
+  也不报错；要被断言的量都声明成真属性（`switch_button` 是先例）。
+- **没有 `invoke_method`。** 只有 `click()` 与 `call_slot()`；`call_slot` 只认槽、
+  写死一个 QVariant 入参，无参槽、收 int/bool 的槽、普通 `public:` 方法都调不到。
+  需要钩子时加 `Q_INVOKABLE QVariant xxx(const QVariant&)`。
+- **类会沿继承链回退**：`QListWidget` 实际退到 `QAbstractItemView`，读得到。按控件找
+  的那张注册表**不能**用来断言"某能力不存在"——QAction 不在表里，但
+  `client.action(path=...)` 能 trigger。
+
+### 测试
+
+- **改到 `src/markdown/` 只跑 `ctest -L MARKDOWN`**，不要全量：那一组够覆盖改动面，
+  全量只是把 funq/app/tour 陪跑一遍。
+
+### 结论前先实测
+
+- 说"将来会冲突"之前先跑 `git merge-tree <base> <A> <B> | grep -c '^<<<<<<<'`。
+  两边都碰过同一个文件不等于文本冲突；cherry-pick 到两边的同一改动合并自动对上。
+- "这条路走不通"不等于"这个能力不存在"：先找有没有专门的入口，再下结论。上面 funq
+  的 QAction 与 QListView 两条都是查了半条机制就下结论、被探针推翻的。
+
 ## 功能开发流程
 
 所有涉及 UI/UX 变更或非纯逻辑的功能开发，必须遵循以下迭代流程：
