@@ -11,6 +11,7 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QSignalBlocker>
 #include <QVBoxLayout>
 
 #include "markdown_render_context.h"
@@ -104,12 +105,18 @@ void RenderSettingsPanel::initUi() {
                   static_cast<int>(MarkdownTheme::Light));
   theme_->addItem(QStringLiteral("暗色"),
                   static_cast<int>(MarkdownTheme::Dark));
-  theme_->addItem(QStringLiteral("高对比"),
-                  static_cast<int>(MarkdownTheme::HighContrast));
   const int theme_index = theme_->findData(static_cast<int>(view_->theme()));
   theme_->setCurrentIndex(theme_index >= 0 ? theme_index : 0);
   appearance->addWidget(new QLabel(QStringLiteral("主题"), appearance_card));
   appearance->addWidget(theme_);
+#ifdef Q_OS_WIN
+  // 窗口模糊是 Windows 的 DWM 能力；其它平台不创建这个开关
+  window_blur_ = CreateSwitch(true);
+  window_blur_->setObjectName(QStringLiteral("windowBlurSwitch"));
+  AddSwitchRow(appearance, appearance_card, QStringLiteral("窗口模糊"),
+               window_blur_,
+               QStringLiteral("DWM 窗口模糊，仅 Windows；关闭后背景不透明"));
+#endif
   outer->addWidget(appearance_card);
 
   // 内容
@@ -177,10 +184,23 @@ void RenderSettingsPanel::initUi() {
   panel_layout->addWidget(scroll);
 }
 
+void RenderSettingsPanel::SetTheme(MarkdownTheme theme) {
+  const int index = theme_->findData(static_cast<int>(theme));
+  if (index < 0) {
+    return;
+  }
+  const QSignalBlocker blocker(theme_);
+  theme_->setCurrentIndex(index);
+}
+
 void RenderSettingsPanel::initSignals() {
+#ifdef Q_OS_WIN
+  connect(window_blur_, &QCheckBox::toggled, this,
+          &RenderSettingsPanel::windowBlurEnabledChanged);
+#endif
   connect(theme_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
           [this](int index) {
-            view_->SetTheme(
+            emit themeChanged(
                 static_cast<MarkdownTheme>(theme_->itemData(index).toInt()));
           });
   connect(code_line_numbers_, &QCheckBox::toggled, view_,

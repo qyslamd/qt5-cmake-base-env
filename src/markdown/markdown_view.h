@@ -76,8 +76,11 @@ class MarkdownView : public QWidget {
 
   // 查找并选中命中处（找到会滚过去）。wrapped 非空时被写成"本次是否绕回了
   // 开头"（每次调用都会写——控件本体只在绕回时写，见实现），宿主拿它提示
-  // "已到末尾"。返回 false = 没有命中，选区不动
-  bool FindText(const QString& text, FindFlags flags, bool* wrapped = nullptr);
+  // "已到末尾"。返回 false = 没有命中，选区不动。
+  // incremental=true 从当前选区开头找，供"边打字边找"使用；默认 false 从
+  // 选区末尾找下一个，适合 F3/回车
+  bool FindText(const QString& text, FindFlags flags, bool* wrapped = nullptr,
+                bool incremental = false);
   // 打印/导出 PDF：QPrinter 由宿主自备（本控件不碰文件系统与输出格式）。
   // 控件按 print 媒体重排一遍再逐页绘制——分页是按页高切片的，跨页的长
   // 元素会被切在页缝上

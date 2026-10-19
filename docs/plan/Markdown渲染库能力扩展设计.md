@@ -16,7 +16,7 @@
 | 6 | 渲染跟踪与转储 | 默认关 | 开关打开后按阶段打日志、落中间产物 |
 | 7 | 图片懒加载 | 默认关 | 阶段 1：图片字节缓存；阶段 2（补丁）另评估 |
 | 8 | 大纲侧栏 | 独立控件 | 数据 + `MarkdownOutlineWidget`，宿主决定放置 |
-| 9 | 主题切换 | 默认亮色 | 亮/暗/高对比；CSS、公式前景色、Mermaid 主题一起切 |
+| 9 | 主题切换 | 默认亮色 | 亮/暗；CSS、公式前景色、Mermaid 主题一起切 |
 
 ### 非目标
 
@@ -556,14 +556,17 @@ DocumentContainer 的口径返回 **-1**，`MarkdownView::AnchorY` 原样透传�
 **示例集成**：md_viewer 增加"大纲" `QDockWidget`，视图菜单加可勾选
 "显示大纲"。
 
-### 6.7 主题切换（亮 / 暗 / 高对比）
+### 6.7 主题切换（亮 / 暗）
+
+> 后续变更（2026-10-19）：高对比主题已移除，只保留 Light/Dark。原因是
+> md_viewer 的主题选择同时驱动 Fluent 壳，而 Fluent 只有亮/暗两档，高对比
+> 无法一一对应。以下表格为设计时的三主题记录，实现已按两主题收敛。
 
 **资源**：
 
 ```
 resources/themes/light.css
 resources/themes/dark.css
-resources/themes/high_contrast.css
 ```
 
 qrc 别名 `:/markdown/themes/<name>.css`；`markdown_default.css` 保留别名
@@ -575,18 +578,17 @@ qrc 别名 `:/markdown/themes/<name>.css`；`markdown_default.css` 保留别名
 
 **横切维度**：
 
-| 维度 | Light | Dark | HighContrast |
-|---|---|---|---|
-| CSS | light.css | dark.css | high_contrast.css |
-| 公式前景色 | `#24292e` | `#e6edf3` | `#ffffff` |
-| Mermaid | `theme:'default'` | `theme:'dark'` | `theme:'base'` + 高对比 themeVariables |
+| 维度 | Light | Dark |
+|---|---|---|
+| CSS | light.css | dark.css |
+| 公式前景色 | `#24292e` | `#e6edf3` |
+| Mermaid | `theme:'default'` | `theme:'dark'` |
 
 - 公式：渲染前把 SVG 里的 `currentColor` 替换为指定颜色；如果没有
   `currentColor`，在根 `<g>` 上补 `fill`；颜色进缓存 key；
 - Mermaid：`initialize` 只做一次，带**完整基础配置**（`htmlLabels:false`
   等）且**不带主题**；主题走每张图前缀的 `%%{init: ...}%%` 指令（Dark 用
-  `theme:'dark'`，HighContrast 用 `theme:'base'` + themeVariables）。
-  Dark 与 HighContrast 的 key 不同；
+  `theme:'dark'`），主题名进缓存 key；
 - 代码高亮：只换 CSS；
 - `SetTheme()`：更新 CSS 选择与两个 sink 捕获的颜色/主题 → 重渲染并保留
   滚动；缓存按 key 自然隔离，不清空；旧主题条目按 FIFO 淘汰（与 §6.3

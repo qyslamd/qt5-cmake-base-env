@@ -17,6 +17,11 @@ int main(int argc, char** argv) {
   // 官方 Gallery 的同款旋钮：二级圆角与配色方案（0=Fluent，1=Teams）
   app.setProperty("secondLevelRoundingRadius", 3);
   app.setProperty("_q_themestyle", 0);
+#ifdef Q_OS_WIN
+  // 2 对应 Gallery 的 DwmBlur：调色板给 Base/Window 留出透明度，
+  // DWM 模糊才有地方透出来
+  app.setProperty("_q_widget_mode", 2);
+#endif
   app.setStyle(new FluentUI3Style);
 
   QFont app_font = app.font();

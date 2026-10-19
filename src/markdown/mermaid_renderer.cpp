@@ -279,25 +279,8 @@ const char* ThemeName(MarkdownTheme theme) {
       return "default";
     case MarkdownTheme::Dark:
       return "dark";
-    case MarkdownTheme::HighContrast:
-      return "base";
   }
   return "default";
-}
-
-// HighContrast 的 themeVariables（直接嵌进 %%{init}%% 的配置片段）。
-// mermaid 没有专门的高对比主题：base + 变量自己定
-QString ThemeVariables(MarkdownTheme theme) {
-  if (theme != MarkdownTheme::HighContrast) {
-    return QString();
-  }
-  return QStringLiteral(
-      "'themeVariables': {"
-      " 'background': '#000000', 'primaryColor': '#000000',"
-      " 'primaryTextColor': '#ffffff', 'primaryBorderColor': '#ffffff',"
-      " 'lineColor': '#ffffff', 'secondaryColor': '#000000',"
-      " 'tertiaryColor': '#000000', 'fontSize': '16px'"
-      " }");
 }
 
 // per-diagram 主题指令：mermaid 公开的 render API 没有 per-call config，
@@ -307,15 +290,9 @@ QString ThemeDirective(MarkdownTheme theme) {
   if (theme == MarkdownTheme::Light) {
     return {};
   }
-  const QString variables = ThemeVariables(theme);
-  QString init = QStringLiteral("%%{init: {'theme': '%1'")
-                     .arg(QLatin1String(ThemeName(theme)));
-  if (!variables.isEmpty()) {
-    init += QStringLiteral(", ") + variables;
-  }
-  // 依次闭合 config 对象与 %%{init}%% 指令本身
-  init += QStringLiteral("}}%%\n");
-  return init;
+  // 闭合 config 对象与 %%{init}%% 指令本身
+  return QStringLiteral("%%{init: {'theme': '%1'}}%%\n")
+      .arg(QLatin1String(ThemeName(theme)));
 }
 
 // 把主题指令插进源码。YAML frontmatter 必须位于文档最开头（mermaid 用
@@ -658,10 +635,8 @@ QString MermaidToImgTag(MarkdownRenderContext& context, const QString& code,
                         MarkdownTheme theme) {
   MarkdownRenderContextState& state =
       MarkdownRenderContextAccess::State(context);
-  // themeVariables 也进 key：HighContrast 用的是 base 主题 + 自定义变量，
-  // 只按主题名区分不够；字体指纹让字体更新后的旧图自然失效
+  // 主题名进 key；字体指纹让字体更新后的旧图自然失效
   const QString variant = QString::fromLatin1(ThemeName(theme)) +
-                          QLatin1Char('|') + ThemeVariables(theme) +
                           QLatin1Char('|') + FontFingerprint();
   const QString key = variant + QLatin1Char('|') + code;
   const MarkdownDiagnostics& diagnostics = state.options.diagnostics;

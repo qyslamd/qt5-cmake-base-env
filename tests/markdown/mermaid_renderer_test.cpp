@@ -172,9 +172,7 @@ TEST(MermaidRendererTest, MalformedCodeNeverCrashes) {
   }
 }
 
-// 主题进缓存 key：同一张图在 Light/Dark/HighContrast 下各占一条。
-// HighContrast 用 base + themeVariables，变量也必须进 key，否则会和
-// 其他 base 变体串图
+// 主题进缓存 key：同一张图在 Light/Dark 下各占一条
 TEST(MermaidRendererTest, ThemeIsPartOfCacheKey) {
   MarkdownRenderContext context;
   DisablePersistentCache(context);
@@ -186,12 +184,6 @@ TEST(MermaidRendererTest, ThemeIsPartOfCacheKey) {
   EXPECT_NE(light, dark);
   EXPECT_EQ(context.status().mermaid_context.renders, 2U);
   EXPECT_EQ(context.status().mermaid_context.memory_cache_hits, 0U);
-
-  const QString high =
-      MermaidToImgTag(context, source, MarkdownTheme::HighContrast);
-  ASSERT_FALSE(high.isEmpty()) << "高对比主题初始化或渲染失败";
-  EXPECT_NE(high, dark);
-  EXPECT_EQ(context.status().mermaid_context.renders, 3U);
 
   EXPECT_EQ(MermaidToImgTag(context, source, MarkdownTheme::Dark), dark);
   EXPECT_EQ(context.status().mermaid_context.memory_cache_hits, 1U);

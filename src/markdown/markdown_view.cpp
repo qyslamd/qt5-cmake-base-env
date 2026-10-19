@@ -68,7 +68,6 @@ const QString& DefaultCssFromResources(MarkdownTheme theme) {
   static const QString kCss[kMarkdownThemeCount] = {
       LoadCssResource(ThemeCssResource(MarkdownTheme::Light)),
       LoadCssResource(ThemeCssResource(MarkdownTheme::Dark)),
-      LoadCssResource(ThemeCssResource(MarkdownTheme::HighContrast)),
   };
   return kCss[ThemeIndex(theme)];
 }
@@ -429,8 +428,8 @@ void MarkdownView::InvalidateAnchorYCache() {
   anchor_y_cache_dirty_ = true;
 }
 
-bool MarkdownView::FindText(const QString& text, FindFlags flags,
-                            bool* wrapped) {
+bool MarkdownView::FindText(const QString& text, FindFlags flags, bool* wrapped,
+                            bool incremental) {
   if (text.isEmpty()) {
     return false;  // 空串不是"找全部"，是误用；选区与滚动都别动
   }
@@ -451,8 +450,7 @@ bool MarkdownView::FindText(const QString& text, FindFlags flags,
   if (flags & FindFlag::FindWholeWords) {
     qt_flags |= QTextDocument::FindWholeWords;
   }
-  // incremental 固定 false：本仓没有"边打字边找"的 UI，省得宿主以为它有
-  return html_->findText(text, qt_flags, /*incremental=*/false, wrapped);
+  return html_->findText(text, qt_flags, incremental, wrapped);
 }
 
 void MarkdownView::Print(QPrinter* printer) {

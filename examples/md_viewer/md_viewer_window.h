@@ -9,6 +9,8 @@ class QLabel;
 class QLineEdit;
 class QListWidget;
 class QListWidgetItem;
+class QTimer;
+enum class MarkdownTheme;
 class FluentWindowFrame;
 class MarkdownOutlineWidget;
 class MarkdownView;
@@ -34,8 +36,15 @@ class MdViewerWindow : public QMainWindow {
 
   void OpenFileDialog();
   void OpenDirectoryDialog();
+  // Fluent 壳与文档主题一起切
+  void ApplyTheme(MarkdownTheme theme);
+  // 标题栏主题按钮：浅色/暗色之间翻转
+  void ToggleTheme();
+  // Windows：DWM 窗口模糊开关（调色板透明度与 backdrop 一起切）
+  void SetWindowBlur(bool enabled);
   void FocusSearch();
-  void FindNext(bool backward);
+  // incremental=true 是"边打字边找"：从当前命中处继续匹配，不清空重来
+  void FindNext(bool backward, bool incremental = false);
   void UpdateSearchActionIcons();
   void ExportPdf();
   // 只填列表，不加载——加载由 ShowFile 负责，免得两边互相触发
@@ -57,6 +66,8 @@ class MdViewerWindow : public QMainWindow {
   QAction* word_action_ = nullptr;
   // Fluent 标题栏自带的搜索框；控件归标题栏所有
   QLineEdit* search_edit_ = nullptr;
+  // 输入防抖：连续打字只搜最后一档
+  QTimer* search_timer_ = nullptr;
 
   MarkdownView* view_ = nullptr;
   MarkdownOutlineWidget* outline_ = nullptr;

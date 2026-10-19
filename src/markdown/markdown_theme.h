@@ -8,7 +8,7 @@
 
 // 主题总数。新增枚举值时必须同步 ThemeIndex/ThemeCssResource/公式色；
 // markdown_theme.cpp 里的 static_assert 会盯住枚举规模
-constexpr int kMarkdownThemeCount = 3;
+constexpr int kMarkdownThemeCount = 2;
 
 // 枚举 → 紧凑下标（0..kMarkdownThemeCount-1），供各主题表按行索引
 int ThemeIndex(MarkdownTheme theme);
@@ -18,7 +18,7 @@ int ThemeIndex(MarkdownTheme theme);
 QString ThemeCssResource(MarkdownTheme theme);
 
 // 公式 SVG 的前景色。MathJax 输出里的 currentColor 会被替换成它，因此
-// 颜色参与公式缓存 key——三种主题必须给出不同的颜色
+// 颜色参与公式缓存 key——两套主题必须给出不同的颜色
 QColor ThemeFormulaColor(MarkdownTheme theme);
 
 #endif  // FILE_MARKDOWN_MARKDOWN_THEME_H_

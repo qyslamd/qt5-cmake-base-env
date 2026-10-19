@@ -1,6 +1,7 @@
 #include "md_viewer_window.h"
 
 #include <fluenttitlebar.h>
+#include <fluentui3style.h>
 #include <fluentwindowframe.h>
 
 #include <QAction>
@@ -25,6 +26,12 @@
 #include <QPrinter>
 #include <QShortcut>
 #include <QStatusBar>
+#include <QTimer>
+#include <QToolButton>
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 
 #include "markdown_outline_widget.h"
 #include "markdown_view.h"
@@ -32,6 +39,21 @@
 #include "render_status_panel.h"
 
 namespace {
+
+#ifdef Q_OS_WIN
+// 改 Qt::WindowStaysOnTopHint 会重建 HWND，QWK 的模糊等窗口属性得重来；
+// 置顶用 SetWindowPos 即可（Gallery 同款）
+void SetTopMost(QWidget* window, bool top_most) {
+  SetWindowPos(reinterpret_cast<HWND>(window->winId()),
+               top_most ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
+               SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+}
+#else
+void SetTopMost(QWidget* window, bool top_most) {
+  window->setWindowFlag(Qt::WindowStaysOnTopHint, top_most);
+  window->show();
+}
+#endif
 
 // 与模块的 IsMarkdownFile 一个口径：目录里认这两种后缀
 const QStringList& MarkdownFilters() {
@@ -155,18 +177,42 @@ void MdViewerWindow::initUi() {
   // 无边框壳 + Fluent 标题栏；菜单栏挂进标题栏（官方 Gallery 与 demo_app 同款）
   fluent_frame_ = new FluentWindowFrame(this, this);
   fluent_frame_->installChromeHeader(menuBar());
+  // 强调色按钮只在标题栏内部改选中态并发信号，查看器没有消费方，隐藏
+  for (QToolButton* button : fluent_frame_->titleBar()->accentButtons()) {
+    button->setVisible(false);
+  }
+  // 与文档主题初始一致；标题栏据此选搜索图标等自身角色的配色
+  fluent_frame_->titleBar()->setThemeDark(view_->theme() !=
+                                          MarkdownTheme::Light);
+#ifdef Q_OS_WIN
+  // DWM 在窗口后面做模糊（Win8+ 走 SetWindowCompositionAttribute）。
+  // QWK 在拿不到 HWND 时会缓存属性，show 后自动补应用
+  fluent_frame_->setWindowBackdrop(QStringLiteral("dwm-blur"));
+#endif
 
   // 直接用标题栏自带的搜索框：模式开关与上一个/下一个内嵌成 Trailing action
   search_edit_ = fluent_frame_->titleBar()->searchLineEdit();
   search_edit_->setObjectName(QStringLiteral("titleSearchEdit"));
   search_edit_->addAction(case_action_, QLineEdit::TrailingPosition);
   search_edit_->addAction(word_action_, QLineEdit::TrailingPosition);
-  search_edit_->addAction(find_prev_action_, QLineEdit::TrailingPosition);
-  search_edit_->addAction(find_next_action_, QLineEdit::TrailingPosition);
+  // 上一个/下一个不内嵌到搜索框：它们的 QAction 仍挂在窗口上，F3/Shift+F3
+  // 照常可用；输入防抖后手动跳转的需求也少了
+  search_timer_ = new QTimer(this);
+  search_timer_->setSingleShot(true);
+  search_timer_->setInterval(250);
   UpdateSearchActionIcons();
 }
 
 void MdViewerWindow::initSignals() {
+  // 标题栏自带的主题按钮：Gallery 同款，点了就整窗（壳 + 文档）换肤
+  connect(fluent_frame_->titleBar()->themeButton(), &QToolButton::clicked, this,
+          &MdViewerWindow::ToggleTheme);
+  connect(fluent_frame_->titleBar()->pinButton(), &QToolButton::toggled, this,
+          [this](bool checked) { SetTopMost(this, checked); });
+  connect(render_settings_, &RenderSettingsPanel::themeChanged, this,
+          &MdViewerWindow::ApplyTheme);
+  connect(render_settings_, &RenderSettingsPanel::windowBlurEnabledChanged,
+          this, &MdViewerWindow::SetWindowBlur);
   connect(open_file_action_, &QAction::triggered, this,
           &MdViewerWindow::OpenFileDialog);
   connect(open_dir_action_, &QAction::triggered, this,
@@ -265,19 +311,35 @@ void MdViewerWindow::initSignals() {
           [this] { FindNext(/*backward=*/true); });
   connect(case_action_, &QAction::toggled, this, [this] {
     UpdateSearchActionIcons();
+    search_timer_->stop();
     if (!search_edit_->text().isEmpty()) {
       FindNext(/*backward=*/false);
     }
   });
   connect(word_action_, &QAction::toggled, this, [this] {
     UpdateSearchActionIcons();
+    search_timer_->stop();
     if (!search_edit_->text().isEmpty()) {
       FindNext(/*backward=*/false);
     }
   });
-  // 回车 = 下一个
-  connect(search_edit_, &QLineEdit::returnPressed, this,
-          [this] { FindNext(/*backward=*/false); });
+  // 边打字边找：防抖，停下来 250ms 才搜；incremental 保证换关键词时
+  // 从当前命中处继续，而不是跳到下一个
+  connect(search_edit_, &QLineEdit::textChanged, this,
+          [this](const QString& text) {
+            if (text.isEmpty()) {
+              search_timer_->stop();
+              return;
+            }
+            search_timer_->start();
+          });
+  connect(search_timer_, &QTimer::timeout, this,
+          [this] { FindNext(/*backward=*/false, /*incremental=*/true); });
+  // 回车 = 立即下一个，并取消挂起的自动搜索
+  connect(search_edit_, &QLineEdit::returnPressed, this, [this] {
+    search_timer_->stop();
+    FindNext(/*backward=*/false);
+  });
   // Esc 把焦点还给正文；搜索框与它的 action 保持常驻，不再有"关闭查找栏"
   auto* escape = new QShortcut(QKeySequence(Qt::Key_Escape), this);
   connect(escape, &QShortcut::activated, this, [this] {
@@ -317,6 +379,40 @@ void MdViewerWindow::OpenDirectoryDialog() {
   if (!dir.isEmpty()) {
     OpenPath(dir);
   }
+}
+
+void MdViewerWindow::ApplyTheme(MarkdownTheme theme) {
+  const bool dark = theme == MarkdownTheme::Dark;
+  qApp->setProperty("_q_colorscheme", dark ? 1 : 0);
+  // 重建样式，让 FluentUI3Style 按新的配色方案重算调色板（Gallery 同款）
+  qApp->setStyle(new FluentUI3Style);
+  fluent_frame_->titleBar()->setThemeDark(dark);
+  // 搜索框里的 A/T/箭头是运行时按调色板画的，换肤后要重画
+  UpdateSearchActionIcons();
+  view_->SetTheme(theme);
+  // 面板是被动同步方，用 QSignalBlocker 防止再发一次 themeChanged
+  render_settings_->SetTheme(theme);
+}
+
+void MdViewerWindow::ToggleTheme() {
+  const bool dark = qApp->property("_q_colorscheme").toInt() == 1;
+  ApplyTheme(dark ? MarkdownTheme::Light : MarkdownTheme::Dark);
+}
+
+void MdViewerWindow::SetWindowBlur(bool enabled) {
+#ifdef Q_OS_WIN
+  // 只切 backdrop 不够：关掉 blur 后调色板若仍透明，窗口会露底。
+  // _q_widget_mode 与样式要一起切
+  qApp->setProperty("_q_widget_mode", enabled ? 2 : 0);
+  qApp->setStyle(new FluentUI3Style);
+  if (enabled) {
+    fluent_frame_->setWindowBackdrop(QStringLiteral("dwm-blur"));
+  } else {
+    fluent_frame_->clearWindowBackdrop();
+  }
+#else
+  Q_UNUSED(enabled);
+#endif
 }
 
 void MdViewerWindow::RefreshDirectoryListing(const QString& dir) {
@@ -373,7 +469,7 @@ void MdViewerWindow::UpdateSearchActionIcons() {
   find_next_action_->setIcon(TextActionIcon(QStringLiteral("↓"), false));
 }
 
-void MdViewerWindow::FindNext(bool backward) {
+void MdViewerWindow::FindNext(bool backward, bool incremental) {
   const QString needle = search_edit_->text();
   if (needle.isEmpty()) {
     return;
@@ -387,7 +483,7 @@ void MdViewerWindow::FindNext(bool backward) {
   if (word_action_->isChecked()) {
     flags |= MarkdownView::FindWholeWords;
   }
-  if (!view_->FindText(needle, flags, &wrapped)) {
+  if (!view_->FindText(needle, flags, &wrapped, incremental)) {
     statusBar()->showMessage(QStringLiteral("未找到：%1").arg(needle), 3000);
     return;
   }

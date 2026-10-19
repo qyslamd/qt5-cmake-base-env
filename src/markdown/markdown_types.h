@@ -25,7 +25,6 @@ struct MarkdownRenderOptions {
 enum class MarkdownTheme {
   Light,
   Dark,
-  HighContrast,
 };
 
 // 诊断开关：trace 打开后按阶段打日志；dump_directory 非空时落中间产物。

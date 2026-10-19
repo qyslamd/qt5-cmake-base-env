@@ -36,6 +36,7 @@ target_link_libraries(${TARGET_NAME} PRIVATE Qt5::PrintSupport)
 set_target_properties(${TARGET_NAME} PROPERTIES
     AUTOMOC ON
     AUTOUIC ON
+    AUTORCC ON
 )
 
 if(MSVC)

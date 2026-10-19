@@ -13,8 +13,7 @@ namespace {
 
 TEST(MarkdownThemeTest, EveryThemeHasDistinctCss) {
   EnsureMarkdownResources();
-  const MarkdownTheme themes[] = {MarkdownTheme::Light, MarkdownTheme::Dark,
-                                  MarkdownTheme::HighContrast};
+  const MarkdownTheme themes[] = {MarkdownTheme::Light, MarkdownTheme::Dark};
   static_assert(sizeof(themes) / sizeof(themes[0]) == kMarkdownThemeCount,
                 "新增主题后测试与主题表要同步");
   QSet<int> indices;
@@ -28,7 +27,7 @@ TEST(MarkdownThemeTest, EveryThemeHasDistinctCss) {
     EXPECT_FALSE(css.isEmpty()) << path.toStdString();
     // 每套主题都有正文颜色与代码块背景，且背景色互不相同
     EXPECT_TRUE(css.contains(QLatin1String("body"))) << path.toStdString();
-    // 页容器（限宽居中 + 内边距）：三套主题必须一起有，漏一套就会在宽屏
+    // 页容器（限宽居中 + 内边距）：两套主题必须一起有，漏一套就会在宽屏
     // 上贴边铺满。注意挂在 .md-page div 上，body 的尺寸在 qlitehtml 里恒
     // 等于视口，写了也不生效
     EXPECT_TRUE(css.contains(QLatin1String(".md-page"))) << path.toStdString();
@@ -44,13 +43,9 @@ TEST(MarkdownThemeTest, EveryThemeHasDistinctCss) {
 TEST(MarkdownThemeTest, FormulaColorsAreDistinctAndOpaque) {
   const QColor light = ThemeFormulaColor(MarkdownTheme::Light);
   const QColor dark = ThemeFormulaColor(MarkdownTheme::Dark);
-  const QColor high = ThemeFormulaColor(MarkdownTheme::HighContrast);
   EXPECT_TRUE(light.isValid());
   EXPECT_TRUE(dark.isValid());
-  EXPECT_TRUE(high.isValid());
   EXPECT_NE(light, dark);
-  EXPECT_NE(light, high);
-  EXPECT_NE(dark, high);
 }
 
 }  // namespace
