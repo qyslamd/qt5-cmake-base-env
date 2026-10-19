@@ -4,6 +4,8 @@
 #include <QMainWindow>
 #include <QString>
 
+#include "markdown_types.h"
+
 class QAction;
 class QCloseEvent;
 class QDragEnterEvent;
@@ -15,7 +17,6 @@ class QListWidget;
 class QListWidgetItem;
 class QMenu;
 class QTimer;
-enum class MarkdownTheme;
 struct MdViewerSettings;
 class FluentWindowFrame;
 class MarkdownOutlineWidget;
@@ -70,6 +71,9 @@ class MdViewerWindow : public QMainWindow {
   void RefreshRecentMenu();
   // 关闭/退出时把窗口与渲染状态写回 md_viewer.ini
   void SaveSettings();
+  void UpdateZoomLabel(qreal factor);
+  // 文档渲染后对比上一次状态，把引擎加载与本次失败报到状态栏
+  void ReportRenderStatus();
 
   // 菜单里挂着；菜单栏在 fluent 壳下会被搬进标题栏
   QAction* open_file_action_ = nullptr;
@@ -94,6 +98,9 @@ class MdViewerWindow : public QMainWindow {
   RenderStatusPanel* render_status_ = nullptr;
   QListWidget* file_list_ = nullptr;
   QLabel* path_label_ = nullptr;
+  QLabel* zoom_label_ = nullptr;
+  // 上一次渲染状态：只用来看引擎首次加载与本次失败增量
+  MarkdownRendererStatus last_render_status_;
   // 列表当前列的是哪个目录（ShowFile 据此决定要不要重扫）
   QString listed_dir_;
 

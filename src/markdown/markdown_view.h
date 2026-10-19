@@ -146,6 +146,16 @@ class MarkdownView : public QWidget {
   void outlineChanged();
   // 垂直滚动位置变化，宿主据此反查当前章节
   void viewportScrolled(int y);
+  // 缩放请求值变化；实际重排在 150ms 内合并
+  void zoomChanged(qreal factor);
+  // 文档渲染完成，renderer_status() 里的引擎状态与计数已更新
+  void renderStatusChanged();
+  // 文件内容变化后成功重载（watchdog 路径）
+  void documentReloaded();
+  // 本地资源（图片）读取失败；data: URI 不计入
+  void resourceLoadFailed(const QUrl& url);
+  // 代码块的“复制”链接已把源码写进剪贴板
+  void codeCopied();
 
  protected:
   bool eventFilter(QObject* watched, QEvent* event) override;

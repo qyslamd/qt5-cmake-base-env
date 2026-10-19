@@ -223,8 +223,15 @@ void MdViewerWindow::initUi() {
   // 同上：渲染设置默认收起
   settings_dock->hide();
 
+  statusBar()->setObjectName(QStringLiteral("mainStatusBar"));
   path_label_ = new QLabel(this);
   statusBar()->addPermanentWidget(path_label_);
+  zoom_label_ = new QLabel(this);
+  zoom_label_->setObjectName(QStringLiteral("zoomLabel"));
+  zoom_label_->setToolTip(
+      QStringLiteral("Ctrl+滚轮 / Ctrl+= / Ctrl+- / Ctrl+0"));
+  statusBar()->addPermanentWidget(zoom_label_);
+  UpdateZoomLabel(view_->zoom());
 
   // 无边框壳 + Fluent 标题栏；菜单栏挂进标题栏（官方 Gallery 与 demo_app 同款）
   fluent_frame_ = new FluentWindowFrame(this, this);
@@ -287,6 +294,24 @@ void MdViewerWindow::initSignals() {
           });
   connect(view_, &MarkdownView::outlineChanged, this,
           [this] { outline_->SetHeadings(view_->outline()); });
+  connect(view_, &MarkdownView::zoomChanged, this,
+          &MdViewerWindow::UpdateZoomLabel);
+  connect(view_, &MarkdownView::renderStatusChanged, this,
+          &MdViewerWindow::ReportRenderStatus);
+  connect(view_, &MarkdownView::documentReloaded, this, [this] {
+    statusBar()->showMessage(QStringLiteral("文件已更新，已重新加载"), 3000);
+  });
+  connect(view_, &MarkdownView::codeCopied, this, [this] {
+    statusBar()->showMessage(QStringLiteral("已复制代码块"), 2000);
+  });
+  connect(view_, &MarkdownView::resourceLoadFailed, this,
+          [this](const QUrl& url) {
+            const QString label = url.isLocalFile()
+                                      ? QFileInfo(url.toLocalFile()).fileName()
+                                      : url.toString();
+            statusBar()->showMessage(
+                QStringLiteral("图片加载失败：%1").arg(label), 5000);
+          });
   connect(outline_, &MarkdownOutlineWidget::headingActivated, view_,
           &MarkdownView::ScrollToAnchor);
   connect(render_settings_, &RenderSettingsPanel::statusMessage, this,
@@ -368,6 +393,10 @@ void MdViewerWindow::initSignals() {
           [this] { FindNext(/*backward=*/true); });
   connect(case_action_, &QAction::toggled, this, [this] {
     UpdateSearchActionIcons();
+    statusBar()->showMessage(case_action_->isChecked()
+                                 ? QStringLiteral("区分大小写：开")
+                                 : QStringLiteral("区分大小写：关"),
+                             2000);
     search_timer_->stop();
     if (!search_edit_->text().isEmpty()) {
       FindNext(/*backward=*/false);
@@ -375,6 +404,10 @@ void MdViewerWindow::initSignals() {
   });
   connect(word_action_, &QAction::toggled, this, [this] {
     UpdateSearchActionIcons();
+    statusBar()->showMessage(word_action_->isChecked()
+                                 ? QStringLiteral("全词匹配：开")
+                                 : QStringLiteral("全词匹配：关"),
+                             2000);
     search_timer_->stop();
     if (!search_edit_->text().isEmpty()) {
       FindNext(/*backward=*/false);
@@ -422,6 +455,11 @@ void MdViewerWindow::OpenLastFile() {
   for (const QString& path : settings_->recent_files) {
     if (QFileInfo(path).isFile()) {
       OpenPath(path);
+      if (view_->current_file() == QFileInfo(path).absoluteFilePath()) {
+        statusBar()->showMessage(QStringLiteral("已恢复上次打开：%1")
+                                     .arg(QFileInfo(path).fileName()),
+                                 3000);
+      }
       return;
     }
   }
@@ -458,6 +496,10 @@ void MdViewerWindow::ApplyTheme(MarkdownTheme theme) {
   view_->SetTheme(theme);
   // 面板是被动同步方，用 QSignalBlocker 防止再发一次 themeChanged
   render_settings_->SetTheme(theme);
+  statusBar()->showMessage(theme == MarkdownTheme::Dark
+                               ? QStringLiteral("已切换主题：暗色")
+                               : QStringLiteral("已切换主题：浅色"),
+                           3000);
 }
 
 void MdViewerWindow::ToggleTheme() {
@@ -476,6 +518,9 @@ void MdViewerWindow::SetWindowBlur(bool enabled) {
   } else {
     fluent_frame_->clearWindowBackdrop();
   }
+  statusBar()->showMessage(enabled ? QStringLiteral("窗口模糊已开启")
+                                   : QStringLiteral("窗口模糊已关闭"),
+                           3000);
 #else
   Q_UNUSED(enabled);
 #endif
@@ -564,6 +609,75 @@ void MdViewerWindow::SaveSettings() {
   settings_->window_blur = qApp->property("_q_widget_mode").toInt() >= 1;
 #endif
   settings_->Save();
+}
+
+void MdViewerWindow::UpdateZoomLabel(qreal factor) {
+  zoom_label_->setText(QStringLiteral("缩放 %1%").arg(qRound(factor * 100.0)));
+}
+
+void MdViewerWindow::ReportRenderStatus() {
+  const MarkdownRendererStatus now = view_->renderer_status();
+  QStringList failed_engines;
+  QStringList loaded_engines;
+  auto note_engine = [&](const MarkdownEngineStatus& before,
+                         const MarkdownEngineStatus& after,
+                         const QString& name) {
+    if (!before.permanently_failed && after.permanently_failed) {
+      failed_engines << name;
+    } else if (!before.loaded && after.loaded) {
+      loaded_engines
+          << QStringLiteral("%1 %2 ms").arg(name).arg(after.first_load_ms);
+    }
+  };
+  note_engine(last_render_status_.highlighter, now.highlighter,
+              QStringLiteral("高亮"));
+  note_engine(last_render_status_.formula, now.formula, QStringLiteral("公式"));
+  note_engine(last_render_status_.mermaid, now.mermaid,
+              QStringLiteral("Mermaid"));
+
+  auto delta = [](quint64 before, quint64 after) {
+    return after > before ? after - before : quint64(0);
+  };
+  const quint64 highlight_failures =
+      delta(last_render_status_.highlight_context.failures,
+            now.highlight_context.failures);
+  const quint64 formula_failures =
+      delta(last_render_status_.formula_context.failures,
+            now.formula_context.failures);
+  const quint64 mermaid_failures =
+      delta(last_render_status_.mermaid_context.failures,
+            now.mermaid_context.failures);
+  last_render_status_ = now;
+
+  if (!failed_engines.isEmpty()) {
+    statusBar()->showMessage(
+        QStringLiteral("渲染引擎加载失败：%1")
+            .arg(failed_engines.join(QStringLiteral("、"))),
+        5000);
+    return;
+  }
+  if (highlight_failures + formula_failures + mermaid_failures > 0) {
+    QStringList parts;
+    if (highlight_failures > 0) {
+      parts << QStringLiteral("高亮 %1").arg(highlight_failures);
+    }
+    if (formula_failures > 0) {
+      parts << QStringLiteral("公式 %1").arg(formula_failures);
+    }
+    if (mermaid_failures > 0) {
+      parts << QStringLiteral("Mermaid %1").arg(mermaid_failures);
+    }
+    statusBar()->showMessage(QStringLiteral("本次渲染失败：%1")
+                                 .arg(parts.join(QStringLiteral("、"))),
+                             5000);
+    return;
+  }
+  if (!loaded_engines.isEmpty()) {
+    statusBar()->showMessage(
+        QStringLiteral("渲染引擎已加载：%1")
+            .arg(loaded_engines.join(QStringLiteral("、"))),
+        3000);
+  }
 }
 
 void MdViewerWindow::closeEvent(QCloseEvent* event) {

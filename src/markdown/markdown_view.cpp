@@ -217,6 +217,9 @@ void MarkdownView::initUi() {
   html_->setObjectName(QStringLiteral("markdownHtml"));
   html_->setResourceHandler([this](const QUrl& url) {
     const QByteArray data = ReadResourceForUrl(url, base_dir_);
+    if (data.isEmpty() && url.scheme() != QLatin1String("data")) {
+      emit resourceLoadFailed(url);
+    }
     const MarkdownDiagnostics diagnostics = context_->diagnostics();
     if (diagnostics.trace) {
       // data URI 的字符串就是整张 PNG，日志里不展开
@@ -248,6 +251,7 @@ void MarkdownView::initSignals() {
       const QString text = CopyTextForLink(url, code_blocks_);
       if (!text.isEmpty()) {
         QGuiApplication::clipboard()->setText(text);
+        emit codeCopied();
       }
       return;
     }
@@ -326,6 +330,7 @@ void MarkdownView::SetZoom(qreal factor) {
   }
   // 先改对外状态，连续按键不丢档；控件与重排交给定时器合并
   zoom_ = next;
+  emit zoomChanged(zoom_);
   zoom_timer_->start();
 }
 
@@ -630,6 +635,7 @@ void MarkdownView::ApplyDocument() {
   html_->setHtml(final_html);
   InvalidateAnchorYCache();
   emit outlineChanged();
+  emit renderStatusChanged();
 }
 
 void MarkdownView::ShowMessage(const QString& text) {
@@ -707,6 +713,7 @@ void MarkdownView::OnFileChanged() {
   const int scroll = html_->verticalScrollBar()->value();
   ApplyDocument();
   html_->verticalScrollBar()->setValue(scroll);
+  emit documentReloaded();
 }
 
 void MarkdownView::OnReloadTick() {
@@ -716,7 +723,9 @@ void MarkdownView::OnReloadTick() {
   }
   if (QFile::exists(current_file_)) {
     reload_timer_->stop();
-    LoadFile(current_file_);
+    if (LoadFile(current_file_)) {
+      emit documentReloaded();
+    }
     return;
   }
   if (++reload_attempts_ >= kReloadMaxAttempts) {
