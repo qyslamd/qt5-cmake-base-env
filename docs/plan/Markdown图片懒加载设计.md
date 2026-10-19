@@ -1,7 +1,25 @@
 # Markdown 图片懒加载设计（阶段 2）
 
-状态：讨论中，未实现。本文只覆盖主设计文档 `docs/plan/Markdown渲染库能力扩展设计.md`
-§6.5 的**阶段 2**；阶段 1（上下文内图片字节 LRU）暂缓。
+状态：**暂缓（2026-10-19）**。本文只覆盖主设计文档
+`docs/plan/Markdown渲染库能力扩展设计.md` §6.5 的**阶段 2**；阶段 1（上下文内
+图片字节 LRU）同样暂缓。
+
+## 暂缓依据与重启条件
+
+2026-10-19 扫描全仓 Markdown 的本地图片引用：只有 `temp/md_probe.md` 引用了
+1 张 4 KiB 的 PNG，`docs/guide`、`docs/plan`、README 等**零本地图片**；公式与
+Mermaid 是 data URI，不经过 `load_image`。当前真实文档里图片解码不在热路径，
+懒加载收益为 0，而成本是一套 qlitehtml 补丁 + 资源分档 + pending 调度 + 打印
+路径 + 边界测试，ROI 为负。
+
+满足以下任一条件再重启本设计：
+
+1. 实际文档出现成批本地图片（例如 10 张以上、单张数百 KB 的截图）；
+2. 实测某篇真实文档的 `ApplyDocument` 中图片读取/解码占比明显（resource
+   handler 的 trace 已记录字节数，补一个耗时即可量化）；
+3. 产品明确要做“看图为主”的文档场景（图册、扫描件预览）。
+
+在此之前不改代码；方案与补丁编号（0007）保留备查。
 
 ## 一、目标与范围
 
@@ -54,7 +72,12 @@
 | B. 注入 width/height 属性 | 在 HTML 里补 `<img width height>`，布局不再依赖 pixmap | 排除：litehtml 在该分支忽略 `max-width`，宽图会溢出 |
 | C. 尺寸查询回调 | 补丁新增 size handler；pixmap 无效时用它回答固有尺寸 | **采用**：不分配大占位图，保持现有 CSS/max-width 语义 |
 
-## 四、qlitehtml 补丁 0004
+## 四、qlitehtml 补丁（编号按落地顺序取）
+
+> 0004（宽度判断）与 0005（打印单位修复）已占用；可选的去抖补丁预留给 0006。
+> 本补丁记为 0007。两条补丁的公开 API 都落在 `qlitehtmlwidget.h/.cpp`
+> （0004 加布局接口，本补丁加图片接口），实现侧还会碰 `container_qpainter`；
+> 后做的必须在已打前一条的树上重出 diff。
 
 ### 4.1 公开 API
 
@@ -81,7 +104,7 @@ bool QLiteHtmlWidget::replaceImage(const QUrl& url, const QByteArray& data);
      用 `withFixedTextPosition()` 包住 `render()`，保留滚动位置；
   4. 只在 GUI 线程调用（`QPixmap` 的线程约束）。
 - `setDocument()` 继续清空 `m_pixmaps`/动画/每文档尺寸缓存；新文档重新建立。
-- 补丁文件：`patches/qlitehtml/0004-replace-image.patch`，在
+- 补丁文件：`patches/qlitehtml/0007-replace-image.patch`（编号见本节开头），在
   `cmake/patch_dependencies.cmake` 注册；删除解压目录后重放验证。
 
 ## 五、库侧接入（`MarkdownView`）
@@ -173,7 +196,7 @@ N 的取值建议：**张数 + 字节预算双限**，例如前 8 张且累计�
 
 ## 九、实施顺序
 
-1. 补丁 0004：size handler + replaceImage，重放验证；
+1. 补丁 0007（编号见 §四 开头）：size handler + replaceImage，重放验证；
 2. `MarkdownView` 开关、资源回调分档、pending 调度、打印强制全量；
 3. 单元测试与 funq 像素验收；
 4. 可选：并入图片字节 LRU；
