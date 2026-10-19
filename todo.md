@@ -10,9 +10,17 @@
       重启条件写在设计文档开头（成批截图 / 实测解码占比明显 / 看图为主的产品）。
 - [ ] **图片字节 LRU（原阶段 1）——暂缓**：单独做收益低；若将来做懒加载，
       作为重渲染配套并入阶段 2。
-- [ ] **md_viewer 缩放控件**：公开 API 已补（`MarkdownView::SetZoomFactor()` /
-      `zoom()`，2026-10-19），示例里还只有 Ctrl+滚轮 / Ctrl+=/- 快捷键，
-      没滑块或百分比标签。
+- [ ] **联网图片下载与缓存——短期不做（2026-10-19）**：qlitehtml 的资源回调
+      是同步的，不能在回调里等网络；可行路线是渲染前扫描 http(s) 图片，异步
+      预取 + 磁盘缓存，再改写为本地文件或 data URI。需要新增 Qt Network 依赖、
+      超时/单张与总大小/并发限制、隐私开关（默认关闭），下载完成后统一重渲染
+      并保留滚动位置。懒加载不是前置条件；真懒加载要补 qlitehtml，暂不展开。
+      现有 `MarkdownRenderContextOptions::image_cache_bytes` 与
+      `MarkdownContextStatus::image_context` 是当时预留的缓存/计数接口，
+      实现时可直接用。重启条件：真实文档出现远程图片需求，或要做“以图为主”
+      的查看场景。
+- [x] ~~md_viewer 缩放控件~~（2026-10-19 已交付：工具栏提供缩小/100%/放大，
+      状态栏显示百分比；`MarkdownView` 补 `ZoomIn/ZoomOut/ResetZoom`）
 
 ## 渲染性能（设计与硬约束见 `docs/plan/mermaid图表渲染设计.md` §7.2）
 
