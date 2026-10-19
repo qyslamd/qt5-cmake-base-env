@@ -10,6 +10,9 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QDockWidget>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFileInfoList>
@@ -22,6 +25,7 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QMimeData>
 #include <QPainter>
 #include <QPixmap>
 #include <QPrinter>
@@ -57,6 +61,27 @@ void SetTopMost(QWidget* window, bool top_most) {
 }
 #endif
 
+// 拖放只认本地 Markdown 文件或目录；返回按拖入顺序过滤后的路径
+QStringList DroppablePaths(const QMimeData* mime) {
+  QStringList paths;
+  if (mime == nullptr || !mime->hasUrls()) {
+    return paths;
+  }
+  for (const QUrl& url : mime->urls()) {
+    if (!url.isLocalFile()) {
+      continue;
+    }
+    const QFileInfo info(url.toLocalFile());
+    const QString suffix = info.suffix().toLower();
+    if (info.isDir() ||
+        (info.isFile() && (suffix == QStringLiteral("md") ||
+                           suffix == QStringLiteral("markdown")))) {
+      paths.append(info.absoluteFilePath());
+    }
+  }
+  return paths;
+}
+
 // 与模块的 IsMarkdownFile 一个口径：目录里认这两种后缀
 const QStringList& MarkdownFilters() {
   static const QStringList kFilters{QStringLiteral("*.md"),
@@ -85,6 +110,7 @@ QIcon TextActionIcon(const QString& text, bool active) {
 MdViewerWindow::MdViewerWindow(MdViewerSettings* settings, QWidget* parent)
     : QMainWindow(parent), settings_(settings) {
   Q_ASSERT(settings_ != nullptr);
+  setAcceptDrops(true);
   createActions();
   initUi();
   initSignals();
@@ -182,6 +208,8 @@ void MdViewerWindow::initUi() {
   status_dock->setWidget(render_status_);
   addDockWidget(Qt::RightDockWidgetArea, status_dock);
   view_menu->addAction(status_dock->toggleViewAction());
+  // 默认收起；需要时从“视图”菜单打开。已保存的 dock 布局会覆盖这个默认值
+  status_dock->hide();
 
   // 渲染设置：主题、行号、渲染开关、持久缓存、诊断
   auto* settings_dock = new QDockWidget(QStringLiteral("渲染设置"), this);
@@ -192,6 +220,8 @@ void MdViewerWindow::initUi() {
   settings_dock->setWidget(render_settings_);
   addDockWidget(Qt::RightDockWidgetArea, settings_dock);
   view_menu->addAction(settings_dock->toggleViewAction());
+  // 同上：渲染设置默认收起
+  settings_dock->hide();
 
   path_label_ = new QLabel(this);
   statusBar()->addPermanentWidget(path_label_);
@@ -539,6 +569,38 @@ void MdViewerWindow::SaveSettings() {
 void MdViewerWindow::closeEvent(QCloseEvent* event) {
   SaveSettings();
   QMainWindow::closeEvent(event);
+}
+
+void MdViewerWindow::dragEnterEvent(QDragEnterEvent* event) {
+  if (DroppablePaths(event->mimeData()).isEmpty()) {
+    event->ignore();
+    return;
+  }
+  event->acceptProposedAction();
+}
+
+void MdViewerWindow::dragMoveEvent(QDragMoveEvent* event) {
+  // 与 dragEnter 同一判据：拖到子控件上方时仍保持可放下
+  if (DroppablePaths(event->mimeData()).isEmpty()) {
+    event->ignore();
+    return;
+  }
+  event->acceptProposedAction();
+}
+
+void MdViewerWindow::dropEvent(QDropEvent* event) {
+  const QStringList paths = DroppablePaths(event->mimeData());
+  if (paths.isEmpty()) {
+    event->ignore();
+    return;
+  }
+  event->acceptProposedAction();
+  OpenPath(paths.first());
+  if (paths.size() > 1) {
+    statusBar()->showMessage(QStringLiteral("已打开第一个拖入项：%1")
+                                 .arg(QFileInfo(paths.first()).fileName()),
+                             5000);
+  }
 }
 
 void MdViewerWindow::FocusSearch() {
