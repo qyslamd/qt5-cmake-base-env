@@ -105,6 +105,15 @@ class MarkdownView : public QWidget {
   // 换文档/查找/锚点跳转会先把挂起的缩放落地
   void SetZoomFactor(qreal factor);
   qreal zoom() const { return zoom_; }
+  // 按内置步进缩放；按钮与快捷键共用同一档位
+  void ZoomIn();
+  void ZoomOut();
+  void ResetZoom();
+
+  // 垂直滚动位置（litehtml 文档坐标，单位与 viewportScrolled 一致）。
+  // 历史恢复用：宿主只记值，不碰内部滚动条
+  int ScrollPosition() const;
+  void SetScrollPosition(int y);
   // 整篇 litehtml 布局的累计次数：纯高度 resize 不增长，宽度/缩放/换文档
   // 才增长。给示例与排查用，不参与渲染逻辑
   int layout_count() const;

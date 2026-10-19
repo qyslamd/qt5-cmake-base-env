@@ -3,6 +3,7 @@
 
 #include <QMainWindow>
 #include <QString>
+#include <QVector>
 
 #include "markdown_types.h"
 
@@ -51,6 +52,27 @@ class MdViewerWindow : public QMainWindow {
   void initUi();
   void initSignals();
 
+  // 前进/后退栈里的一项：文件 + 要滚到的锚点（空 = 回到顶部）
+  struct HistoryEntry {
+    QString path;
+    QString fragment;
+    bool operator==(const HistoryEntry& other) const {
+      return path == other.path && fragment == other.fragment;
+    }
+  };
+
+  // 统一的导航入口：同文件只滚锚点，不重加载；跨文件才走加载
+  void NavigateTo(const QString& path, const QString& fragment,
+                  bool record_history);
+  // 真正打开路径（文件或目录），返回实际打开的文件；失败返回空
+  QString OpenPathCore(const QString& path);
+  bool ShowFile(const QString& path);
+  void PushHistory(const QString& path, const QString& fragment);
+  void ScrollToFragment(const QString& fragment);
+  void GoBack();
+  void GoForward();
+  void UpdateHistoryActions();
+
   void OpenFileDialog();
   void OpenDirectoryDialog();
   // Fluent 壳与文档主题一起切
@@ -66,7 +88,6 @@ class MdViewerWindow : public QMainWindow {
   void ExportPdf();
   // 只填列表，不加载——加载由 ShowFile 负责，免得两边互相触发
   void RefreshDirectoryListing(const QString& dir);
-  void ShowFile(const QString& path);
   void SelectInList(const QString& path);
   void RefreshRecentMenu();
   // 关闭/退出时把窗口与渲染状态写回 md_viewer.ini
@@ -84,6 +105,11 @@ class MdViewerWindow : public QMainWindow {
   QAction* find_action_ = nullptr;
   QAction* find_next_action_ = nullptr;
   QAction* find_prev_action_ = nullptr;
+  QAction* back_action_ = nullptr;
+  QAction* forward_action_ = nullptr;
+  QAction* zoom_in_action_ = nullptr;
+  QAction* zoom_out_action_ = nullptr;
+  QAction* zoom_reset_action_ = nullptr;
   // 搜索框内的模式开关（挂在 Fluent 标题栏的 QLineEdit 上）
   QAction* case_action_ = nullptr;
   QAction* word_action_ = nullptr;
@@ -103,6 +129,9 @@ class MdViewerWindow : public QMainWindow {
   MarkdownRendererStatus last_render_status_;
   // 列表当前列的是哪个目录（ShowFile 据此决定要不要重扫）
   QString listed_dir_;
+  // 文件跳转与锚点跳转共用的历史栈
+  QVector<HistoryEntry> history_;
+  int history_index_ = -1;
 
   // 无边框窗口壳（QWK + Fluent 标题栏）
   FluentWindowFrame* fluent_frame_ = nullptr;

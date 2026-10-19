@@ -32,6 +32,7 @@
 #include <QShortcut>
 #include <QStatusBar>
 #include <QTimer>
+#include <QToolBar>
 #include <QToolButton>
 
 #ifdef Q_OS_WIN
@@ -166,6 +167,38 @@ void MdViewerWindow::initUi() {
   view_->SetPersistentRenderCacheEnabled(settings_->persistent_cache);
   setCentralWidget(view_);
 
+  // 导航工具条：与 qt-md-renderer-demo 同款，文件跳转和锚点跳转共用一个历史栈
+  auto* toolbar = addToolBar(QStringLiteral("导航"));
+  toolbar->setObjectName(QStringLiteral("viewerToolBar"));
+  toolbar->setMovable(false);
+  toolbar->setToolButtonStyle(Qt::ToolButtonTextOnly);
+
+  back_action_ = toolbar->addAction(QStringLiteral("← 后退"));
+  back_action_->setObjectName(QStringLiteral("navBack"));
+  back_action_->setShortcut(QKeySequence(QStringLiteral("Ctrl+Alt+Left")));
+  back_action_->setToolTip(QStringLiteral("后退（Ctrl+Alt+←）"));
+
+  forward_action_ = toolbar->addAction(QStringLiteral("前进 →"));
+  forward_action_->setObjectName(QStringLiteral("navForward"));
+  forward_action_->setShortcut(QKeySequence(QStringLiteral("Ctrl+Alt+Right")));
+  forward_action_->setToolTip(QStringLiteral("前进（Ctrl+Alt+→）"));
+
+  toolbar->addSeparator();
+
+  // 缩放快捷键由 MarkdownView 内部持有，这里的按钮不再重复注册快捷键
+  zoom_out_action_ = toolbar->addAction(QStringLiteral("缩小"));
+  zoom_out_action_->setObjectName(QStringLiteral("zoomOut"));
+  zoom_out_action_->setToolTip(QStringLiteral("缩小（Ctrl+-）"));
+
+  zoom_reset_action_ = toolbar->addAction(QStringLiteral("100%"));
+  zoom_reset_action_->setObjectName(QStringLiteral("zoomReset"));
+  zoom_reset_action_->setToolTip(QStringLiteral("重置缩放（Ctrl+0）"));
+
+  zoom_in_action_ = toolbar->addAction(QStringLiteral("放大"));
+  zoom_in_action_->setObjectName(QStringLiteral("zoomIn"));
+  zoom_in_action_->setToolTip(QStringLiteral("放大（Ctrl+=）"));
+  UpdateHistoryActions();
+
   QMenu* file_menu = menuBar()->addMenu(QStringLiteral("文件(&F)"));
   file_menu->addAction(open_file_action_);
   file_menu->addAction(open_dir_action_);
@@ -275,6 +308,13 @@ void MdViewerWindow::initSignals() {
           &MdViewerWindow::ApplyTheme);
   connect(render_settings_, &RenderSettingsPanel::windowBlurEnabledChanged,
           this, &MdViewerWindow::SetWindowBlur);
+  connect(back_action_, &QAction::triggered, this, &MdViewerWindow::GoBack);
+  connect(forward_action_, &QAction::triggered, this,
+          &MdViewerWindow::GoForward);
+  connect(zoom_in_action_, &QAction::triggered, view_, &MarkdownView::ZoomIn);
+  connect(zoom_out_action_, &QAction::triggered, view_, &MarkdownView::ZoomOut);
+  connect(zoom_reset_action_, &QAction::triggered, view_,
+          &MarkdownView::ResetZoom);
   connect(open_file_action_, &QAction::triggered, this,
           &MdViewerWindow::OpenFileDialog);
   connect(open_dir_action_, &QAction::triggered, this,
@@ -290,7 +330,7 @@ void MdViewerWindow::initSignals() {
   // 点列表换文档。UserRole 存的是全路径
   connect(file_list_, &QListWidget::itemClicked, this,
           [this](QListWidgetItem* item) {
-            ShowFile(item->data(Qt::UserRole).toString());
+            OpenPath(item->data(Qt::UserRole).toString());
           });
   connect(view_, &MarkdownView::outlineChanged, this,
           [this] { outline_->SetHeadings(view_->outline()); });
@@ -312,8 +352,10 @@ void MdViewerWindow::initSignals() {
             statusBar()->showMessage(
                 QStringLiteral("图片加载失败：%1").arg(label), 5000);
           });
-  connect(outline_, &MarkdownOutlineWidget::headingActivated, view_,
-          &MarkdownView::ScrollToAnchor);
+  connect(outline_, &MarkdownOutlineWidget::headingActivated, this,
+          [this](const QString& anchor) {
+            NavigateTo(view_->current_file(), anchor, /*record_history=*/true);
+          });
   connect(render_settings_, &RenderSettingsPanel::statusMessage, this,
           [this](const QString& message) {
             statusBar()->showMessage(message, 5000);
@@ -366,7 +408,7 @@ void MdViewerWindow::initSignals() {
                     QLatin1Char('/'))
               : QUrl();
       if (no_frag.isEmpty() || no_frag == here) {
-        view_->ScrollToAnchor(fragment);
+        NavigateTo(view_->current_file(), fragment, /*record_history=*/true);
         return;
       }
     }
@@ -374,8 +416,7 @@ void MdViewerWindow::initSignals() {
     if (!path.isEmpty() &&
         (path.endsWith(QStringLiteral(".md"), Qt::CaseInsensitive) ||
          path.endsWith(QStringLiteral(".markdown"), Qt::CaseInsensitive))) {
-      ShowFile(path);
-      view_->ScrollToAnchor(fragment);
+      NavigateTo(path, fragment, /*record_history=*/true);
       return;
     }
     const bool web_link = url.scheme() == QLatin1String("http") ||
@@ -440,15 +481,90 @@ void MdViewerWindow::initSignals() {
 }
 
 void MdViewerWindow::OpenPath(const QString& path) {
+  NavigateTo(path, QString(), /*record_history=*/true);
+}
+
+void MdViewerWindow::NavigateTo(const QString& path, const QString& fragment,
+                                bool record_history) {
+  // 同文件只滚锚点，不重加载；否则后退到同文档的另一个锚点会闪一下
+  if (!view_->current_file().isEmpty() && path == view_->current_file()) {
+    if (record_history) {
+      PushHistory(path, fragment);
+    }
+    ScrollToFragment(fragment);
+    return;
+  }
+  const QString opened = OpenPathCore(path);
+  if (opened.isEmpty()) {
+    return;
+  }
+  if (record_history) {
+    PushHistory(opened, fragment);
+  }
+  ScrollToFragment(fragment);
+}
+
+QString MdViewerWindow::OpenPathCore(const QString& path) {
   const QFileInfo info(path);
   if (info.isDir()) {
     RefreshDirectoryListing(info.absoluteFilePath());
     if (file_list_->count() > 0) {
-      ShowFile(file_list_->item(0)->data(Qt::UserRole).toString());
+      const QString first = file_list_->item(0)->data(Qt::UserRole).toString();
+      return ShowFile(first) ? first : QString();
     }
+    return {};
+  }
+  const QString absolute = info.absoluteFilePath();
+  return ShowFile(absolute) ? absolute : QString();
+}
+
+void MdViewerWindow::PushHistory(const QString& path, const QString& fragment) {
+  while (history_.size() > history_index_ + 1) {
+    history_.removeLast();
+  }
+  const HistoryEntry entry{path, fragment};
+  if (history_.isEmpty() || !(history_.last() == entry)) {
+    history_.append(entry);
+  }
+  history_index_ = history_.size() - 1;
+  UpdateHistoryActions();
+}
+
+void MdViewerWindow::ScrollToFragment(const QString& fragment) {
+  if (fragment.isEmpty()) {
+    view_->SetScrollPosition(0);
     return;
   }
-  ShowFile(info.absoluteFilePath());
+  view_->ScrollToAnchor(fragment);
+}
+
+void MdViewerWindow::GoBack() {
+  if (history_index_ <= 0) {
+    return;
+  }
+  --history_index_;
+  const HistoryEntry entry = history_.at(history_index_);
+  NavigateTo(entry.path, entry.fragment, /*record_history=*/false);
+  UpdateHistoryActions();
+}
+
+void MdViewerWindow::GoForward() {
+  if (history_index_ + 1 >= history_.size()) {
+    return;
+  }
+  ++history_index_;
+  const HistoryEntry entry = history_.at(history_index_);
+  NavigateTo(entry.path, entry.fragment, /*record_history=*/false);
+  UpdateHistoryActions();
+}
+
+void MdViewerWindow::UpdateHistoryActions() {
+  if (back_action_ != nullptr) {
+    back_action_->setEnabled(history_index_ > 0);
+  }
+  if (forward_action_ != nullptr) {
+    forward_action_->setEnabled(history_index_ + 1 < history_.size());
+  }
 }
 
 void MdViewerWindow::OpenLastFile() {
@@ -472,7 +588,7 @@ void MdViewerWindow::OpenFileDialog() {
       this, QStringLiteral("打开 Markdown"), start_dir,
       QStringLiteral("Markdown 文档 (*.md *.markdown);;所有文件 (*)"));
   if (!path.isEmpty()) {
-    ShowFile(path);
+    OpenPath(path);
   }
 }
 
@@ -540,14 +656,14 @@ void MdViewerWindow::RefreshDirectoryListing(const QString& dir) {
       QStringLiteral("%1：%2 篇 Markdown").arg(dir).arg(files.size()), 5000);
 }
 
-void MdViewerWindow::ShowFile(const QString& path) {
+bool MdViewerWindow::ShowFile(const QString& path) {
   const QFileInfo info(path);
   // 单篇打开时顺手把同目录的兄弟列出来——侧栏不该只对"打开目录"生效
   if (info.absolutePath() != listed_dir_) {
     RefreshDirectoryListing(info.absolutePath());
   }
   if (!view_->LoadFile(info.absoluteFilePath())) {
-    return;  // 视图里已经是错误页，状态栏的消息由 loadFailed 负责
+    return false;  // 视图里已经是错误页，状态栏的消息由 loadFailed 负责
   }
   setWindowTitle(QStringLiteral("Markdown 查看器 - %1").arg(info.fileName()));
   path_label_->setText(info.fileName());
@@ -556,6 +672,7 @@ void MdViewerWindow::ShowFile(const QString& path) {
   // 最近记录立即落盘：即使随后异常退出，也不会丢这次打开
   settings_->AddRecentFile(info.absoluteFilePath());
   RefreshRecentMenu();
+  return true;
 }
 
 void MdViewerWindow::SelectInList(const QString& path) {

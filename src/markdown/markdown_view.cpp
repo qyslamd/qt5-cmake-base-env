@@ -336,6 +336,22 @@ void MarkdownView::SetZoom(qreal factor) {
 
 void MarkdownView::SetZoomFactor(qreal factor) { SetZoom(factor); }
 
+void MarkdownView::ZoomIn() { SetZoom(zoom_ * kZoomStep); }
+
+void MarkdownView::ZoomOut() { SetZoom(zoom_ / kZoomStep); }
+
+void MarkdownView::ResetZoom() { SetZoom(1.0); }
+
+int MarkdownView::ScrollPosition() const {
+  return html_->verticalScrollBar()->value();
+}
+
+void MarkdownView::SetScrollPosition(int y) {
+  // 挂起的缩放会重排，滚动值随之漂移；先落地再设
+  FlushPendingZoom();
+  html_->verticalScrollBar()->setValue(y);
+}
+
 int MarkdownView::layout_count() const { return html_->layoutCount(); }
 
 void MarkdownView::ApplyPendingZoom() {
