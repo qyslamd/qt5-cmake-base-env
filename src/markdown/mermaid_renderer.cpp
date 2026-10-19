@@ -7,7 +7,6 @@
 #include <QBuffer>
 #include <QDebug>
 #include <QElapsedTimer>
-#include <QFile>
 #include <QFont>
 #include <QFontDatabase>
 #include <QFontMetricsF>
@@ -22,8 +21,8 @@
 #include <QSvgRenderer>
 
 #include "default_render_context.h"
+#include "markdown_bytecode.h"
 #include "markdown_render_context_internal.h"
-#include "markdown_resources.h"
 #include "markdown_types.h"
 #include "mermaid_css_inliner.h"
 #include "mermaid_svg_cleanup.h"
@@ -245,13 +244,36 @@ bool EvalGlobal(const QByteArray& code, const char* name) {
   return true;
 }
 
-bool ReadPayload(const QString& path, QByteArray* out) {
-  QFile file(path);
-  if (!file.open(QIODevice::ReadOnly)) {
-    qWarning() << "mermaid: payload missing:" << path;
+// qjsc 字节码：JS_ReadObject 反序列化成函数对象，JS_EvalFunction 实例化并
+// 求值（接管 obj 所有权，成功后不能再 Free obj）
+bool EvalBytecode(const uint8_t* data, size_t size, const char* name) {
+  JSValue obj = JS_ReadObject(g_context, data, size, JS_READ_OBJ_BYTECODE);
+  if (JS_IsException(obj)) {
+    JSValue exception = JS_GetException(g_context);
+    const char* message = JS_ToCString(g_context, exception);
+    qWarning() << "mermaid: read" << name
+               << "failed:" << (message != nullptr ? message : "?");
+    if (message != nullptr) {
+      JS_FreeCString(g_context, message);
+    }
+    JS_FreeValue(g_context, exception);
+    JS_FreeValue(g_context, obj);  // 异常哨兵，Free 是 no-op
     return false;
   }
-  *out = file.readAll();
+  const JSValue value = JS_EvalFunction(g_context, obj);
+  if (JS_IsException(value)) {
+    JSValue exception = JS_GetException(g_context);
+    const char* message = JS_ToCString(g_context, exception);
+    qWarning() << "mermaid: eval" << name
+               << "failed:" << (message != nullptr ? message : "?");
+    if (message != nullptr) {
+      JS_FreeCString(g_context, message);
+    }
+    JS_FreeValue(g_context, exception);
+    JS_FreeValue(g_context, value);
+    return false;
+  }
+  JS_FreeValue(g_context, value);
   return true;
 }
 
@@ -287,16 +309,6 @@ bool EnsureLoaded() {
   if (!g_load_attempted) {
     g_load_attempted = true;
     g_load_clock.start();
-  }
-
-  EnsureMarkdownResources();
-  QByteArray path_bbox;
-  QByteArray dom_shim;
-  QByteArray mermaid_js;
-  if (!ReadPayload(QStringLiteral(":/markdown/path_bbox.js"), &path_bbox) ||
-      !ReadPayload(QStringLiteral(":/markdown/dom_shim.js"), &dom_shim) ||
-      !ReadPayload(QStringLiteral(":/markdown/mermaid.js"), &mermaid_js)) {
-    return FailLoad();
   }
 
   g_runtime = JS_NewRuntime();
@@ -338,10 +350,12 @@ bool EnsureLoaded() {
     return FailLoad();
   }
 
-  // 顺序固定：path_bbox（纯几何）→ dom_shim（假 DOM）→ mermaid（3.5MB bundle）
-  if (!EvalGlobal(path_bbox, "path_bbox.js") ||
-      !EvalGlobal(dom_shim, "dom_shim.js") ||
-      !EvalGlobal(mermaid_js, "mermaid.js")) {
+  // 顺序固定：path_bbox（纯几何）→ dom_shim（假 DOM）→ mermaid（3.5MB
+  // bundle）。三份都是 qjsc 构建期编出的字节码（见 CMakeLists.txt 的
+  // qjsc 段），依赖顺序与源码时代一致
+  if (!EvalBytecode(md_pb, md_pb_size, "path_bbox.js") ||
+      !EvalBytecode(md_ds, md_ds_size, "dom_shim.js") ||
+      !EvalBytecode(md_mm, md_mm_size, "mermaid.js")) {
     return FailLoad();
   }
 

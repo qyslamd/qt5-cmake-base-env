@@ -1,6 +1,7 @@
 #include "render_cache.h"
 
 #include <algorithm>
+#include <cstring>
 
 #include <QCryptographicHash>
 #include <QDateTime>
@@ -13,7 +14,7 @@
 #include <QStandardPaths>
 #include <QStringList>
 
-#include "markdown_resources.h"
+#include "markdown_bytecode.h"
 
 namespace {
 
@@ -86,27 +87,26 @@ QByteArray PayloadHash(const QString& kind) {
     return *cached;
   }
 
-  EnsureMarkdownResources();
-  QStringList paths;
+  // 载荷哈希对象是 qjsc 编出的字节码数组（渲染器实际执行的内容）。
+  // 名字参与哈希：载荷集合/顺序变化也要换 key
+  struct BytecodePayload {
+    const char* name;
+    const uint8_t* data;
+    uint32_t size;
+  };
+  QList<BytecodePayload> payloads;
   if (kind == QLatin1String("formula")) {
-    paths << QStringLiteral(":/markdown/mathjax-svg.min.js");
+    payloads << BytecodePayload{"mathjax-svg.min.js", md_mj, md_mj_size};
   } else if (kind == QLatin1String("mermaid")) {
-    paths << QStringLiteral(":/markdown/mermaid.js")
-          << QStringLiteral(":/markdown/dom_shim.js")
-          << QStringLiteral(":/markdown/path_bbox.js");
+    payloads << BytecodePayload{"path_bbox.js", md_pb, md_pb_size}
+             << BytecodePayload{"dom_shim.js", md_ds, md_ds_size}
+             << BytecodePayload{"mermaid.js", md_mm, md_mm_size};
   }
 
   QCryptographicHash hash(QCryptographicHash::Sha256);
-  for (const QString& path : paths) {
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly)) {
-      qWarning() << "markdown: render cache payload missing" << path;
-      continue;
-    }
-    const QByteArray bytes = file.readAll();
-    // 路径参与哈希：文件顺序/集合变化也要换 key
-    hash.addData(path.toUtf8());
-    hash.addData(bytes);
+  for (const BytecodePayload& payload : payloads) {
+    hash.addData(payload.name, strlen(payload.name));
+    hash.addData(reinterpret_cast<const char*>(payload.data), payload.size);
   }
   const QByteArray result = hash.result();
   cache.insert(kind, result);

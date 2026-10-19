@@ -29,8 +29,12 @@
     `ApplyDocument()` 前后存/恢复滚动值）；
   - 动手前先定死一件事：`MarkdownToHtml` **整体**搬到渲染线程跑（sink 保持同步），
     还是把 sink 异步化（接口要扩成带批次的，公式侧同改）。**二选一，别混。**
-- [ ] 载荷压缩复量：`markdown_res.qrc` 的 `<qresource>` 可以加 `compress`（zlib）。
-      现在 `qrc_markdown_res.cpp` 已约 14MB，编译时间与 exe 体积值得量一次再决定。
+- [x] ~~载荷压缩复量~~（2026-10-19 已结：实测 rcc **默认就开了 zlib 压缩**，
+      显式 `compress="1"` 与现状逐字节相同，无增益；且 JS 载荷已改 qjsc
+      字节码、不进 qrc——见 `docs/eval/Markdown渲染qjsc预编译评估.md`）
+- [x] ~~JS 载荷 qjsc 预编译~~（2026-10-19 已落地：五份载荷构建期编成字节码，
+      Mermaid 冷加载 732→85ms、首次带图 ApplyDocument 1566→669ms，代价
+      exe +2.9MB；数据与实施要点见 `docs/eval/Markdown渲染qjsc预编译评估.md`）
 - [ ] **resize 会触发整篇重排（拖动分栏/拉窗口时每帧一次）。** `qlitehtmlwidget.cpp`
       的 `resizeEvent` 直接调 `render()`，而 `render()` = 整篇 litehtml 布局
       （`documentContainer.render(w, h)`）。demo 侧实测布局约 **90ms/KB**：54KB

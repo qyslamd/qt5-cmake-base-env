@@ -1,7 +1,8 @@
 // MathJax tex→svg 的打包入口（无 DOM 环境）。
 //
 // 产物同目录的 mathjax-svg.min.js 已入库：它是纯 JS，与平台无关，Windows 与
-// Linux 共用同一份（实测两边输出的 SVG 逐字节一致），所以平时不需要 node。
+// Linux 共用同一份（实测两边输出的 SVG 逐字节一致），渲染时由 qjsc 在构建期
+// 编成字节码（见 src/markdown/CMakeLists.txt），平时不需要 node。
 // 只有升级 MathJax 时才重跑（node 与依赖的版本钉在下面）：
 //
 //   npm install mathjax-full@3.2.1 esbuild@0.28.2

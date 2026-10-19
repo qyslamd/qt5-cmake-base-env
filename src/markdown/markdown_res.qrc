@@ -6,17 +6,8 @@
         <file alias="themes/light.css">resources/themes/light.css</file>
         <file alias="themes/dark.css">resources/themes/dark.css</file>
         <file alias="themes/high_contrast.css">resources/themes/high_contrast.css</file>
-        <!-- 公式渲染的 JS 载荷（MathJax tex→svg）。纯 JS 与平台无关，入 qrc 免去
-             部署时还要跟着拷一份文件；重建配方见 resources/mathjax_svg_entry.mjs -->
-        <file alias="mathjax-svg.min.js">resources/mathjax-svg.min.js</file>
-        <!-- Mermaid 渲染的三份 JS 载荷（3.5MB 的官方 bundle + 假 DOM + path 包围盒）。
-             同样是平台无关的纯 JS；重建配方与哈希见
-             resources/extract_mermaid_payload.py -->
-        <file alias="mermaid.js">resources/mermaid.js</file>
-        <file alias="dom_shim.js">resources/dom_shim.js</file>
-        <file alias="path_bbox.js">resources/path_bbox.js</file>
-        <!-- 语法高亮的 JS 载荷（highlight.js 11.12.0，66KB）。重建配方与 md5
-             见 resources/highlight_entry.js 头注释 -->
-        <file alias="highlight.min.js">resources/highlight.min.js</file>
+        <!-- 五份 JS 载荷已改由 qjsc 在构建期预编译成字节码 C 数组（见
+             CMakeLists.txt 的 qjsc 段与 markdown_bytecode.h），不再进 qrc。
+             评估数据见 docs/eval/Markdown渲染qjsc预编译评估.md -->
     </qresource>
 </RCC>

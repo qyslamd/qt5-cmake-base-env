@@ -1,7 +1,8 @@
 # Mermaid 载荷的重建配方（本目录三份 JS 都是从 mermaidx-0.9.5 取来的）。
 #
-# 为什么入库：三份都是纯 JS、与平台无关，入 qrc 之后部署不用跟着拷文件，两个
-# 平台也不用各装一套 node。代价是不可读、不可 review，所以配方必须一起提交。
+# 为什么入库：三份都是纯 JS、与平台无关，渲染时由 qjsc 在构建期编成字节码
+# （见 src/markdown/CMakeLists.txt），部署不用跟着拷文件，两个平台也不用各装
+# 一套 node。代价是不可读、不可 review，所以配方必须一起提交。
 #
 #   mermaid.js     官方 mermaid bundle（内含 mermaid 11.16.0）  3565102 字节
 #   dom_shim.js    假的 DOM/SVG 环境                            53972 字节

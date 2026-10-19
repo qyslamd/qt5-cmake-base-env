@@ -1,6 +1,7 @@
 // highlight.js 的打包入口：语法高亮走"QuickJS 里跑 bundle"的同一套管线
-// （MathJax/mermaid 同款）。产物 highlight.min.js（66KB）已入库 qrc——纯 JS
-// 与平台无关，平时不需要 node；升级 highlight.js 时才重跑（版本钉在下面）：
+// （MathJax/mermaid 同款）。产物 highlight.min.js（66KB）入库；渲染时由
+// qjsc 在构建期编成字节码（见 src/markdown/CMakeLists.txt）。纯 JS 与平台
+// 无关，平时不需要 node；升级 highlight.js 时才重跑（版本钉在下面）：
 //
 //   npm install highlight.js@11.12.0 esbuild@0.28.2
 //   <NPM_DIR>/node_modules/.bin/esbuild src/markdown/resources/highlight_entry.js \

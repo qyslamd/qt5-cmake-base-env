@@ -9,6 +9,7 @@ set(TARGET_SRCS
     formula_renderer.h
     heading_ids.cpp
     heading_ids.h
+    markdown_bytecode.h
     markdown_outline_widget.cpp
     markdown_outline_widget.h
     markdown_render_context.cpp
@@ -48,7 +49,53 @@ endif()
 set(MARKDOWN_RESOURCES markdown_res.qrc)
 qt5_add_resources(MARKDOWN_RESOURCES_CPP ${MARKDOWN_RESOURCES})
 
-add_library(${TARGET_NAME} STATIC ${TARGET_SRCS} ${MARKDOWN_RESOURCES_CPP})
+# -----------------------------------------------------------------------------
+# qjsc：构建期把五份 JS 载荷预编译成字节码 C 数组（渲染器经
+# markdown_bytecode.h 加载，不再从 qrc 读源码）。冷加载实测数据见
+# docs/eval/Markdown渲染qjsc预编译评估.md。
+#
+# 五份载荷都是 classic script（无行首 import/export），-C 出字节码数组；
+# -s -s 剥源码与调试信息（排查靠 qWarning 消息与 dump 产物，不靠 JS 行号）；
+# -N 指定 C 变量名。只认 in-tree qjsc target：系统 PATH 里的异版本 qjsc
+# 产出的字节码 BC_VERSION 不匹配，会拖到运行时才永久 FailLoad，必须在这里
+# configure 期拦住。字节码与 QuickJS 版本/位数/编译开关绑定，各构建目录
+# 各自生成、不入库；载荷文件变化时 DEPENDS 自动重编
+# -----------------------------------------------------------------------------
+if(NOT TARGET qjsc)
+    message(FATAL_ERROR
+        "qjsc 目标不存在：markdown 的 JS 载荷需要在构建期用 qjsc 预编译成"
+        "字节码（本模块链接它的产物）。确认 3rdparty/quickjs 的"
+        " add_subdirectory 先于 src/markdown。")
+endif()
+set(QJSC_CMD "$<TARGET_FILE:qjsc>")
+set(MARKDOWN_BYTECODE_DIR "${CMAKE_CURRENT_BINARY_DIR}/bytecode")
+set(MARKDOWN_BYTECODE_SRCS "")
+foreach(entry "md_hl:highlight.min.js"
+              "md_mj:mathjax-svg.min.js"
+              "md_mm:mermaid.js"
+              "md_ds:dom_shim.js"
+              "md_pb:path_bbox.js")
+    string(REPLACE ":" ";" parts "${entry}")
+    list(GET parts 0 symbol)
+    list(GET parts 1 filename)
+    set(js_file "${CMAKE_CURRENT_SOURCE_DIR}/resources/${filename}")
+    set(c_file "${MARKDOWN_BYTECODE_DIR}/${symbol}.c")
+    add_custom_command(
+        OUTPUT "${c_file}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${MARKDOWN_BYTECODE_DIR}"
+        COMMAND "${QJSC_CMD}" -C -s -s -N ${symbol}
+                -o "${c_file}" "${js_file}"
+        DEPENDS "${js_file}" qjsc
+        COMMENT "qjsc: ${filename} -> ${symbol}.c"
+        VERBATIM
+    )
+    list(APPEND MARKDOWN_BYTECODE_SRCS "${c_file}")
+endforeach()
+
+add_library(${TARGET_NAME} STATIC
+    ${TARGET_SRCS}
+    ${MARKDOWN_BYTECODE_SRCS}
+    ${MARKDOWN_RESOURCES_CPP})
 
 set_target_properties(${TARGET_NAME} PROPERTIES
     CXX_STANDARD 17

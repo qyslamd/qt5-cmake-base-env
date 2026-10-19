@@ -4,12 +4,11 @@
 
 #include <QDebug>
 #include <QElapsedTimer>
-#include <QFile>
 
 #include "default_render_context.h"
 #include "html_escape.h"
+#include "markdown_bytecode.h"
 #include "markdown_render_context_internal.h"
-#include "markdown_resources.h"
 #include "render_diagnostics.h"
 #include "renderer_status_internal.h"
 
@@ -56,15 +55,6 @@ bool EnsureLoaded() {
     g_load_clock.start();
   }
 
-  EnsureMarkdownResources();
-  QFile file(QStringLiteral(":/markdown/highlight.min.js"));
-  if (!file.open(QIODevice::ReadOnly)) {
-    qWarning() << "highlight payload missing from resources";
-    return FailLoad();
-  }
-  const QByteArray code = file.readAll();
-  file.close();
-
   g_runtime = JS_NewRuntime();
   if (g_runtime == nullptr) {
     return FailLoad();
@@ -76,12 +66,28 @@ bool EnsureLoaded() {
     return FailLoad();
   }
 
-  const JSValue result = JS_Eval(g_context, code.constData(), code.size(),
-                                 "highlight", JS_EVAL_TYPE_GLOBAL);
+  // 载荷是 qjsc 构建期编出的字节码（见 CMakeLists.txt 的 qjsc 段）：
+  // ReadObject 反序列化成函数对象，EvalFunction 实例化并求值。
+  // EvalFunction 接管 obj 所有权，成功后不能再 Free obj
+  JSValue obj =
+      JS_ReadObject(g_context, md_hl, md_hl_size, JS_READ_OBJ_BYTECODE);
+  if (JS_IsException(obj)) {
+    JSValue exception = JS_GetException(g_context);
+    const char* message = JS_ToCString(g_context, exception);
+    qWarning() << "highlight bytecode read failed:"
+               << (message != nullptr ? message : "?");
+    if (message != nullptr) {
+      JS_FreeCString(g_context, message);
+    }
+    JS_FreeValue(g_context, exception);
+    JS_FreeValue(g_context, obj);  // 异常哨兵，free 是 no-op
+    return FailLoad();
+  }
+  const JSValue result = JS_EvalFunction(g_context, obj);
   if (JS_IsException(result)) {
     JSValue exception = JS_GetException(g_context);
     const char* message = JS_ToCString(g_context, exception);
-    qWarning() << "highlight payload eval failed:"
+    qWarning() << "highlight bytecode eval failed:"
                << (message != nullptr ? message : "?");
     if (message != nullptr) {
       JS_FreeCString(g_context, message);
