@@ -1,7 +1,8 @@
 # Markdown 渲染重排去抖设计
 
 状态：v5（2026-10-19），步 1 + 步 2 已实现并通过测试；步 3（宽度变化去抖，
-补丁 0005）未做，等实测后再定。实施记录见文末 §八。
+预留补丁 0006）未做，等实测后再定。实施记录见文末 §八。0005 已被打印单位
+修复占用，见 `docs/guide/第三方依赖补丁.md`。
 
 ## 一、问题
 
@@ -105,8 +106,8 @@ d->heightAffectsLayout = ScanViewportDependent(content);
 ### 方案 A：给 qlitehtml 打补丁（推荐）
 
 补丁编号 **0004**，文件名 `patches/qlitehtml/0004-layout-on-width-change.patch`。
-图片懒加载设计原本也占 0004，现顺延为 0006（见那份文档 §四 开头）。两条补丁都会
-改 `qlitehtmlwidget.h/.cpp`（0004 加布局接口，0006 加图片替换接口），**后做的必须
+图片懒加载设计原本也占 0004，现顺延为 0007（见那份文档 §四 开头）。两条补丁都会
+改 `qlitehtmlwidget.h/.cpp`（0004 加布局接口，0007 加图片替换接口），**后做的必须
 在已打前一条的树上重出 diff**；与 0001~0003 无文本 hunk 重叠（第二轮审查已核）。
 
 补丁改两个文件：
@@ -183,9 +184,9 @@ void QLiteHtmlWidget::resizeEvent(QResizeEvent *event)
 |---|---|---|---|
 | 1 | 缩放合并：连续滚轮/按键只在停手后排最后一档 | 本仓 `MarkdownView` | 步 2 的 `setZoomFactorWithoutRender()` |
 | 2 | 宽度判断：宽度没变不重排 | 补丁 `qlitehtml/0004` | 无 |
-| 3 | 宽度变化去抖：拖动期间不排，停手 150~250ms 补一次 | **单独的** 补丁 `0005` | 步 2 |
+| 3 | 宽度变化去抖：拖动期间不排，停手 150~250ms 补一次 | **单独的** 补丁 `0006` | 步 2 |
 
-补丁是整体应用的，**debounce 必须独立成 0005**，否则步 2 没法单独验收。步 3 默认
+补丁是整体应用的，**debounce 必须独立成 0006**，否则步 2 没法单独验收。步 3 默认
 不做，等步 2 实测。
 
 要认清收益面：步 2 只救"宽度不变、只变高度"——拉窗口下边缘、md_viewer 用 Ctrl+F
@@ -226,7 +227,7 @@ private、只有快捷键与 Ctrl+滚轮两个入口，合并放在 `SetZoom` �
 即上节补丁。注意 `setHtml` / `setZoomFactor` / `setDefaultFont` / `setAntialias`
 仍走完整 `render()`（审查确认这些入口没有遗漏），只有 `resizeEvent` 分叉。
 
-### 步 3：宽度变化去抖（0005，默认不做）
+### 步 3：宽度变化去抖（0006，默认不做）
 
 形态：宽度变了 → 记下待处理、重启定时器、先不排；到点 → 重新取 `layoutWidth()`
 与 `lastLayoutWidth` 比，一样就返回，不一样才 `render()`；期间画旧布局（变宽留白、
@@ -311,7 +312,7 @@ render，不新增正确性风险。
 2. **换文档的缩放落地用补丁新入口** `setZoomFactorWithoutRender()`：只改
    `d->zoomFactor`、不排。`setZoomFactor()` 保持现有语义不动。
 3. **步 3 本次不做**：先落地步 1 + 步 2，量一遍步 2 在"只变高度"路径上的收益，
-   再决定 0005 要不要写。
+   再决定 0006 要不要写。
 4. **砍掉 `updateClientRect`**：它在便宜分支上写进去的值没有读者，下次全量 render
    又会覆盖；补丁因此只改 `qlitehtmlwidget.h/.cpp` 两个文件，也少一处与图片懒加载
    补丁的重叠。
@@ -335,7 +336,7 @@ render，不新增正确性风险。
 - **测试**：`tests/markdown/layout_debounce_test.cpp`，8 条用例覆盖纯高度不重排、
   宽度重排、五类守卫、三种代码形态、连续/间隔缩放、挂起缩放 + 换文档。
 - **验证**：x86 relwithdebinfo Build OK；`ctest -L MARKDOWN` 17/17。
-- **未做**：步 3 的宽度变化去抖（补丁 0005）；`md_viewer` 的缩放滑块
+- **未做**：步 3 的宽度变化去抖（补丁 0006）；`md_viewer` 的缩放滑块
   （公开 API 已有，UI 仍在 todo）。
 6. **锚点缓存改为查询时按 `layoutCount` 判新鲜度（2026-10-19 并入，复审修订）**：
    现有 `rangeChanged` 无条件失效 + `MarkdownView::resizeEvent` 无条件失效两条线

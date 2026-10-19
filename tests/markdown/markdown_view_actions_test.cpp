@@ -97,6 +97,55 @@ TEST(MarkdownViewActionsTest, PrintWritesPdf) {
   EXPECT_GT(pdf.size(), 1000);  // 空文档也会有个骨架，太小说明什么都没画
 }
 
+namespace {
+
+int PdfPageCount(const QByteArray& pdf) {
+  int count = 0;
+  int from = 0;
+  while ((from = pdf.indexOf("/Type /Page", from)) >= 0) {
+    // 排除 /Type /Pages
+    if (pdf.at(from + 11) != 's') {
+      ++count;
+    }
+    from += 11;
+  }
+  return count;
+}
+
+}  // namespace
+
+// 回归：HighResolution 打印机下必须按 CSS 逻辑像素布局。曾经把设备像素
+// （约 9921 px 宽）当逻辑像素传给 litehtml，文字被缩到几十分之一，且分页
+// 循环拿设备页高比逻辑文档高，永远只有一页
+TEST(MarkdownViewActionsTest, PrintHighResolutionPaginatesLongDocument) {
+  QString markdown;
+  for (int i = 0; i < 200; ++i) {
+    markdown += QStringLiteral(
+                    "第 %1 段：这是一段用来撑开打印页数的正文，"
+                    "每段都足够长，确保文档跨越多个 A4 页面。\n\n")
+                    .arg(i);
+  }
+  MarkdownView view;
+  view.SetContent(markdown, QString());
+
+  QTemporaryDir dir;
+  ASSERT_TRUE(dir.isValid());
+  const QString path = dir.filePath(QStringLiteral("long.pdf"));
+  QPrinter printer(QPrinter::HighResolution);
+  printer.setOutputFormat(QPrinter::PdfFormat);
+  printer.setOutputFileName(path);
+  if (!printer.isValid()) {
+    GTEST_SKIP() << "本平台没有打印后端（如 offscreen），跳过 PDF 用例";
+  }
+  view.Print(&printer);
+
+  QFile pdf(path);
+  ASSERT_TRUE(pdf.open(QIODevice::ReadOnly));
+  const QByteArray bytes = pdf.readAll();
+  EXPECT_GE(PdfPageCount(bytes), 2)
+      << "长文档只出了一页：页面/文档高度单位可能又错位了";
+}
+
 // 空指针不崩：宿主忘了判空时也别炸
 TEST(MarkdownViewActionsTest, PrintNullPrinterIsNoop) {
   MarkdownView view;

@@ -167,5 +167,9 @@ apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
 apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
     "${PATCHES_DIR}/qlitehtml/0004-layout-on-width-change.patch")
 
+# qlitehtml：打印时按 96dpi 逻辑像素布局、画布按设备/逻辑比例缩放
+apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
+    "${PATCHES_DIR}/qlitehtml/0005-print-device-to-logical.patch")
+
 message(STATUS "Patches applied.")
 message(STATUS "")
