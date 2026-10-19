@@ -9,9 +9,9 @@
       字节预算、是否并入图片字节 LRU 仍待拍板。
 - [ ] **图片字节 LRU（原阶段 1，暂缓）**：单独做收益低（只省重复读盘/解码）；
       若做懒加载，建议作为重渲染配套并入阶段 2。
-- [ ] **缩放公开 API + md_viewer 控件**：`MarkdownView` 目前只有私有 `SetZoom`，
-      界面只靠 Ctrl+滚轮 / Ctrl+=/-。要在示例里展示缩放，需补
-      `zoomFactor()` / `SetZoomFactor()`，再加滑块或百分比标签。
+- [ ] **md_viewer 缩放控件**：公开 API 已补（`MarkdownView::SetZoomFactor()` /
+      `zoom()`，2026-10-19），示例里还只有 Ctrl+滚轮 / Ctrl+=/- 快捷键，
+      没滑块或百分比标签。
 
 ## 渲染性能（设计与硬约束见 `docs/plan/mermaid图表渲染设计.md` §7.2）
 
@@ -35,20 +35,12 @@
 - [x] ~~JS 载荷 qjsc 预编译~~（2026-10-19 已落地：五份载荷构建期编成字节码，
       Mermaid 冷加载 732→85ms、首次带图 ApplyDocument 1566→669ms，代价
       exe +2.9MB；数据与实施要点见 `docs/eval/Markdown渲染qjsc预编译评估.md`）
-- [ ] **resize 会触发整篇重排（拖动分栏/拉窗口时每帧一次）。** `qlitehtmlwidget.cpp`
-      的 `resizeEvent` 直接调 `render()`，而 `render()` = 整篇 litehtml 布局
-      （`documentContainer.render(w, h)`）。demo 侧实测布局约 **90ms/KB**：54KB
-      文档一次 `setHtml` ≈ 3s，所以拖分栏的每一帧都可能等一次全量布局；窗口
-      最大化、拉伸同理。`setZoomFactor` 也是一个道理（Ctrl+滚轮每档排一次），
-      `paintEvent` 只 draw、滚动不受影响（这条别改错地方）。修法（都在本仓侧，
-      不必等上游）：
-  - resize 去抖：拖动期间不重排（旧内容缩放显示或留白），停手 150~250ms 补一次；
-  - **宽度没变就不重排**：纯高度变化不影响 litehtml 布局（本仓 CSS 不用
-    `vh`/`position:fixed`）——这条是一行判断，收益最大；
-  - 缩放同样合并（连续滚轮只排最后一档）。
-  qlitehtml 的解压树不入库（`3rdparty/*/` 被 ignore），改动走
-  `patches/qlitehtml/`（见 `docs/guide/第三方依赖补丁.md`）；也可以子类化只在
-  `MarkdownView` 里用。demo 与基座是同一份控件，两边一起受益。
+- [x] ~~宽度没变就不重排 + 缩放合并~~（2026-10-19 已落地：qlitehtml 补丁 0004
+      在纯高度 resize 时只刷新滚动条；缩放经 150ms 合并。设计与测试见
+      `docs/plan/Markdown渲染重排去抖设计.md`，`test_layout_debounce` 8 条）
+- [ ] **宽度变化去抖（拖动分栏/横向拉窗口）**：补丁 0005 形态见设计文档 §四
+      步 3，默认未做。步 2 只救"宽度不变、只变高度"；横向拖分栏每帧变宽度，
+      demo 侧实测布局约 90ms/KB，仍需去抖。等步 2 实测收益后再决定。
 
 ## 已知偏差（设计 §7.1，暂时没咬到）
 

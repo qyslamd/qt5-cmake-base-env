@@ -16,7 +16,6 @@ class MarkdownRenderContext;
 class QFileSystemWatcher;
 class QLiteHtmlWidget;
 class QPrinter;
-class QResizeEvent;
 
 // copy: 链接（代码块"复制"按钮）→ 要复制的原文；不是 copy: 或表里查不到
 // 返回空串。抽成自由函数是为了可测：物理点击 funq 驱动不了（html 是
@@ -99,6 +98,13 @@ class MarkdownView : public QWidget {
   // 公式/Mermaid 配色，可能配色错位——切换时打一次 qWarning
   void SetTheme(MarkdownTheme theme);
   MarkdownTheme theme() const { return theme_; }
+  // 缩放（0.3~5.0）。连续调用只在停手 150ms 后应用一次，避免每档都整篇重排；
+  // 换文档/查找/锚点跳转会先把挂起的缩放落地
+  void SetZoomFactor(qreal factor);
+  qreal zoom() const { return zoom_; }
+  // 整篇 litehtml 布局的累计次数：纯高度 resize 不增长，宽度/缩放/换文档
+  // 才增长。给示例与排查用，不参与渲染逻辑
+  int layout_count() const;
   // 本视图的渲染状态（不触发加载）与计数清零
   MarkdownRendererStatus renderer_status() const;
   void ResetRendererStats();
@@ -140,7 +146,6 @@ class MarkdownView : public QWidget {
 
  protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
-  void resizeEvent(QResizeEvent* event) override;
 
  private:
   void initUi();
@@ -154,7 +159,11 @@ class MarkdownView : public QWidget {
   void OnFileChanged();
   void OnReloadTick();
   void SetZoom(qreal factor);
-  // 锚点 y 的缓存失效：重排/缩放/换文档后坐标都会变
+  // 定时器到点：应用最后一档缩放
+  void ApplyPendingZoom();
+  // 立刻应用挂起的缩放（查找/锚点跳转前调用）
+  void FlushPendingZoom();
+  // 锚点 y 的缓存失效：换文档时显式调用；布局变化靠 layoutCount 自动发现
   void InvalidateAnchorYCache();
 
   // 每视图一份渲染状态（缓存/计数/配置）；引擎是进程级共享的
@@ -163,6 +172,8 @@ class MarkdownView : public QWidget {
   QFileSystemWatcher* watcher_ = nullptr;
   // "先删后建"保存时用来等文件回来，见 OnFileChanged
   QTimer* reload_timer_ = nullptr;
+  // 缩放合并：连续滚轮/快捷键只应用最后一档
+  QTimer* zoom_timer_ = nullptr;
   int reload_attempts_ = 0;
   QString markdown_;
   QString current_file_;
@@ -177,6 +188,8 @@ class MarkdownView : public QWidget {
   // 反查当前章节时不能每帧每个标题各查一次；首次查询一次性填满
   mutable QHash<QString, int> anchor_y_cache_;
   mutable bool anchor_y_cache_dirty_ = true;
+  // 缓存对应的布局代数；纯高度 resize 不会改变它，缓存得以保留
+  mutable int anchor_y_layout_count_ = -1;
   qreal zoom_ = 1.0;
   bool code_line_numbers_ = false;
   bool formula_rendering_enabled_ = true;

@@ -37,6 +37,8 @@ constexpr int kReloadMaxAttempts = 50;
 constexpr qreal kZoomStep = 1.1;
 constexpr qreal kZoomMin = 0.3;
 constexpr qreal kZoomMax = 5.0;
+// 连续缩放停止多久后应用最后一档：太短会把每格滚轮都排一次
+constexpr int kZoomApplyDelayMs = 150;
 
 // qrc 读不出来是构建问题、运行时几乎不会发生，但"样式全丢"比"丑一点"
 // 严重得多（表格/代码块/图都会失去排版），退回一份最小样式并留痕
@@ -256,13 +258,16 @@ void MarkdownView::initSignals() {
   // 滚动联动只报位置，不在这里反查章节：策略归宿主（见 outline()）
   connect(html_->verticalScrollBar(), &QScrollBar::valueChanged, this,
           &MarkdownView::viewportScrolled);
-  // 重排/缩放/换文档后滚动范围会变，锚点坐标缓存必须重查
-  connect(html_->verticalScrollBar(), &QScrollBar::rangeChanged, this,
-          [this](int, int) { InvalidateAnchorYCache(); });
 
   watcher_ = new QFileSystemWatcher(this);
   connect(watcher_, &QFileSystemWatcher::fileChanged, this,
           [this](const QString&) { OnFileChanged(); });
+
+  // 缩放合并：只在停手后排最后一档
+  zoom_timer_ = new QTimer(this);
+  zoom_timer_->setSingleShot(true);
+  zoom_timer_->setInterval(kZoomApplyDelayMs);
+  connect(zoom_timer_, &QTimer::timeout, this, &MarkdownView::ApplyPendingZoom);
 
   // 不是 singleShot：文件被删后要持续等它回来，见 OnFileChanged
   reload_timer_ = new QTimer(this);
@@ -320,9 +325,26 @@ void MarkdownView::SetZoom(qreal factor) {
   if (qFuzzyCompare(next, zoom_)) {
     return;
   }
+  // 先改对外状态，连续按键不丢档；控件与重排交给定时器合并
   zoom_ = next;
+  zoom_timer_->start();
+}
+
+void MarkdownView::SetZoomFactor(qreal factor) { SetZoom(factor); }
+
+int MarkdownView::layout_count() const { return html_->layoutCount(); }
+
+void MarkdownView::ApplyPendingZoom() {
+  if (qFuzzyCompare(html_->zoomFactor(), zoom_)) {
+    return;
+  }
   html_->setZoomFactor(zoom_);
-  InvalidateAnchorYCache();
+  // 锚点缓存不在这里失效：布局代数变了，下次 AnchorY 查询自然会重填
+}
+
+void MarkdownView::FlushPendingZoom() {
+  zoom_timer_->stop();
+  ApplyPendingZoom();
 }
 
 bool MarkdownView::LoadFile(const QString& path) {
@@ -362,6 +384,8 @@ void MarkdownView::ScrollToAnchor(const QString& anchor) {
   if (anchor.isEmpty()) {
     return;
   }
+  // 挂起的缩放不落地，anchorY 会按旧布局算、按旧 maximum 钳位
+  FlushPendingZoom();
   // 用户写的锚点是 slug（可能是 CJK），元素的 id 是纯 ASCII 的 h-N——查表
   // 换过去（表在 ApplyDocument 里建好）。查不到就原样透传：手写的
   // <a name="x"> 这类锚点还得靠 litehtml 自己找
@@ -372,7 +396,10 @@ std::optional<int> MarkdownView::AnchorY(const QString& anchor) const {
   if (heading_ids_.constFind(anchor) == heading_ids_.constEnd()) {
     return std::nullopt;
   }
-  if (anchor_y_cache_dirty_) {
+  // 用布局代数判新鲜度：纯高度 resize 不重排、代数不变，缓存可以继续用；
+  // 宽度/缩放/换文档引起重排后代数变化，查询时自然重填。不依赖信号时序
+  const int layout_count = html_->layoutCount();
+  if (anchor_y_cache_dirty_ || anchor_y_layout_count_ != layout_count) {
     // 一次性查完整张大表：宿主按滚动位置反查章节时是每帧遍历，逐次下探
     // litehtml 会把 O(n) 次 DOM 搜索压在滚动路径上
     anchor_y_cache_.clear();
@@ -386,8 +413,8 @@ std::optional<int> MarkdownView::AnchorY(const QString& anchor) const {
         anchor_y_cache_.insert(heading.anchor, y);
       }
     }
-    // 布局尚未发生（全都没查到）时保持 dirty，下一次再试；只要查到过就
-    // 认为本帧有效，后续布局变化由 rangeChanged/resize 失效
+    anchor_y_layout_count_ = layout_count;
+    // 布局尚未发生（全都没查到）时保持 dirty，下一次再试
     anchor_y_cache_dirty_ = !outline_.isEmpty() && anchor_y_cache_.isEmpty();
   }
   const auto cached = anchor_y_cache_.constFind(anchor);
@@ -402,16 +429,13 @@ void MarkdownView::InvalidateAnchorYCache() {
   anchor_y_cache_dirty_ = true;
 }
 
-void MarkdownView::resizeEvent(QResizeEvent* event) {
-  QWidget::resizeEvent(event);
-  InvalidateAnchorYCache();
-}
-
 bool MarkdownView::FindText(const QString& text, FindFlags flags,
                             bool* wrapped) {
   if (text.isEmpty()) {
     return false;  // 空串不是"找全部"，是误用；选区与滚动都别动
   }
+  // 未落地的缩放会在 150ms 后重排，命中位置随之漂移
+  FlushPendingZoom();
   // 控件只在"绕回"时写 wrapped，没绕回就原样留着——宿主拿到的会是个没初始化的
   // 值。这里先清零，把契约补成"每次调用都有效"
   if (wrapped != nullptr) {
@@ -602,12 +626,18 @@ void MarkdownView::ApplyDocument() {
                        QStringLiteral("apply/%1-final.html").arg(index),
                        final_html.toUtf8());
   }
+  // setHtml 反正要排一次：把挂起的缩放直接写进控件、不单独重排
+  zoom_timer_->stop();
+  html_->setZoomFactorWithoutRender(zoom_);
   html_->setHtml(final_html);
   InvalidateAnchorYCache();
   emit outlineChanged();
 }
 
 void MarkdownView::ShowMessage(const QString& text) {
+  // 错误页同样走 setHtml：先落地挂起缩放，避免先按旧缩放排一次
+  zoom_timer_->stop();
+  html_->setZoomFactorWithoutRender(zoom_);
   html_->setHtml(WrapDocument(
       QStringLiteral("<p class=\"error\">%1</p>").arg(text.toHtmlEscaped()),
       LoadDefaultCss(theme_)));

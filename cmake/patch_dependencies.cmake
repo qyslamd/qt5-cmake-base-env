@@ -163,5 +163,9 @@ apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
 apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
     "${PATCHES_DIR}/qlitehtml/0003-anchor-y.patch")
 
+# qlitehtml：纯高度变化不重排（布局输入是宽度 + 视口高度，守卫见设计文档）
+apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
+    "${PATCHES_DIR}/qlitehtml/0004-layout-on-width-change.patch")
+
 message(STATUS "Patches applied.")
 message(STATUS "")

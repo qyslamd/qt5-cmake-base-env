@@ -123,6 +123,17 @@ add_unit_test(
     NO_GTEST_MAIN
 )
 
+# 重排去抖：纯高度 resize 不重排、守卫命中、缩放合并。判据是布局次数
+add_unit_test(
+    NAME test_layout_debounce
+    SOURCES layout_debounce_test.cpp
+    LIBS ${APP_TARGET_PREFIX}_markdown
+    QT_MODULES Widgets
+    LABELS MARKDOWN
+    NO_GTEST_MAIN
+)
+set_tests_properties(test_layout_debounce PROPERTIES TIMEOUT 120)
+
 # 示例里的渲染状态面板：验证 outlineChanged -> RefreshStatus 这条刷新链路
 add_unit_test(
     NAME test_render_settings_panel
