@@ -9,7 +9,6 @@ class QLabel;
 class QLineEdit;
 class QListWidget;
 class QListWidgetItem;
-class QToolBar;
 class FluentWindowFrame;
 class MarkdownOutlineWidget;
 class MarkdownView;
@@ -35,8 +34,9 @@ class MdViewerWindow : public QMainWindow {
 
   void OpenFileDialog();
   void OpenDirectoryDialog();
-  void ShowFindBar();
+  void FocusSearch();
   void FindNext(bool backward);
+  void UpdateSearchActionIcons();
   void ExportPdf();
   // 只填列表，不加载——加载由 ShowFile 负责，免得两边互相触发
   void RefreshDirectoryListing(const QString& dir);
@@ -52,11 +52,11 @@ class MdViewerWindow : public QMainWindow {
   QAction* find_action_ = nullptr;
   QAction* find_next_action_ = nullptr;
   QAction* find_prev_action_ = nullptr;
-  QAction* find_close_action_ = nullptr;
-
-  // 查找栏：标题栏下方的工具栏，默认藏起来（Ctrl+F 唤出）
-  QToolBar* find_bar_ = nullptr;
-  QLineEdit* find_edit_ = nullptr;
+  // 搜索框内的模式开关（挂在 Fluent 标题栏的 QLineEdit 上）
+  QAction* case_action_ = nullptr;
+  QAction* word_action_ = nullptr;
+  // Fluent 标题栏自带的搜索框；控件归标题栏所有
+  QLineEdit* search_edit_ = nullptr;
 
   MarkdownView* view_ = nullptr;
   MarkdownOutlineWidget* outline_ = nullptr;
