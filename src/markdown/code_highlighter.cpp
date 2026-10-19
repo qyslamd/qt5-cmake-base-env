@@ -7,6 +7,8 @@
 
 #include "default_render_context.h"
 #include "html_escape.h"
+#include "js_error.h"
+#include "js_runtime.h"
 #include "markdown_bytecode.h"
 #include "markdown_render_context_internal.h"
 #include "render_diagnostics.h"
@@ -14,111 +16,42 @@
 
 namespace {
 
-JSRuntime* g_runtime = nullptr;
-JSContext* g_context = nullptr;
+JsRuntime g_engine;
 // 载荷里的 globalThis.__highlight，加载完成后拿一次引用；每次高亮直接
 // JS_Call，不再现译一段 IIFE
 JSValue g_highlight_fn = JS_UNDEFINED;
-bool g_load_failed = false;
-bool g_load_attempted = false;
-qint64 g_first_load_ms = 0;
-QElapsedTimer g_load_clock;
 
-// 加载失败：把 JS 运行时整个还回去。g_load_failed 已经挡住重试，留着
-// context/runtime 只会占着 JS 堆到进程结束
-bool FailLoad() {
-  if (g_context != nullptr) {
-    JS_FreeValue(g_context, g_highlight_fn);
-    g_highlight_fn = JS_UNDEFINED;
-    JS_FreeContext(g_context);
-    g_context = nullptr;
-  }
-  if (g_runtime != nullptr) {
-    JS_FreeRuntime(g_runtime);
-    g_runtime = nullptr;
-  }
-  g_load_failed = true;
-  g_first_load_ms = g_load_clock.isValid() ? g_load_clock.elapsed() : 0;
-  return false;
+void ResetHighlightFn(JSContext* context) {
+  JS_FreeValue(context, g_highlight_fn);
+  g_highlight_fn = JS_UNDEFINED;
 }
 
 bool EnsureLoaded() {
-  if (g_context != nullptr) {
+  if (g_engine.status().loaded) {
     return true;
   }
-  if (g_load_failed) {
+  if (g_engine.status().permanently_failed) {
     return false;
   }
-
-  if (!g_load_attempted) {
-    g_load_attempted = true;
-    g_load_clock.start();
-  }
-
-  g_runtime = JS_NewRuntime();
-  if (g_runtime == nullptr) {
-    return FailLoad();
-  }
-  // 高亮不递归得深，16MB 与 formula/mermaid 两个渲染器同一档
-  JS_SetMaxStackSize(g_runtime, 16U << 20);
-  g_context = JS_NewContext(g_runtime);
-  if (g_context == nullptr) {
-    return FailLoad();
-  }
-
-  // 载荷是 qjsc 构建期编出的字节码（见 CMakeLists.txt 的 qjsc 段）：
-  // ReadObject 反序列化成函数对象，EvalFunction 实例化并求值。
-  // EvalFunction 接管 obj 所有权，成功后不能再 Free obj
-  JSValue obj =
-      JS_ReadObject(g_context, md_hl, md_hl_size, JS_READ_OBJ_BYTECODE);
-  if (JS_IsException(obj)) {
-    JSValue exception = JS_GetException(g_context);
-    const char* message = JS_ToCString(g_context, exception);
-    qWarning() << "highlight bytecode read failed:"
-               << (message != nullptr ? message : "?");
-    if (message != nullptr) {
-      JS_FreeCString(g_context, message);
-    }
-    JS_FreeValue(g_context, exception);
-    JS_FreeValue(g_context, obj);  // 异常哨兵，free 是 no-op
-    return FailLoad();
-  }
-  const JSValue result = JS_EvalFunction(g_context, obj);
-  if (JS_IsException(result)) {
-    JSValue exception = JS_GetException(g_context);
-    const char* message = JS_ToCString(g_context, exception);
-    qWarning() << "highlight bytecode eval failed:"
-               << (message != nullptr ? message : "?");
-    if (message != nullptr) {
-      JS_FreeCString(g_context, message);
-    }
-    JS_FreeValue(g_context, exception);
-    JS_FreeValue(g_context, result);
-    return FailLoad();
-  }
-  JS_FreeValue(g_context, result);
-
-  // 只解析一次函数引用；载荷没导出 __highlight 说明资源与入口脚本版本对不上
-  JSValue global = JS_GetGlobalObject(g_context);
-  g_highlight_fn = JS_GetPropertyStr(g_context, global, "__highlight");
-  JS_FreeValue(g_context, global);
-  if (!JS_IsFunction(g_context, g_highlight_fn)) {
-    qWarning() << "highlight payload lacks __highlight";
-    return FailLoad();
-  }
-  g_first_load_ms = g_load_clock.elapsed();
-  return true;
+  g_engine.set_on_fail(ResetHighlightFn);
+  return g_engine.EnsureLoaded(
+      {JsPayload{md_hl, md_hl_size, "highlight.min.js"}}, nullptr,
+      [](JSContext* context) {
+        // 只解析一次函数引用；载荷没导出 __highlight 说明资源版本对不上
+        JSValue global = JS_GetGlobalObject(context);
+        g_highlight_fn = JS_GetPropertyStr(context, global, "__highlight");
+        JS_FreeValue(context, global);
+        if (!JS_IsFunction(context, g_highlight_fn)) {
+          qWarning() << "highlight payload lacks __highlight";
+          return false;
+        }
+        return true;
+      });
 }
 
 }  // namespace
 
-MarkdownEngineStatus HighlightEngineStatus() {
-  MarkdownEngineStatus status;
-  status.loaded = g_context != nullptr;
-  status.permanently_failed = g_load_failed;
-  status.first_load_ms = g_first_load_ms;
-  return status;
-}
+MarkdownEngineStatus HighlightEngineStatus() { return g_engine.status(); }
 
 QString HighlightCode(MarkdownRenderContext& context, const QString& code,
                       const QString& language) {
@@ -142,6 +75,7 @@ QString HighlightCode(MarkdownRenderContext& context, const QString& code,
     TraceRender(diagnostics, QStringLiteral("highlight engine loaded in %1 ms")
                                  .arg(HighlightEngineStatus().first_load_ms));
   }
+  JSContext* js = g_engine.context();
   QElapsedTimer render_clock;
   render_clock.start();
 
@@ -149,22 +83,16 @@ QString HighlightCode(MarkdownRenderContext& context, const QString& code,
   const QByteArray code_utf8 = code.toUtf8();
   const QByteArray lang_utf8 = language.toUtf8();
   JSValue argv[2] = {
-      JS_NewStringLen(g_context, code_utf8.constData(), code_utf8.size()),
-      JS_NewStringLen(g_context, lang_utf8.constData(), lang_utf8.size()),
+      JS_NewStringLen(js, code_utf8.constData(), code_utf8.size()),
+      JS_NewStringLen(js, lang_utf8.constData(), lang_utf8.size()),
   };
   if (JS_IsException(argv[0]) || JS_IsException(argv[1])) {
     // 分配失败返回的是异常哨兵，不能当参数传给 JS_Call；取出并清掉
     // pending 异常，退回纯转义
-    JSValue exception = JS_GetException(g_context);
-    const char* message = JS_ToCString(g_context, exception);
-    qWarning() << "highlight argument alloc failed:"
-               << (message != nullptr ? message : "?");
-    if (message != nullptr) {
-      JS_FreeCString(g_context, message);
-    }
-    JS_FreeValue(g_context, exception);
-    JS_FreeValue(g_context, argv[0]);
-    JS_FreeValue(g_context, argv[1]);
+    const QString message = TakeExceptionMessage(js);
+    qWarning() << "highlight argument alloc failed:" << message;
+    JS_FreeValue(js, argv[0]);
+    JS_FreeValue(js, argv[1]);
     ++state.highlight_stats.failures;
     if (diagnostics.trace) {
       TraceRender(diagnostics,
@@ -172,37 +100,28 @@ QString HighlightCode(MarkdownRenderContext& context, const QString& code,
     }
     return EscapeHtml(code);
   }
-  const JSValue value =
-      JS_Call(g_context, g_highlight_fn, JS_UNDEFINED, 2, argv);
-  JS_FreeValue(g_context, argv[0]);
-  JS_FreeValue(g_context, argv[1]);
+  const JSValue value = JS_Call(js, g_highlight_fn, JS_UNDEFINED, 2, argv);
+  JS_FreeValue(js, argv[0]);
+  JS_FreeValue(js, argv[1]);
 
   QString result;
-  if (JS_IsException(value)) {
-    JSValue exception = JS_GetException(g_context);
-    const char* raw_message = JS_ToCString(g_context, exception);
-    const QString message =
-        QString::fromUtf8(raw_message != nullptr ? raw_message : "?");
-    qWarning() << "highlight call exception:" << message;
-    if (raw_message != nullptr) {
-      JS_FreeCString(g_context, raw_message);
-    }
-    JS_FreeValue(g_context, exception);
+  QString error;
+  if (!CheckResult(js, value, QStringLiteral("highlight call"), &error)) {
     ++state.highlight_stats.failures;
     if (diagnostics.trace) {
       TraceRender(diagnostics,
-                  QStringLiteral("highlight exception: %1").arg(message));
+                  QStringLiteral("highlight exception: %1").arg(error));
     }
   } else if (JS_IsNull(value) || JS_IsUndefined(value)) {
     // __highlight 对未注册语言返回 null；JS_ToCString 会把它变成字面 "null"
   } else {
-    const char* text = JS_ToCString(g_context, value);
+    const char* text = JS_ToCString(js, value);
     result = QString::fromUtf8(text != nullptr ? text : "");
     if (text != nullptr) {
-      JS_FreeCString(g_context, text);
+      JS_FreeCString(js, text);
     }
   }
-  JS_FreeValue(g_context, value);
+  JS_FreeValue(js, value);
 
   // 空结果（未注册语言、JS 侧异常）都退纯转义：高亮挂了不至于白块。
   // 未注册语言是正常回退，不计 failure

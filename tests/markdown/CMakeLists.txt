@@ -123,6 +123,15 @@ add_unit_test(
     NO_GTEST_MAIN
 )
 
+# QuickJS 错误处理助手：异常消息消费、坏字节码、非异常放行
+add_unit_test(
+    NAME test_js_error
+    SOURCES js_error_test.cpp
+    LIBS ${APP_TARGET_PREFIX}_markdown qjs
+    QT_MODULES Core
+    LABELS MARKDOWN
+)
+
 # 重排去抖：纯高度 resize 不重排、守卫命中、缩放合并。判据是布局次数
 add_unit_test(
     NAME test_layout_debounce

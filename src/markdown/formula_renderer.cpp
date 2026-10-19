@@ -11,6 +11,8 @@
 #include <QSvgRenderer>
 
 #include "default_render_context.h"
+#include "js_error.h"
+#include "js_runtime.h"
 #include "markdown_bytecode.h"
 #include "markdown_render_context_internal.h"
 #include "render_cache.h"
@@ -19,93 +21,18 @@
 
 namespace {
 
-JSRuntime* g_runtime = nullptr;
-JSContext* g_context = nullptr;
-bool g_load_failed = false;
-bool g_load_attempted = false;
-qint64 g_first_load_ms = 0;
-QElapsedTimer g_load_clock;
-
-// 载荷在 qrc 里（resources/mathjax-svg.min.js），只求值一次
-// 加载失败：把 JS 运行时整个还回去。g_load_failed 已经挡住重试，留着
-// context/runtime 只会占着 JS 堆到进程结束
-bool FailLoad() {
-  if (g_context != nullptr) {
-    JS_FreeContext(g_context);
-    g_context = nullptr;
-  }
-  if (g_runtime != nullptr) {
-    JS_FreeRuntime(g_runtime);
-    g_runtime = nullptr;
-  }
-  g_load_failed = true;
-  g_first_load_ms = g_load_clock.isValid() ? g_load_clock.elapsed() : 0;
-  return false;
-}
+// 载荷是 qjsc 构建期编出的字节码（见 CMakeLists.txt 的 qjsc 段）
+JsRuntime g_engine;
 
 bool EnsureLoaded() {
-  if (g_context != nullptr) {
+  if (g_engine.status().loaded) {
     return true;
   }
-  if (g_load_failed) {
+  if (g_engine.status().permanently_failed) {
     return false;
   }
-
-  if (!g_load_attempted) {
-    g_load_attempted = true;
-    g_load_clock.start();
-  }
-
-  g_runtime = JS_NewRuntime();
-  if (g_runtime == nullptr) {
-    qWarning() << "JS_NewRuntime failed for mathjax payload";
-    return FailLoad();
-  }
-  // MathJax 解析递归深，默认配额不够。这里放大 JS 侧配额，链接选项再把线程栈
-  // 放大——两个数要配对，且**线程栈必须比 JS 配额宽裕**：JS 配额是"软"上限
-  // （超了抛可捕获的异常），线程栈是"硬"的（超了直接崩，没有异常没有日志）。
-  // 32 位目标上不能贪大：主线程栈 reserve 会吃掉 2GB 地址空间里的一大块，
-  // 实测 128MB 时 funq 注入（CreateRemoteThread 要在目标进程里开线程栈）
-  // 直接失败，报 WinError 8 内存资源不足
-  JS_SetMaxStackSize(g_runtime, 16U << 20);
-  g_context = JS_NewContext(g_runtime);
-  if (g_context == nullptr) {
-    qWarning() << "JS_NewContext failed for mathjax payload";
-    return FailLoad();
-  }
-
-  // 载荷是 qjsc 构建期编出的字节码（见 CMakeLists.txt 的 qjsc 段）。
-  // EvalFunction 接管 obj 所有权，成功后不能再 Free obj
-  JSValue obj =
-      JS_ReadObject(g_context, md_mj, md_mj_size, JS_READ_OBJ_BYTECODE);
-  if (JS_IsException(obj)) {
-    JSValue exception = JS_GetException(g_context);
-    const char* message = JS_ToCString(g_context, exception);
-    qWarning() << "mathjax bytecode read failed:"
-               << (message != nullptr ? message : "?");
-    if (message != nullptr) {
-      JS_FreeCString(g_context, message);
-    }
-    JS_FreeValue(g_context, exception);
-    JS_FreeValue(g_context, obj);  // 异常哨兵，free 是 no-op
-    return FailLoad();
-  }
-  const JSValue result = JS_EvalFunction(g_context, obj);
-  if (JS_IsException(result)) {
-    JSValue exception = JS_GetException(g_context);
-    const char* message = JS_ToCString(g_context, exception);
-    qWarning() << "mathjax bytecode eval failed:"
-               << (message != nullptr ? message : "?");
-    if (message != nullptr) {
-      JS_FreeCString(g_context, message);
-    }
-    JS_FreeValue(g_context, exception);
-    JS_FreeValue(g_context, result);
-    return FailLoad();
-  }
-  JS_FreeValue(g_context, result);
-  g_first_load_ms = g_load_clock.elapsed();
-  return true;
+  return g_engine.EnsureLoaded(
+      {JsPayload{md_mj, md_mj_size, "mathjax-svg.min.js"}}, nullptr, nullptr);
 }
 
 // SVG 字符串 → <img>。失败返回空串。color 有效时替换 currentColor
@@ -218,13 +145,7 @@ QString SvgToImgTag(const QString& svg, bool display, const QColor& color,
 
 bool FormulaRendererReady() { return EnsureLoaded(); }
 
-MarkdownEngineStatus FormulaEngineStatus() {
-  MarkdownEngineStatus status;
-  status.loaded = g_context != nullptr;
-  status.permanently_failed = g_load_failed;
-  status.first_load_ms = g_first_load_ms;
-  return status;
-}
+MarkdownEngineStatus FormulaEngineStatus() { return g_engine.status(); }
 
 void ClearFormulaCache() {
   MarkdownRenderContextAccess::State(DefaultRenderContext())
@@ -291,6 +212,7 @@ QString FormulaToImgTag(MarkdownRenderContext& context, const QString& tex,
     TraceRender(diagnostics, QStringLiteral("formula engine loaded in %1 ms")
                                  .arg(FormulaEngineStatus().first_load_ms));
   }
+  JSContext* js = g_engine.context();
   QElapsedTimer render_clock;
   render_clock.start();
 
@@ -310,37 +232,29 @@ QString FormulaToImgTag(MarkdownRenderContext& context, const QString& tex,
                            .arg(escaped, display ? QStringLiteral("true")
                                                  : QStringLiteral("false"));
   const QByteArray utf8 = call.toUtf8();
-  const JSValue value = JS_Eval(g_context, utf8.constData(), utf8.size(),
-                                "convert", JS_EVAL_TYPE_GLOBAL);
+  const JSValue value = JS_Eval(js, utf8.constData(), utf8.size(), "convert",
+                                JS_EVAL_TYPE_GLOBAL);
 
   QString tag;
-  if (JS_IsException(value)) {
-    JSValue exception = JS_GetException(g_context);
-    const char* raw_message = JS_ToCString(g_context, exception);
-    const QString message =
-        QString::fromUtf8(raw_message != nullptr ? raw_message : "?");
-    qWarning() << "formula convert exception:" << message;
-    if (raw_message != nullptr) {
-      JS_FreeCString(g_context, raw_message);
-    }
-    JS_FreeValue(g_context, exception);
+  QString error;
+  if (!CheckResult(js, value, QStringLiteral("formula convert"), &error)) {
     if (diagnostics.trace) {
       TraceRender(diagnostics,
-                  QStringLiteral("formula exception: %1").arg(message));
+                  QStringLiteral("formula exception: %1").arg(error));
     }
   } else {
-    const char* raw = JS_ToCString(g_context, value);
+    const char* raw = JS_ToCString(js, value);
     if (raw == nullptr) {
       // 分配失败等情况下 QuickJS 返回 null，并可能留下 pending 异常
       qWarning() << "formula convert: JS_ToCString returned null";
-      JS_FreeValue(g_context, JS_GetException(g_context));
+      JS_FreeValue(js, JS_GetException(js));
       if (diagnostics.trace) {
         TraceRender(diagnostics,
                     QStringLiteral("formula convert: JS_ToCString null"));
       }
     } else {
       const QString converted = QString::fromUtf8(raw);
-      JS_FreeCString(g_context, raw);
+      JS_FreeCString(js, raw);
       if (converted.startsWith(QLatin1String("SVGOK:"))) {
         static int dump_index = 0;
         const QString artifact =
@@ -360,7 +274,7 @@ QString FormulaToImgTag(MarkdownRenderContext& context, const QString& tex,
       }
     }
   }
-  JS_FreeValue(g_context, value);
+  JS_FreeValue(js, value);
 
   if (tag.isEmpty()) {
     ++state.formula_stats.failures;
