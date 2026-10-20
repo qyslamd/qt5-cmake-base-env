@@ -50,8 +50,7 @@ struct PixmapCacheEntry {
   QString img_tag;
 };
 
-// 渲染器能看到的上下文状态。引擎状态单独由各渲染器通过
-// renderer_status_internal.h 的查询函数提供
+// 渲染器能看到的上下文状态。引擎状态由本头下方的查询函数提供
 struct MarkdownRenderContextState {
   // 诊断配置只存在 options 里，避免两份状态漂移
   MarkdownRenderContextOptions options;
@@ -80,6 +79,11 @@ struct MarkdownRenderContextState {
                                       : INT_MAX);
   }
 };
+
+// 各渲染器的引擎状态（进程级）。查询不触发加载：只读已加载标志与耗时
+MarkdownEngineStatus HighlightEngineStatus();
+MarkdownEngineStatus FormulaEngineStatus();
+MarkdownEngineStatus MermaidEngineStatus();
 
 struct MarkdownRenderContextAccess {
   static MarkdownRenderContextState& State(MarkdownRenderContext& context);

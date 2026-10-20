@@ -51,6 +51,12 @@ class JsRuntime {
   // 载荷之后的自检失败（如 initialize 失败）也要作废引擎
   void Abort();
 
+  // QuickJS 错误处理：消费 pending 异常并返回可读消息；value 是异常哨兵时
+  // 取消息、qWarning、写 error 并返回 false。无状态，测试可直接用裸 context
+  static QString TakeExceptionMessage(JSContext* context);
+  static bool CheckResult(JSContext* context, JSValue value,
+                          const QString& label, QString* error);
+
  private:
   bool FailLoad();
 

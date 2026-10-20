@@ -1,16 +1,72 @@
 #include "js_runtime.h"
 
+#include <cstdint>
+
 #include <QDebug>
 #include <QElapsedTimer>
-
-#include "js_error.h"
 
 namespace {
 
 // 与 formula/mermaid 的递归深度配对：JS 配额是软上限，宿主线程栈是硬的
 constexpr size_t kJsMaxStackSize = 16U << 20;
 
+// qjsc 字节码：ReadObject + EvalFunction。失败时 error 带原因；
+// EvalFunction 成功后接管 obj 所有权，内部不再 Free obj
+bool EvalBytecode(JSContext* context, const uint8_t* data, uint32_t size,
+                  const QString& name, QString* error) {
+  JSValue obj = JS_ReadObject(context, data, size, JS_READ_OBJ_BYTECODE);
+  if (JS_IsException(obj)) {
+    const QString message = JsRuntime::TakeExceptionMessage(context);
+    qWarning() << "bytecode read failed:" << name << message;
+    if (error != nullptr) {
+      *error = message;
+    }
+    JS_FreeValue(context, obj);  // 异常哨兵，Free 是 no-op
+    return false;
+  }
+  // EvalFunction 接管 obj 所有权，成功后不能再 Free obj
+  const JSValue value = JS_EvalFunction(context, obj);
+  if (JS_IsException(value)) {
+    const QString message = JsRuntime::TakeExceptionMessage(context);
+    qWarning() << "bytecode eval failed:" << name << message;
+    if (error != nullptr) {
+      *error = message;
+    }
+    JS_FreeValue(context, value);
+    return false;
+  }
+  JS_FreeValue(context, value);
+  return true;
+}
+
 }  // namespace
+
+QString JsRuntime::TakeExceptionMessage(JSContext* context) {
+  if (context == nullptr) {
+    return QStringLiteral("no JS context");
+  }
+  const JSValue exception = JS_GetException(context);
+  const char* raw = JS_ToCString(context, exception);
+  const QString message = QString::fromUtf8(raw != nullptr ? raw : "?");
+  if (raw != nullptr) {
+    JS_FreeCString(context, raw);
+  }
+  JS_FreeValue(context, exception);
+  return message;
+}
+
+bool JsRuntime::CheckResult(JSContext* context, JSValue value,
+                            const QString& label, QString* error) {
+  if (!JS_IsException(value)) {
+    return true;
+  }
+  const QString message = TakeExceptionMessage(context);
+  qWarning() << label << "failed:" << message;
+  if (error != nullptr) {
+    *error = message;
+  }
+  return false;
+}
 
 JsRuntime::~JsRuntime() { FailLoad(); }
 

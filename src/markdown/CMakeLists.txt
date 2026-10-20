@@ -3,14 +3,8 @@ set(TARGET_NAME ${APP_TARGET_PREFIX}_markdown)
 set(TARGET_SRCS
     code_highlighter.cpp
     code_highlighter.h
-    default_render_context.cpp
-    default_render_context.h
     formula_renderer.cpp
     formula_renderer.h
-    heading_ids.cpp
-    heading_ids.h
-    js_error.cpp
-    js_error.h
     js_runtime.cpp
     js_runtime.h
     markdown_bytecode.h
@@ -22,17 +16,11 @@ set(TARGET_SRCS
     markdown_theme.cpp
     markdown_theme.h
     markdown_types.h
-    renderer_status_internal.h
-    html_escape.cpp
     html_escape.h
-    mermaid_css_inliner.cpp
-    mermaid_css_inliner.h
     mermaid_renderer.cpp
     mermaid_renderer.h
     mermaid_svg_cleanup.cpp
     mermaid_svg_cleanup.h
-    markdown_resources.cpp
-    markdown_resources.h
     markdown_to_html.cpp
     markdown_to_html.h
     markdown_view.cpp
@@ -138,13 +126,4 @@ if(MSVC)
     # 走 INTERFACE 是因为真正需要大栈的是"跑 JS 的那个进程"，即链接本模块的
     # 可执行文件；GCC 不需要（Linux 靠默认栈即可）
     target_link_options(${TARGET_NAME} INTERFACE "/STACK:33554432")
-endif()
-
-option(BUILD_MD_DEBUG_DEMO "启用 tiaoshi Demo" ON)
-if(BUILD_MD_DEBUG_DEMO)
-    add_executable(md_gui_demo gui_debug_demo.cpp)
-    # gui_debug_demo 用 QApplication，得连着 Qt（AUTOMOC 也顺带打开）
-    target_link_libraries(md_gui_demo PRIVATE Qt5::Widgets)
-    set_target_properties(md_gui_demo PROPERTIES AUTOMOC ON)
-    add_executable(md_console_demo console_debug_demo.cpp)
 endif()

@@ -20,16 +20,13 @@
 #include <QStringList>
 #include <QSvgRenderer>
 
-#include "default_render_context.h"
 #include "js_runtime.h"
 #include "markdown_bytecode.h"
 #include "markdown_render_context_internal.h"
 #include "markdown_types.h"
-#include "mermaid_css_inliner.h"
 #include "mermaid_svg_cleanup.h"
 #include "render_cache.h"
 #include "render_diagnostics.h"
-#include "renderer_status_internal.h"
 
 namespace {
 

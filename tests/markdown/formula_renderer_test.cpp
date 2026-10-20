@@ -11,7 +11,6 @@
 #include <QStringList>
 #include <QTemporaryDir>
 
-#include "default_render_context.h"
 #include "markdown_render_context.h"
 #include "markdown_render_context_internal.h"
 #include "markdown_theme.h"

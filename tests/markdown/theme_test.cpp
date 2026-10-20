@@ -4,7 +4,6 @@
 #include <QSet>
 #include <QString>
 
-#include "markdown_resources.h"
 #include "markdown_theme.h"
 
 // 主题映射是纯查表，但映射错了会让整套样式读不到——qrc 别名与代码里的
@@ -12,7 +11,6 @@
 namespace {
 
 TEST(MarkdownThemeTest, EveryThemeHasDistinctCss) {
-  EnsureMarkdownResources();
   const MarkdownTheme themes[] = {MarkdownTheme::Light, MarkdownTheme::Dark};
   static_assert(sizeof(themes) / sizeof(themes[0]) == kMarkdownThemeCount,
                 "新增主题后测试与主题表要同步");

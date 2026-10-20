@@ -69,8 +69,7 @@ relwithdebinfo -a x86`**（32 位），WSL 侧本轮不验。线程化另列一�
 | 文件 | 内容 |
 |---|---|
 | `src/markdown/mermaid_renderer.{h,cpp}` | QuickJS 运行时（自持）+ 三个回调 + render/pump + SVG→PNG + 缓存 |
-| `src/markdown/mermaid_svg_cleanup.{h,cpp}` | 文本定标烘焙、marker 展开、空 rect / dasharray 修补 |
-| `src/markdown/mermaid_css_inliner.{h,cpp}` | CSS 规则内联 + **字体族强制** |
+| `src/markdown/mermaid_svg_cleanup.{h,cpp}` | 文本定标烘焙、marker 展开、CSS 规则内联 + **字体族强制**、空 rect / dasharray 修补 |
 | `tests/markdown/test_mermaid_svg_cleanup.cpp` | 纯函数用例（几何/结构） |
 | `tests/markdown/test_mermaid_renderer.cpp` | offscreen 端到端（与 `test_formula_renderer` 同款） |
 
@@ -232,12 +231,11 @@ img.mermaid { max-width: 100%; height: auto; }
 1. `src/markdown/resources/`：三份载荷 + 配方（**已完成**）。
 2. `markdown_res.qrc`：三条 `<file>`（**已完成**）。
 3. `.gitattributes`、`docs/guide/第三方依赖补丁.md`（**已完成**）。
-4. `mermaid_css_inliner.{h,cpp}`：CSS 解析 + 选择器匹配 + 属性写回 +
-   字体族强制（§4.4-3）。
-5. `mermaid_svg_cleanup.{h,cpp}`：文本定标（含 `xml:space`、摊平/保留外壳）、
-   marker 展开、空 rect / dasharray。
-6. `mermaid_renderer.{h,cpp}`：运行时、回调、pump、SVG→PNG、缓存、dump 开关。
-7. `markdown_to_html.{h,cpp}`：`MermaidSink` + 围栏分支。
+4. `mermaid_svg_cleanup.{h,cpp}`：文本定标（含 `xml:space`、摊平/保留外壳）、
+   marker 展开、CSS 解析/选择器匹配/属性写回 + 字体族强制（§4.4-3）、
+   空 rect / dasharray。
+5. `mermaid_renderer.{h,cpp}`：运行时、回调、pump、SVG→PNG、缓存、dump 开关。
+6. `markdown_to_html.{h,cpp}`：`MermaidSink` + 围栏分支。
 8. `markdown_view.cpp`：`ApplyDocument` 里传 `MermaidToImgTag`。
 9. `markdown_default.css`：§4.7 两条。
 10. `tests/markdown/`：两条用例 + CMake 注册（含 TIMEOUT 120）。

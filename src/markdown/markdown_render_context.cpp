@@ -1,7 +1,6 @@
 #include "markdown_render_context.h"
 
 #include "markdown_render_context_internal.h"
-#include "renderer_status_internal.h"
 
 struct MarkdownRenderContext::Impl {
   MarkdownRenderContextState state;
@@ -10,6 +9,17 @@ struct MarkdownRenderContext::Impl {
 MarkdownRenderContext::MarkdownRenderContext() : impl_(new Impl) {}
 
 MarkdownRenderContext::~MarkdownRenderContext() = default;
+
+MarkdownRenderContext& DefaultRenderContext() {
+  static std::unique_ptr<MarkdownRenderContext> context = [] {
+    auto created = std::make_unique<MarkdownRenderContext>();
+    MarkdownRenderContextOptions options;
+    options.persistent_cache_enabled = false;
+    created->SetOptions(options);
+    return created;
+  }();
+  return *context;
+}
 
 void MarkdownRenderContext::SetOptions(
     const MarkdownRenderContextOptions& options) {

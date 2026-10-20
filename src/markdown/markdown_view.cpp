@@ -24,7 +24,6 @@
 #include "formula_renderer.h"
 #include "markdown_render_context.h"
 #include "markdown_render_context_internal.h"
-#include "markdown_resources.h"
 #include "markdown_theme.h"
 #include "markdown_to_html.h"
 #include "markdown_types.h"
@@ -267,7 +266,6 @@ QByteArray ReadResourceForUrl(const QUrl& url, const QString& base_dir) {
 
 MarkdownView::MarkdownView(QWidget* parent)
     : QWidget(parent), context_(new MarkdownRenderContext) {
-  EnsureMarkdownResources();
   initUi();
   initSignals();
 }

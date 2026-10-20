@@ -123,10 +123,10 @@ add_unit_test(
     NO_GTEST_MAIN
 )
 
-# QuickJS 错误处理助手：异常消息消费、坏字节码、非异常放行
+# JsRuntime 的错误处理：异常消息消费、坏字节码、非异常放行
 add_unit_test(
-    NAME test_js_error
-    SOURCES js_error_test.cpp
+    NAME test_js_runtime
+    SOURCES js_runtime_test.cpp
     LIBS ${APP_TARGET_PREFIX}_markdown qjs
     QT_MODULES Core
     LABELS MARKDOWN

@@ -12,14 +12,11 @@
 #include <QRegularExpression>
 #include <QSvgRenderer>
 
-#include "default_render_context.h"
-#include "js_error.h"
 #include "js_runtime.h"
 #include "markdown_bytecode.h"
 #include "markdown_render_context_internal.h"
 #include "render_cache.h"
 #include "render_diagnostics.h"
-#include "renderer_status_internal.h"
 
 namespace {
 
@@ -249,7 +246,8 @@ QString FormulaToImgTag(MarkdownRenderContext& context, const QString& tex,
 
   QString tag;
   QString error;
-  if (!CheckResult(js, value, QStringLiteral("formula convert"), &error)) {
+  if (!JsRuntime::CheckResult(js, value, QStringLiteral("formula convert"),
+                              &error)) {
     if (diagnostics.trace) {
       TraceRender(diagnostics,
                   QStringLiteral("formula exception: %1").arg(error));

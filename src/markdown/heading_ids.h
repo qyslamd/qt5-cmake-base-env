@@ -19,7 +19,7 @@ using HeadingSink = std::function<void(const QString& slug, const QString& id)>;
 // 给 md4c 输出的 <h1>–<h6> 补 GitHub 风味的 slug 与元素 id，双份都挂在
 // 标签上：data-md-slug 放 slug（可能与用户写的锚点一致），id 放纯 ASCII 的
 // h-N——litehtml 解析时会改写 id 的存储形式，非 ASCII 存不住，
-// scrollToAnchor 会静默找不到元素（见 heading_ids.cpp 的说明）。
+// scrollToAnchor 会静默找不到元素（见 markdown_to_html.cpp 的说明）。
 //
 // GitHub 风味 = 保留字母/数字/CJK、空白转 '-'、保留 - 与 _、其余标点丢弃；
 // 重名标题追加 -1 / -2 后缀（与 GitHub 一致）。输入是还没补 id 的正文 HTML。

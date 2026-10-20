@@ -5,14 +5,11 @@
 #include <QDebug>
 #include <QElapsedTimer>
 
-#include "default_render_context.h"
 #include "html_escape.h"
-#include "js_error.h"
 #include "js_runtime.h"
 #include "markdown_bytecode.h"
 #include "markdown_render_context_internal.h"
 #include "render_diagnostics.h"
-#include "renderer_status_internal.h"
 
 namespace {
 
@@ -89,7 +86,7 @@ QString HighlightCode(MarkdownRenderContext& context, const QString& code,
   if (JS_IsException(argv[0]) || JS_IsException(argv[1])) {
     // 分配失败返回的是异常哨兵，不能当参数传给 JS_Call；取出并清掉
     // pending 异常，退回纯转义
-    const QString message = TakeExceptionMessage(js);
+    const QString message = JsRuntime::TakeExceptionMessage(js);
     qWarning() << "highlight argument alloc failed:" << message;
     JS_FreeValue(js, argv[0]);
     JS_FreeValue(js, argv[1]);
@@ -106,7 +103,8 @@ QString HighlightCode(MarkdownRenderContext& context, const QString& code,
 
   QString result;
   QString error;
-  if (!CheckResult(js, value, QStringLiteral("highlight call"), &error)) {
+  if (!JsRuntime::CheckResult(js, value, QStringLiteral("highlight call"),
+                              &error)) {
     ++state.highlight_stats.failures;
     if (diagnostics.trace) {
       TraceRender(diagnostics,
