@@ -11,7 +11,7 @@
 //   validationFailed-> 强干扰 2500ms（雪暴 + 碎卡错位 + 滚屏）
 //
 // 两个倒计时走 tick() 的帧计数（面板不可见时定时器自停，倒计时随之挂起），
-// 连点不会叠链。详细数值见 docs/plan/电视动画交互化设计.md。
+// 连点不会叠链。详细数值见 docs/plan/plan总结.md「电视动画交互化」。
 class TvStaticAnimator : public AsciiSceneAnimator<TvStatic> {
  public:
   explicit TvStaticAnimator(QRgb background, QObject* parent = nullptr)

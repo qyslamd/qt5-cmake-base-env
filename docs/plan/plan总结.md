@@ -1,8 +1,10 @@
 # plan 文档归档总结
 
-`docs/plan/` 只留这一份：已收尾的方案提炼到这里后删原文，原文用
-`git log --diff-filter=D -- docs/plan/<文件名>` 查；未处理的问题作为活清单
-放在最后一节。新写方案时在 `docs/plan/` 下另起文件，收尾后再并进来。
+`docs/plan/` 只保留这一份与尚未收尾的方案：已收尾的方案提炼到这里后删原文，
+原文用 `git log --diff-filter=D -- docs/plan/<文件名>` 查；未处理的问题作为
+活清单放在最后一节。新写方案时在 `docs/plan/` 下另起文件，收尾后再并进来。
+仍在进行/暂缓的方案（图片懒加载、重排去抖步 3、Mermaid 线程化等）继续以
+独立文件保留。
 
 ## 单实例 + 崩溃捕获接入，与 Linux 构建支持（2026-09-11，原同名文档）
 
@@ -272,7 +274,7 @@ Windows 用 `cdb -z <dmp> -y <归档符号目录>`；Linux 用 lldb 直读 minid
 （`-DAPP_UI_ROUTE=fluent`），不动默认目录的缓存~~ 2026-10-14 更新：路线开关
 下沉为普通变量（顶层默认 qss，`local.cmake`/子目录覆盖，单构建目录可混编；
 `-D` 已失效），宏归一只留 `APP_UI_FLUENT`，`FUNQ_RIBBON` 判据随 demo_app 实际
-路线——见 `界面路线开关下沉到目标设计.md`。
+路线——见本文「界面路线开关下沉到目标」一节。
 
 **依赖对账**：新库自带的 qwindowkit / kissfft **一份都不用重复编**——靠上游的
 `if(NOT TARGET ...)` 门禁复用本仓那份。两条顺序约束都是硬的：
@@ -406,6 +408,171 @@ organization/application 两层）不是 `std::filesystem` 能复刻的；核心
 
 **两条硬约束留给后来人**：改库的公开接口要同步改 `docs/`（每条坑都对应代码里一句
 "为什么"，改掉行为却留着注释比没有注释更坏）；提交前过 clang-format。
+
+## 登录示例双路线适配（已过时，2026-10-13，原同名文档）
+
+`examples/new_login_dialog` 是网页版登录页的 Qt 移植，2026-10-14 被策略化重构版
+取代并从仓库删除；现实现是 `src/app/dialogs/login/` 与
+`src/app/dialogs/login_dialog.cpp`。仍可复用的结论：
+
+- **自绘的是"画"，标准控件的是"皮肤"**：角色面板 / HoverButton 两条路线都用
+  QPainter；输入框、复选框、按钮外观随路线走。
+- **字号/字重/边距/控件尺寸算版式**（代码 + 布局），颜色/边框/背景算皮肤
+  （qss 进项目层，fluent 交给 Fluent）。
+- **底座已经声明过的属性必须放回 QSS**：`QLineEdit::setTextMargins` 是叠加不是
+  替换，输入框 padding 一半在代码一半在 QSS 会打架。
+- **复选框 `::indicator` 要把默认 / `:hover` / `:checked` / `:checked:hover` /
+  `:disabled` 写全**：`#id` 具体度高于底座类型选择器，Qt 又逐属性合并，只写一条
+  无伪态规则会把勾选态底色一起盖白。
+- **fluent 路线不加载任何 QSS**，应用字体在 `setStyle` 之后设，与
+  `src/app/application.cpp` 同序。
+- `APP_UI_QSS` 宏口径已被"只留 `APP_UI_FLUENT`"取代，见下一节。
+
+## 界面路线开关下沉到目标（2026-10-14，原《界面路线开关下沉到目标设计》）
+
+`APP_UI_ROUTE` 从顶层缓存变量改成普通变量，路线成为目录/目标属性；同一构建
+目录可以 demo_app 走 fluent、examples 走 qss。
+
+**仍有效**
+
+- 顶层删缓存 set 与 `set_property(CACHE ... STRINGS)`（后者在缓存项不存在时
+  configure 直接失败），保留值域校验。**不用 `option()`**：缓存语义会复活
+  "删缓存/旧值静默覆盖"的坑。
+- 三层覆盖：顶层默认 qss → `local.cmake`（本机、不入库）→ 子目录 `set`
+  （目标级固定，兄弟目录互不可见）。普通变量会**静默遮蔽 `-DAPP_UI_ROUTE`**。
+- demo_app 实际路线发布为全局属性 `APP_DEMO_UI_ROUTE`；`tests/funq_app` 的
+  `FUNQ_RIBBON` 判据改成 `BUILD_RIBBON AND NOT demo_app fluent`，交叉断言在
+  两条路线下都成立。用 GLOBAL 属性而不是 PARENT_SCOPE：tests/ 与 src/app 是
+  兄弟目录。
+- 宏归一只留 `APP_UI_FLUENT`（fluent 才定义，qss 无宏）。三个不真用 Fluent 的
+  示例只注宏、不链 FluentUI3Style，避免死依赖；只有真正 `new FluentUI3Style`
+  的示例才链库。
+- 迁移期顶层检查 `DEFINED CACHE{APP_UI_ROUTE}`，命中就 WARNING 提示缓存已
+  无效，避免旧构建目录静默回到 qss。
+
+**验收**：单目录混编（src/app 临时 set fluent + examples 默认 qss）全量编过、
+demo_app 起 Fluent 壳、任一示例起 qss；验完回退那行；默认 qss 的 ctest 与
+改动前一致；`grep APP_UI_QSS` 归零（除 CHANGELOG/docs）。
+
+## 登录左栏两支 ASCII 动画（2026-10-14，原《登录左栏补两个ASCII动画设计》）
+
+从 qt-libui 的 just_for_fun 移植 TvStatic（58×26）与 Rocket（48×28），
+`(QChar, colorIdx)` 字符缓冲 + 等宽字体逐格画；登录族同时收口到
+`src/app/dialogs/login/`。
+
+**仍有效**
+
+- `AsciiSceneAnimator<Scene>` 是**模板壳**：绘制逻辑只一份，底色走构造参数，
+  别名只收口类型（`TvStaticAnimator = AsciiSceneAnimator<TvStatic>`）。
+- 模板不声明 `Q_OBJECT`：AUTOMOC 不跑；代价是 `qobject_cast`/`findChild` 对它
+  不可用，只当 `CharacterAnimator*` 用。
+- 场景按原样移植，只做五件事：头保护宏、保留出处注释、补花括号、局部量
+  `BODY` 改名、过 clang-format（ASCII 画保留 `// clang-format off`）。
+- 配置键 `login/animation`（default/static/tv/rocket），缺省值注册进
+  `initDefaultValues()`；构造时读一次，不接 `configChanged`。
+- 构造期必须 `scene_.Update(0.0)` + `elapsed_.start()`：前者防首帧空白，
+  后者防未启动 `QElapsedTimer` 的未定义值。
+- 20fps（50ms）；`reset()` 不覆写，面板只在销毁旧策略时调用。
+- 取配置必须传 `QString`：传字面量会推导成 `char[8]`，命中
+  `QVariant::fromValue` 的 static_assert。
+
+## 电视动画交互化（2026-10-14，原同名文档）
+
+让 TvStatic 对登录窗的 5 个交互事件作出反应，不动 LoginWindow 与
+CharacterPanel：面板本来就有 50ms tick 与 `setInput()`/`onValidationFailed()`。
+
+**仍有效**
+
+- 场景侧用**绝对覆盖 + 滚动相位**，不用偏置：`lock` clamp 到 0 时画面 100%
+  雪花，负偏置在雪花相位零像素后果；恒定偏置在锁定平台上只给常量行位移。
+  `TvControl{lock_override, roll_extra}` 嵌在场景里，`lock` 由场景自己夹。
+- 读得出"在滚"的两个条件缺一不可：卡片结构稳得住（`0.97·lock ≳ 0.35`）且
+  真有位移（基础 `roll` 是静态偏移，位移动力只来自 `roll_extra`）。
+- 策略侧 `TvStaticAnimator` 用 `tick()` 倒计数（800ms=16 帧、2500ms=50 帧），
+  不用 `singleShot` + 世代号；面板隐藏时定时器自停、倒计时挂起，连点不叠链。
+- 顺序：递减 → 推进 `roll_extra_`（`fmod 17`）→ `ApplyControl()` →
+  `SetControl()` → 再调基类 `tick()`（基类一进门就 `Update()`，晚调滞后一帧）。
+- 偷看按 `pwd_visible && has_pwd` 的**上升沿**起 800ms，判定必须在调基类
+  `setInput()` **之前**，否则 `input_` 已更新、上升沿永远不成立。
+- 映射定稿：打字 lock 0.45、聚焦 0.80 + 0.35 行/帧、偷看 1.0 锁 800ms、
+  错误 0.40 + 0.8 行/帧 2500ms；错误档 0.30 时卡片可见格 29%，低于读数线。
+- 验收只能抓图：策略是普通 QObject、面板不暴露动画状态；判据用"可辨认形态"
+  （满卡 / 四成碎卡+撕裂 / 八成卡慢跑 / 四成卡+六成雪+滚屏），不用"与基线
+  不同"。帧间距 ≥500ms；先归一化穿梭，避免持续态污染期望值。
+
+## 内置 Markdown 文档预览（2026-10-14，原同名文档）
+
+新增 `src/markdown/`（`demo_markdown`）：md4c 解析 + qlitehtml 渲染，
+控件 `MarkdownView` + 独立查看器窗口；文档从磁盘读，改完即看。
+
+**仍有效**
+
+- 边界在 `MarkdownView`：qlitehtml 类型不进公开头，链接只抛 `linkClicked`，
+  本地 .md 自开/其余交系统浏览器是窗口策略。
+- 渲染契约：md4c 必须用 `MD_DIALECT_GITHUB`（否则表格静默丢失）；
+  `setUrl` 必须早于 `setHtml`，空基准也要显式设 `QUrl()`，否则相对图片按上一份
+  文档解析。
+- 热重载用有界轮询（100ms × 50 次）而不是单次重试；"先删后建"保存时也能等到
+  文件回来；`addPath()` 失败要抛 `loadFailed`。
+- `LoadFile` 失败要 `ClearDocument()` 并回错误页，不能只改标题。
+- 页内锚点先看 `fragment()`：纯 fragment 只滚锚点，不能走
+  `QDesktopServices::openUrl`（基准 URL 是目录，会弹资源管理器）。
+- 只放行 http/https/mailto 与真实存在的本地文件。
+- 单测：`test_markdown_to_html`、`test_code_highlighter`；像素探针
+  `scripts/funq/probe_markdown_view.py`。
+
+**当时定案、后来被后续工作覆盖**
+
+- 初版"零补丁"已被 qlitehtml 0001-0006、0008 取代。
+- 初版"不做暗色主题"已被 Light/Dark 主题接入覆盖。
+- `markdown_window.{h,cpp}` 已迁到 `src/app/dialogs/`，模块边界仍是
+  `src/markdown → src/app` 单向。
+- 备查未做：把"解析自己生成的 HTML"换成 md4c `MD_PARSER` 回调，可根除
+  `<pre><code>` 正则吞正文的同源问题；改动面大，等真有需求再上。
+
+**坑**
+
+- 只 `add_subdirectory` qlitehtml 的 `src/` 会丢顶层 `CMAKE_AUTOMOC ON`，
+  链接期报一屏 `staticMetaObject` 找不到。
+- `Q_INIT_RESOURCE` 放进匿名命名空间会绑到匿名空间、链接期找不到 rcc 函数。
+- md4c 不 `add_subdirectory` 的真陷阱是它改全局编译设定（强推 `/MT`、覆盖
+  build type），不是"没有测试目标"。
+
+## 公式/图表图片 QPixmap 直供（2026-10-20，原《Markdown公式图表QPixmap直供设计》）
+
+qlitehtml 增加 `PixmapCallBack`（补丁 0008）：宿主已有解码好的 QPixmap 时
+直接提供，避免每次 `setDocument()` 走 base64 + PNG 解码；打印容器同步复制
+回调。
+
+**仍有效**
+
+- `load_image` 先查 provider，返回空再走 DataCallback；provider 图按静态图
+  处理，跳过 `loadAnimation`。
+- `setDocument` 保留 `m_pixmaps.clear()`：跨文档复用会让动画图不再注册
+  QMovie、本地图片内容变化后仍命中旧图；缓存放宿主。
+- markdown 侧 token 用 `mj:f/<sha256>` / `mj:m/<sha256>`，由渲染器内容缓存
+  key 派生；不能按 ApplyDocument 递增，缓存命中不会重新产出 QImage。
+- 两层缓存：`MarkdownRenderContextState::pixmap_cache` 跨 ApplyDocument 复用，
+  `MarkdownView::document_pixmaps_` pin 住当前文档；provider 只读 pin 层，
+  避免 QCache 淘汰当前文档条目造成 token 悬空。
+- `QCache::insert` 失败会删除对象，失败后不能再用 entry 指针；pin 层仍保证
+  当前文档可用。
+- `ClearRenderCaches()` 清跨 ApplyDocument 缓存，不清 pin；PDF 导出走
+  `print()` 的 provider 副本。
+- 解码上限：PNG 字节与像素字节均 64MiB，单边 32767；公式侧补了与 mermaid
+  相同的 4096² 面积封顶。
+- 只覆盖公式/图表；本地图片仍每次 `setHtml` 读盘解码。
+
+**坑**
+
+- provider 必须在第一次 `setHtml()` 前设置：litehtml 在 `createFromString()`
+  的 `compute_styles()` 阶段就会对每个 `<img>` 调 `load_image`。
+- 不能删 `m_pixmaps.clear()`（见上）。
+- 不能只复制 dataCallback 到打印容器，否则 PDF 缺图。
+- `mj:` 未命中不要在 qlitehtml 内统一告警：本地图片/真 data URI 返回空是正常
+  回退；告警放宿主，只对 `mj:` 打。
+- QImage → QPixmap 必须在 GUI 线程；不要给 pixmap 设 `devicePixelRatio`
+  （qlitehtml 用显式目标矩形绘制）。
 
 ## 挂起事项（原 `挂起事项.md`，活清单）
 

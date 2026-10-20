@@ -81,7 +81,7 @@ option(BUILD_RIBBON "启用 SARibbon Ribbon 界面（主窗口的功能区菜单
 option(BUILD_FLUENT_UI "构建 FluentUI3Style 界面库（第二条界面路线）" ON)
 # 内置 Markdown 文档预览没有开关，是基座的固定能力。它引入的 qlitehtml 是本仓
 # 首个 GPL 类依赖（GPL-3.0-only WITH Qt-GPL-exception-1.0 / 商业双授权），
-# 详见 docs/plan/内置Markdown文档预览设计.md 与 docs/guide/第三方依赖补丁.md
+# 详见 docs/plan/plan总结.md 与 docs/guide/第三方依赖补丁.md
 
 # 主界面二选一，同进程互斥：qss（样式表 + SARibbon）/ fluent（FluentUI3Style）。
 # 普通变量（非缓存）：子目录可覆盖（如 src/app 自己走 fluent），local.cmake

@@ -196,6 +196,11 @@ img.mermaid { max-width: 100%; height: auto; }
 `.rdata` 体积都会涨。可选优化：给 `<qresource>` 加 `compress` 属性（zlib），
 加载时解压——先量一次编译时间与 exe 体积再决定。
 
+> 2026-10-19 后记：上述体积估算已过时。三份 mermaid 载荷（以及 MathJax /
+> highlight）已改为构建期 qjsc 预编译字节码，不再编进 qrc；`compress` 实测
+> 与 rcc 默认压缩逐字节相同，无增益。数据与实施见
+> `docs/eval/Markdown渲染qjsc预编译评估.md`。
+
 ## 七、风险与开放问题
 
 ### 7.1 已知偏差（沿用 demo 的结论）

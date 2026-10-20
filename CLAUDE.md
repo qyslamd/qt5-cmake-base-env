@@ -24,7 +24,7 @@ scripts/build_ninja.bat -t relwithdebinfo -m demo_app -p
 - 自动配置VS2019 x64编译环境
 - 使用Ninja生成器构建
 - 工具链用仓库自带的那几份：`3rdparty/cmake/bin/cmake.exe` 与 `3rdparty/ninja.exe`（要求 ≥ 1.10.0，不用 VS2019 自带的那份），预设已固定指向它们
-- 界面有两条路线，`APP_UI_ROUTE` 二选一（默认 `qss`：项目层样式表 + SARibbon；`fluent`：FluentUI3Style + Frameless，不加载 QSS）。它是**普通变量**（非缓存项）：换路线在 `local.cmake` 里 `set(APP_UI_ROUTE fluent)`，或在某目标的 CMakeLists 里覆盖——demo_app 走 fluent、示例走 qss 可同目录混编；`-DAPP_UI_ROUTE` 已无效（configure 会出 WARNING）。设计与决策见 `docs/plan/plan总结.md` 与 `docs/plan/界面路线开关下沉到目标设计.md`
+- 界面有两条路线，`APP_UI_ROUTE` 二选一（默认 `qss`：项目层样式表 + SARibbon；`fluent`：FluentUI3Style + Frameless，不加载 QSS）。它是**普通变量**（非缓存项）：换路线在 `local.cmake` 里 `set(APP_UI_ROUTE fluent)`，或在某目标的 CMakeLists 里覆盖——demo_app 走 fluent、示例走 qss 可同目录混编；`-DAPP_UI_ROUTE` 已无效（configure 会出 WARNING）。设计与决策见 `docs/plan/plan总结.md` 的「界面路线开关下沉到目标」一节
 - 构建输出目录：`build/ninja-debug/`（debug）、`build/ninja-relwithdebinfo/`（relwithdebinfo）、`build/ninja-release/`（release）
 - 支持两种参数模式：旧模式（位置参数 `build_ninja.bat debug deploy`）和新模式（显式参数 `-t <type> -m <target> -d/-p`），详见 `scripts/build_ninja.bat -h`
 - 可执行文件输出到：`build/ninja-debug/bin/`

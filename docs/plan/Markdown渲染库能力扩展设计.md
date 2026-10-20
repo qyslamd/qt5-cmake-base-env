@@ -1,6 +1,8 @@
 # Markdown 渲染库能力扩展设计
 
 状态：**定稿**（2026-10-17）：三轮审查无 🔴；用户评审意见（§十一）已逐条核实并处置。
+实施状态（2026-10-20）：主体能力已落地；图片字节 LRU（阶段 1）与懒加载
+（阶段 2，补丁 0007）暂缓，见 `Markdown图片懒加载设计.md` 与 `todo.md`。
 
 ## 一、需求汇总与目标
 
@@ -152,7 +154,7 @@ struct MarkdownHeading {
   QString anchor;         // slug，可直接传给 ScrollToAnchor()
 };
 
-enum class MarkdownTheme { Light, Dark, HighContrast };
+enum class MarkdownTheme { Light, Dark };
 
 struct MarkdownDiagnostics {
   bool trace = false;         // 按阶段 qCDebug + 计时
@@ -199,9 +201,10 @@ class MarkdownRenderContext {
 QString HighlightCode(MarkdownRenderContext& ctx, const QString& code,
                       const QString& language);
 QString FormulaToImgTag(MarkdownRenderContext& ctx, const QString& tex,
-                        bool display, const QColor& color);
+                        bool display, const QColor& color,
+                        QString* cache_key = nullptr);
 QString MermaidToImgTag(MarkdownRenderContext& ctx, const QString& code,
-                        MarkdownTheme theme);
+                        MarkdownTheme theme, QString* cache_key = nullptr);
 
 // 便捷重载（进程默认 ctx，供测试/直接调用；保持现有调用点可编译）
 QString HighlightCode(const QString& code, const QString& language);
@@ -602,8 +605,9 @@ qrc 别名 `:/markdown/themes/<name>.css`；`markdown_default.css` 保留别名
 
 | 编号 | 内容 | 用途 | 阶段 |
 |---|---|---|---|
-| 0003 | `QLiteHtmlWidget::anchorY(const QString&)` | 大纲当前章节 | 大纲 |
-| 0004 | `QLiteHtmlWidget::replaceImage(const QUrl&, const QByteArray&)` | 图片懒加载 | 阶段 2 |
+| 0003 | `QLiteHtmlWidget::anchorY(const QString&)` | 大纲当前章节 | 已落地 |
+| 0007 | `QLiteHtmlWidget::replaceImage(const QUrl&, const QByteArray&)` | 图片懒加载（预留，未落地） | 阶段 2 |
+| 0008 | `DocumentContainer::PixmapCallBack` | 公式/图表 QPixmap 直供 | 已落地 |
 
 登记：`patches/qlitehtml/NNNN-*.patch` + `cmake/patch_dependencies.cmake`；
 `3rdparty/` 不入库。
@@ -687,7 +691,7 @@ qrc 别名 `:/markdown/themes/<name>.css`；`markdown_default.css` 保留别名
 4. **主题**：三份 CSS、公式颜色、Mermaid 主题；
 5. **持久缓存**：key 已含主题/颜色，不会二次改；
 6. **大纲**：数据 + 控件 + 补丁 0003 + md_viewer dock；
-7. **图片懒加载阶段 1**；阶段 2（补丁 0004）另行评估。
+7. **图片懒加载阶段 1**；阶段 2（补丁 0007）另行评估。
 
 ## 十、已确认决策与遗留问题
 

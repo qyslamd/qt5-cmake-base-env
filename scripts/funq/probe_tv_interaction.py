@@ -1,4 +1,4 @@
-"""电视动画的交互验证（设计文档 docs/plan/电视动画交互化设计.md §五 的协议）。
+"""电视动画的交互验证（docs/plan/plan总结.md「电视动画交互化」的协议）。
 
 用法:
     python scripts/funq/run_demo_app_funq.py -- --set login/animation=tv
