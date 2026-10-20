@@ -140,9 +140,9 @@ void RenderSettingsPanel::initUi() {
   QVBoxLayout* cache = nullptr;
   QWidget* cache_card = NewCard(body, QStringLiteral("持久缓存"), &cache);
   persistent_cache_ = CreateSwitch(view_->persistent_render_cache_enabled());
-  AddSwitchRow(cache, cache_card, QStringLiteral("启用磁盘缓存"),
+  AddSwitchRow(cache, cache_card, QStringLiteral("启用持久缓存"),
                persistent_cache_,
-               QStringLiteral("关闭只跳过磁盘读写，内存缓存照常"));
+               QStringLiteral("关闭只跳过磁盘缓存读写，内存缓存照常"));
   cache_directory_ = new QLineEdit(cache_card);
   cache_directory_->setText(view_->render_context().options().cache_directory);
   cache_directory_->setPlaceholderText(QStringLiteral("默认位置"));
@@ -155,7 +155,7 @@ void RenderSettingsPanel::initUi() {
   cache_actions_layout->setSpacing(6);
   clear_memory_cache_ =
       new QPushButton(QStringLiteral("清空内存缓存"), cache_actions);
-  clear_cache_ = new QPushButton(QStringLiteral("清除磁盘缓存"), cache_actions);
+  clear_cache_ = new QPushButton(QStringLiteral("清除持久缓存"), cache_actions);
   cache_actions_layout->addWidget(clear_memory_cache_);
   cache_actions_layout->addWidget(clear_cache_);
   cache->addWidget(cache_actions);
@@ -173,7 +173,7 @@ void RenderSettingsPanel::initUi() {
   dump_directory_->setText(view_->diagnostics().dump_directory);
   dump_directory_->setPlaceholderText(QStringLiteral("未开启"));
   dump_directory_->setToolTip(
-      QStringLiteral("中间产物可能包含文档正文，仅调试时开启"));
+      QStringLiteral("dump 文件可能包含文档正文，仅排查问题时开启"));
   diagnostics->addWidget(
       NewPathRow(diagnostics_card, dump_directory_, &choose_dump_, &reset_dump_,
                  QStringLiteral("选择…"), QStringLiteral("关闭")));
@@ -269,7 +269,7 @@ void RenderSettingsPanel::BrowseCacheDirectory() {
 
 void RenderSettingsPanel::BrowseDumpDirectory() {
   const QString dir = QFileDialog::getExistingDirectory(
-      this, QStringLiteral("选择诊断转储目录"),
+      this, QStringLiteral("选择 dump 目录"),
       dump_directory_->text().isEmpty() ? QDir::homePath()
                                         : dump_directory_->text());
   if (dir.isEmpty()) {

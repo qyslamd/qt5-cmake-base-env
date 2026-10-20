@@ -29,11 +29,16 @@ endif()
 target_link_libraries(${TARGET_NAME} PRIVATE
     FluentUI3Style
     Frameless
+    ExWidgets::ExWidgets
 )
 target_compile_definitions(${TARGET_NAME} PRIVATE APP_UI_FLUENT)
 
 # 导出 PDF：QPrinter 归宿主建（模块只透传），所以链接在示例侧
 target_link_libraries(${TARGET_NAME} PRIVATE Qt5::PrintSupport)
+# 状态面板的进程工作集/峰值
+if(WIN32)
+    target_link_libraries(${TARGET_NAME} PRIVATE psapi)
+endif()
 
 set_target_properties(${TARGET_NAME} PROPERTIES
     AUTOMOC ON

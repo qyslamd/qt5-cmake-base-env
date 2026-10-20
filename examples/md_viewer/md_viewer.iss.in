@@ -44,8 +44,9 @@ Name: "associatefiles"; Description: "关联 .md / .markdown 文件"; GroupDescr
 
 [Files]
 Source: "{#WhereAreFiles}\@TARGET_NAME@.exe"; DestDir: "{app}"; Flags: ignoreversion
-; FluentUI3Style is a project DLL, windeployqt only collects Qt's own files
+; FluentUI3Style and ExWidgets are project DLLs; windeployqt only collects Qt's own files
 Source: "{#WhereAreFiles}\FluentUI3Style.dll"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "{#WhereAreFiles}\ExWidgets.dll"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#WhereAreFiles}\Qt5*.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#WhereAreFiles}\{#MyVcRedist}"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#WhereAreFiles}\platforms\*.dll"; DestDir: "{app}\platforms"; Flags: ignoreversion skipifsourcedoesntexist

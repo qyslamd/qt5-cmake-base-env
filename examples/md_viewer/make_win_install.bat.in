@@ -24,6 +24,10 @@ if not exist "%BIN_DIR%\FluentUI3Style.dll" (
     echo [ERROR] FluentUI3Style.dll not found next to the exe.
     exit /b 2
 )
+if not exist "%BIN_DIR%\ExWidgets.dll" (
+    echo [ERROR] ExWidgets.dll not found next to the exe.
+    exit /b 2
+)
 if not exist "%WINDEPLOYQT%" (
     echo [ERROR] windeployqt not found: %WINDEPLOYQT%
     exit /b 2

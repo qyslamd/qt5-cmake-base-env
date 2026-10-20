@@ -29,6 +29,7 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QPrinter>
+#include <QProgressBar>
 #include <QShortcut>
 #include <QStatusBar>
 #include <QTimer>
@@ -130,6 +131,8 @@ void MdViewerWindow::createActions() {
   open_file_action_ = new QAction(QStringLiteral("打开文件…"), this);
   open_file_action_->setShortcut(QKeySequence::Open);
   open_dir_action_ = new QAction(QStringLiteral("打开目录…"), this);
+  close_dir_action_ = new QAction(QStringLiteral("关闭目录"), this);
+  close_dir_action_->setEnabled(false);
   quit_action_ = new QAction(QStringLiteral("退出"), this);
   quit_action_->setShortcut(QKeySequence::Quit);
   about_action_ = new QAction(QStringLiteral("关于"), this);
@@ -202,6 +205,7 @@ void MdViewerWindow::initUi() {
   QMenu* file_menu = menuBar()->addMenu(QStringLiteral("文件(&F)"));
   file_menu->addAction(open_file_action_);
   file_menu->addAction(open_dir_action_);
+  file_menu->addAction(close_dir_action_);
   recent_menu_ = file_menu->addMenu(QStringLiteral("最近打开"));
   file_menu->addSeparator();
   file_menu->addAction(export_pdf_action_);
@@ -258,6 +262,14 @@ void MdViewerWindow::initUi() {
 
   statusBar()->setObjectName(QStringLiteral("mainStatusBar"));
   path_label_ = new QLabel(this);
+  render_progress_ = new QProgressBar(this);
+  render_progress_->setObjectName(QStringLiteral("renderProgressBar"));
+  render_progress_->setTextVisible(true);
+  render_progress_->setFormat(QStringLiteral("渲染 %v/%m"));
+  render_progress_->setFixedWidth(160);
+  render_progress_->setToolTip(QStringLiteral("当前文档的渲染任务进度"));
+  render_progress_->hide();
+  statusBar()->addPermanentWidget(render_progress_);
   statusBar()->addPermanentWidget(path_label_);
   zoom_label_ = new QLabel(this);
   zoom_label_->setObjectName(QStringLiteral("zoomLabel"));
@@ -319,6 +331,8 @@ void MdViewerWindow::initSignals() {
           &MdViewerWindow::OpenFileDialog);
   connect(open_dir_action_, &QAction::triggered, this,
           &MdViewerWindow::OpenDirectoryDialog);
+  connect(close_dir_action_, &QAction::triggered, this,
+          &MdViewerWindow::CloseDirectory);
   connect(quit_action_, &QAction::triggered, this, &QWidget::close);
   connect(about_action_, &QAction::triggered, this, [this] {
     QMessageBox::about(this, QStringLiteral("关于"),
@@ -340,6 +354,30 @@ void MdViewerWindow::initSignals() {
           &MdViewerWindow::ReportRenderStatus);
   connect(view_, &MarkdownView::documentReloaded, this, [this] {
     statusBar()->showMessage(QStringLiteral("文件已更新，已重新加载"), 3000);
+  });
+  connect(view_, &MarkdownView::renderProgress, this,
+          [this](quint64 request_id, int completed, int total, int in_flight) {
+            Q_UNUSED(in_flight);
+            progress_request_ = request_id;
+            if (total > 0) {
+              render_progress_->setRange(0, total);
+              render_progress_->setValue(completed);
+              render_progress_->setFormat(QStringLiteral("渲染 %v/%m"));
+              render_progress_->show();
+            } else {
+              render_progress_->hide();
+            }
+          });
+  connect(view_, &MarkdownView::renderFinished, this, [this](quint64) {
+    render_progress_->hide();
+    render_progress_->setRange(0, 1);
+    render_progress_->setValue(0);
+    progress_request_ = 0;
+    if (!pending_fragment_.isEmpty()) {
+      const QString fragment = pending_fragment_;
+      pending_fragment_.clear();
+      ScrollToFragment(fragment);
+    }
   });
   connect(view_, &MarkdownView::codeCopied, this, [this] {
     statusBar()->showMessage(QStringLiteral("已复制代码块"), 2000);
@@ -486,22 +524,43 @@ void MdViewerWindow::OpenPath(const QString& path) {
 
 void MdViewerWindow::NavigateTo(const QString& path, const QString& fragment,
                                 bool record_history) {
+  // 正在渲染时旧 HTML 还在屏幕上：同目标只更新待滚锚点，别再滚旧文档
+  if (view_->is_rendering() && path == view_->pending_file()) {
+    pending_fragment_ = fragment;
+    if (record_history) {
+      PushHistory(path, fragment);
+    }
+    return;
+  }
   // 同文件只滚锚点，不重加载；否则后退到同文档的另一个锚点会闪一下
   if (!view_->current_file().isEmpty() && path == view_->current_file()) {
+    if (view_->is_rendering()) {
+      // 用户回到了屏幕上已提交的文档：放弃还没提交的换篇
+      view_->CancelPendingRender();
+      pending_fragment_.clear();
+      render_progress_->hide();
+      progress_request_ = 0;
+    }
     if (record_history) {
       PushHistory(path, fragment);
     }
     ScrollToFragment(fragment);
     return;
   }
+  // 新文档的锚点要等提交后再滚；旧文档的 heading_ids_ 里没有它
+  pending_fragment_ = fragment;
   const QString opened = OpenPathCore(path);
   if (opened.isEmpty()) {
+    pending_fragment_.clear();
     return;
   }
   if (record_history) {
     PushHistory(opened, fragment);
   }
-  ScrollToFragment(fragment);
+  if (fragment.isEmpty()) {
+    pending_fragment_.clear();
+    ScrollToFragment(QString());
+  }
 }
 
 QString MdViewerWindow::OpenPathCore(const QString& path) {
@@ -570,10 +629,11 @@ void MdViewerWindow::UpdateHistoryActions() {
 void MdViewerWindow::OpenLastFile() {
   for (const QString& path : settings_->recent_files) {
     if (QFileInfo(path).isFile()) {
-      OpenPath(path);
-      if (view_->current_file() == QFileInfo(path).absoluteFilePath()) {
+      const QString opened = OpenPathCore(path);
+      if (!opened.isEmpty()) {
+        PushHistory(opened, QString());
         statusBar()->showMessage(QStringLiteral("已恢复上次打开：%1")
-                                     .arg(QFileInfo(path).fileName()),
+                                     .arg(QFileInfo(opened).fileName()),
                                  3000);
       }
       return;
@@ -601,6 +661,17 @@ void MdViewerWindow::OpenDirectoryDialog() {
   }
 }
 
+void MdViewerWindow::CloseDirectory() {
+  if (listed_dir_.isEmpty()) {
+    return;
+  }
+  file_list_->clear();
+  listed_dir_.clear();
+  directory_listing_closed_ = true;
+  close_dir_action_->setEnabled(false);
+  statusBar()->showMessage(QStringLiteral("目录已关闭"), 3000);
+}
+
 void MdViewerWindow::ApplyTheme(MarkdownTheme theme) {
   const bool dark = theme == MarkdownTheme::Dark;
   qApp->setProperty("_q_colorscheme", dark ? 1 : 0);
@@ -609,7 +680,12 @@ void MdViewerWindow::ApplyTheme(MarkdownTheme theme) {
   fluent_frame_->titleBar()->setThemeDark(dark);
   // 搜索框里的 A/T/箭头是运行时按调色板画的，换肤后要重画
   UpdateSearchActionIcons();
+  const bool theme_changed = view_->theme() != theme;
   view_->SetTheme(theme);
+  if (theme_changed && (view_->has_document() || view_->is_rendering())) {
+    // 换肤同样要等整篇重渲染；否则旧配色会一直留在屏幕上
+    view_->ShowPlaceholder(QStringLiteral("正在渲染…"));
+  }
   // 面板是被动同步方，用 QSignalBlocker 防止再发一次 themeChanged
   render_settings_->SetTheme(theme);
   statusBar()->showMessage(theme == MarkdownTheme::Dark
@@ -652,19 +728,24 @@ void MdViewerWindow::RefreshDirectoryListing(const QString& dir) {
     item->setToolTip(info.absoluteFilePath());
   }
   listed_dir_ = dir;
+  directory_listing_closed_ = false;
+  close_dir_action_->setEnabled(true);
   statusBar()->showMessage(
       QStringLiteral("%1：%2 篇 Markdown").arg(dir).arg(files.size()), 5000);
 }
 
 bool MdViewerWindow::ShowFile(const QString& path) {
   const QFileInfo info(path);
-  // 单篇打开时顺手把同目录的兄弟列出来——侧栏不该只对"打开目录"生效
-  if (info.absolutePath() != listed_dir_) {
+  // 单篇打开时顺手把同目录的兄弟列出来——侧栏不该只对"打开目录"生效；
+  // 用户显式关掉目录后不再自动铺回来
+  if (!directory_listing_closed_ && info.absolutePath() != listed_dir_) {
     RefreshDirectoryListing(info.absolutePath());
   }
   if (!view_->LoadFile(info.absoluteFilePath())) {
     return false;  // 视图里已经是错误页，状态栏的消息由 loadFailed 负责
   }
+  // 旧文档还在屏幕上，而新文档已在后台渲染；先给一个明确的等待页
+  view_->ShowPlaceholder(QStringLiteral("正在渲染…"));
   setWindowTitle(QStringLiteral("Markdown 查看器 - %1").arg(info.fileName()));
   path_label_->setText(info.fileName());
   path_label_->setToolTip(info.absoluteFilePath());
@@ -875,6 +956,10 @@ void MdViewerWindow::FindNext(bool backward, bool incremental) {
 }
 
 void MdViewerWindow::ExportPdf() {
+  if (view_->is_rendering()) {
+    statusBar()->showMessage(QStringLiteral("文档还在渲染，稍后再导出"), 3000);
+    return;
+  }
   if (!view_->has_document()) {
     statusBar()->showMessage(QStringLiteral("先打开一篇 Markdown 再导出"),
                              3000);
@@ -900,6 +985,10 @@ void MdViewerWindow::ExportPdf() {
   }
 
   // 分页与 print 媒体重排都在控件里（见 MarkdownView::Print 的注释）
+  if (view_->is_rendering()) {
+    statusBar()->showMessage(QStringLiteral("文档还在渲染，稍后再导出"), 3000);
+    return;
+  }
   QPrinter printer(QPrinter::HighResolution);
   printer.setOutputFormat(QPrinter::PdfFormat);
   printer.setOutputFileName(path);

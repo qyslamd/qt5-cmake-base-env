@@ -17,6 +17,7 @@ class QLineEdit;
 class QListWidget;
 class QListWidgetItem;
 class QMenu;
+class QProgressBar;
 class QTimer;
 struct MdViewerSettings;
 class FluentWindowFrame;
@@ -75,6 +76,8 @@ class MdViewerWindow : public QMainWindow {
 
   void OpenFileDialog();
   void OpenDirectoryDialog();
+  // 清空左侧目录列表；当前文档保留，之后打开单篇也不再自动铺同目录
+  void CloseDirectory();
   // Fluent 壳与文档主题一起切
   void ApplyTheme(MarkdownTheme theme);
   // 标题栏主题按钮：浅色/暗色之间翻转
@@ -99,6 +102,7 @@ class MdViewerWindow : public QMainWindow {
   // 菜单里挂着；菜单栏在 fluent 壳下会被搬进标题栏
   QAction* open_file_action_ = nullptr;
   QAction* open_dir_action_ = nullptr;
+  QAction* close_dir_action_ = nullptr;
   QAction* quit_action_ = nullptr;
   QAction* about_action_ = nullptr;
   QAction* export_pdf_action_ = nullptr;
@@ -125,13 +129,19 @@ class MdViewerWindow : public QMainWindow {
   QListWidget* file_list_ = nullptr;
   QLabel* path_label_ = nullptr;
   QLabel* zoom_label_ = nullptr;
+  QProgressBar* render_progress_ = nullptr;
+  quint64 progress_request_ = 0;
   // 上一次渲染状态：只用来看引擎首次加载与本次失败增量
   MarkdownRendererStatus last_render_status_;
   // 列表当前列的是哪个目录（ShowFile 据此决定要不要重扫）
   QString listed_dir_;
+  // 用户显式关闭目录后，单篇打开不再自动把同目录铺回来
+  bool directory_listing_closed_ = false;
   // 文件跳转与锚点跳转共用的历史栈
   QVector<HistoryEntry> history_;
   int history_index_ = -1;
+  // 换文档后要等的锚点；renderFinished 时再滚
+  QString pending_fragment_;
 
   // 无边框窗口壳（QWK + Fluent 标题栏）
   FluentWindowFrame* fluent_frame_ = nullptr;

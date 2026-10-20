@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>渲染状态面板原型</title>
+<style>
+  /* 设计方向：右侧窄栏；一屏内先看进度与异常，细节收进折叠区。 */
+  :root {
+    --bg: #e9eff5;
+    --bg-glow: #f8fbfd;
+    --surface: #ffffff;
+    --surface-2: #f4f8fb;
+    --surface-3: #edf3f8;
+    --border: #d9e3ed;
+    --border-strong: #c5d2df;
+    --fg: #17212b;
+    --muted: #5d6d7d;
+    --faint: #8796a6;
+    --accent: #0f6cbd;
+    --accent-soft: #e3f1fb;
+    --accent-strong: #0a5a9e;
+    --good: #117a3d;
+    --good-soft: #e0f3e7;
+    --warn: #a46100;
+    --warn-soft: #fff1d4;
+    --bad: #b3261e;
+    --bad-soft: #fde8e6;
+    --track: #e8eef5;
+    --parse: #0f6cbd;
+    --collect: #5c9fd4;
+    --worker: #13897d;
+    --assemble: #be7900;
+    --layout: #b24b32;
+    --other: #8b98a7;
+    --shadow: 0 1px 2px rgb(15 35 54 / 0.07), 0 14px 34px rgb(15 35 54 / 0.09);
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1319;
+      --bg-glow: #121b24;
+      --surface: #171f28;
+      --surface-2: #1c2630;
+      --surface-3: #212d39;
+      --border: #293542;
+      --border-strong: #3a4a5a;
+      --fg: #edf4fa;
+      --muted: #a8b6c5;
+      --faint: #7e8f9f;
+      --accent: #67b2ee;
+      --accent-soft: #14314a;
+      --accent-strong: #9ccff7;
+      --good: #6fd38a;
+      --good-soft: #153524;
+      --warn: #efbf61;
+      --warn-soft: #38290f;
+      --bad: #ff9b92;
+      --bad-soft: #3c1c1a;
+      --track: #24313d;
+      --parse: #67b2ee;
+      --collect: #8dc8ef;
+      --worker: #55c5b6;
+      --assemble: #efbf61;
+      --layout: #ff9b92;
+      --other: #94a3b2;
+      --shadow: 0 1px 2px rgb(0 0 0 / 0.28), 0 16px 38px rgb(0 0 0 / 0.3);
+      color-scheme: dark;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #0d1319;
+    --bg-glow: #121b24;
+    --surface: #171f28;
+    --surface-2: #1c2630;
+    --surface-3: #212d39;
+    --border: #293542;
+    --border-strong: #3a4a5a;
+    --fg: #edf4fa;
+    --muted: #a8b6c5;
+    --faint: #7e8f9f;
+    --accent: #67b2ee;
+    --accent-soft: #14314a;
+    --accent-strong: #9ccff7;
+    --good: #6fd38a;
+    --good-soft: #153524;
+    --warn: #efbf61;
+    --warn-soft: #38290f;
+    --bad: #ff9b92;
+    --bad-soft: #3c1c1a;
+    --track: #24313d;
+    --parse: #67b2ee;
+    --collect: #8dc8ef;
+    --worker: #55c5b6;
+    --assemble: #efbf61;
+    --layout: #ff9b92;
+    --other: #94a3b2;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.28), 0 16px 38px rgb(0 0 0 / 0.3);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(900px 480px at 50% -12%, var(--bg-glow), transparent 70%),
+      var(--bg);
+    color: var(--fg);
+    font-family: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI",
+      "PingFang SC", "Noto Sans CJK SC", sans-serif;
+    font-size: 13px;
+    line-height: 1.45;
+    padding-inline: max(16px, env(safe-area-inset-left, 0px))
+      max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 24px 28px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, p { margin: 0; }
+
+  .page {
+    width: min(320px, 100%);
+    margin: 0 auto;
+  }
+
+  .page-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 9px;
+    color: var(--faint);
+    font-size: 10.5px;
+    letter-spacing: 0.02em;
+  }
+
+  .theme-toggle {
+    min-height: 25px;
+    padding: 2px 9px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--muted);
+    font: inherit;
+    font-size: 10.5px;
+    cursor: pointer;
+  }
+
+  .theme-toggle:hover { background: var(--surface-2); }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .panel {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+
+  .panel-head {
+    padding: 13px 13px 11px;
+    border-bottom: 1px solid var(--border);
+    background:
+      linear-gradient(180deg, var(--surface), var(--surface-2));
+  }
+
+  .title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  h1 {
+    font-family: "Segoe UI Variable Display", "Segoe UI",
+      "Microsoft YaHei UI", sans-serif;
+    font-size: 17px;
+    line-height: 1.2;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+  }
+
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+    font-size: 10.5px;
+    font-weight: 650;
+    white-space: nowrap;
+  }
+
+  .status::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+
+  .file-line {
+    margin-top: 5px;
+    color: var(--muted);
+    font-size: 10.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .state-line {
+    margin-top: 3px;
+    color: var(--faint);
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .head-actions {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 9px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    min-height: 23px;
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--surface);
+    color: var(--muted);
+    font: inherit;
+    font-size: 10.5px;
+    cursor: pointer;
+  }
+
+  .btn:hover { background: var(--surface-2); }
+
+  .content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .card {
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-2);
+    color: var(--fg);
+  }
+
+  .card-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .card-head h2 {
+    color: var(--fg);
+    font-size: 12px;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+  }
+
+  .hint {
+    color: var(--faint);
+    font-size: 10.5px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .progress-card {
+    display: grid;
+    grid-template-columns: 70px minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+  }
+
+  .donut {
+    --p: 85.7%;
+    position: relative;
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    background: conic-gradient(var(--accent) var(--p), var(--track) 0);
+  }
+
+  .donut::after {
+    content: "";
+    position: absolute;
+    inset: 7px;
+    border-radius: 50%;
+    background: var(--surface-2);
+  }
+
+  .donut-center {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: grid;
+    place-content: center;
+    text-align: center;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .donut-center strong {
+    font-size: 17px;
+    font-weight: 650;
+    letter-spacing: -0.04em;
+  }
+
+  .donut-center span { color: var(--muted); font-size: 9.5px; }
+
+  .progress-copy { min-width: 0; }
+
+  .big {
+    font-size: 22px;
+    font-weight: 650;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .sub {
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 10.5px;
+  }
+
+  .progress-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 7px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 3px;
+    padding: 1px 6px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 9.5px;
+    white-space: nowrap;
+  }
+
+  .chip b {
+    color: var(--fg);
+    font-size: 10.5px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .chip.good { border-color: color-mix(in srgb, var(--good) 28%, var(--border)); }
+  .chip.bad { border-color: color-mix(in srgb, var(--bad) 28%, var(--border)); }
+
+  .stage-row {
+    display: grid;
+    grid-template-columns: 39px minmax(60px, 1fr) 41px;
+    align-items: center;
+    gap: 7px;
+    min-height: 21px;
+  }
+
+  .stage-label {
+    color: var(--muted);
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .track {
+    position: relative;
+    height: 6px;
+    overflow: hidden;
+    border-radius: 2px;
+    background: var(--track);
+  }
+
+  .track > span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+  }
+
+  .stage-value {
+    color: var(--fg);
+    font-size: 11px;
+    font-weight: 600;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .worker-marker {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    width: 1px;
+    background: var(--fg);
+    opacity: 0.5;
+  }
+
+  .seg-parse { background: var(--parse); }
+  .seg-collect { background: var(--collect); }
+  .seg-worker { background: var(--worker); }
+  .seg-assemble { background: var(--assemble); }
+  .seg-layout { background: var(--layout); }
+  .seg-other { background: var(--other); }
+
+  .pool-row {
+    display: grid;
+    grid-template-columns: 48px minmax(58px, 1fr) auto;
+    align-items: center;
+    gap: 7px;
+    min-height: 31px;
+  }
+
+  .pool-row + .pool-row {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid var(--border);
+  }
+
+  .pool-name {
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .pool-name small {
+    display: block;
+    color: var(--faint);
+    font-size: 9.5px;
+    font-weight: 400;
+  }
+
+  .pips {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 3px;
+  }
+
+  .pip {
+    width: 11px;
+    height: 11px;
+    border: 1.5px solid var(--border-strong);
+    border-radius: 50%;
+    background: var(--surface-2);
+  }
+
+  .pip.processing {
+    border-color: var(--accent);
+    background: var(--accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 13%, transparent);
+  }
+
+  .pip.failed {
+    border-color: var(--bad);
+    background: var(--bad);
+    position: relative;
+  }
+
+  .pip.failed::after {
+    content: "";
+    position: absolute;
+    left: 3px;
+    top: -2px;
+    width: 1.5px;
+    height: 13px;
+    background: var(--surface-2);
+    transform: rotate(45deg);
+  }
+
+  .pool-meta {
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 1.3;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .pool-meta b {
+    color: var(--fg);
+    font-weight: 600;
+  }
+
+  .pool-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+    margin-top: 7px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+    color: var(--faint);
+    font-size: 9.5px;
+  }
+
+  .pool-legend span { display: inline-flex; align-items: center; gap: 4px; }
+
+  .pool-legend .pip { width: 8px; height: 8px; border-width: 1px; }
+
+  .engine-row {
+    padding: 6px 0;
+  }
+
+  .engine-row + .engine-row {
+    border-top: 1px solid var(--border);
+  }
+
+  .engine-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+
+  .engine-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 16px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--good-soft);
+    color: var(--good);
+    font-size: 9px;
+    font-weight: 650;
+    white-space: nowrap;
+  }
+
+  .pill.bad { background: var(--bad-soft); color: var(--bad); }
+
+  .engine-sub {
+    color: var(--faint);
+    font-size: 9.5px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .hit-bar {
+    display: flex;
+    height: 7px;
+    overflow: hidden;
+    border-radius: 2px;
+    background: var(--track);
+  }
+
+  .hit-bar > span { display: block; height: 100%; min-width: 1px; }
+
+  .hit-render { background: var(--accent); }
+  .hit-memory { background: var(--worker); }
+  .hit-disk { background: var(--assemble); }
+
+  .engine-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 8px;
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 9.5px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .engine-counts b { color: var(--fg); font-weight: 600; }
+
+  .hit-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+    color: var(--faint);
+    font-size: 9.5px;
+  }
+
+  .hit-legend span { display: inline-flex; align-items: center; gap: 4px; }
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 1px;
+    flex: none;
+  }
+
+  .cache-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .cache-cell {
+    min-width: 0;
+    padding: 6px 7px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+  }
+
+  .cache-cell .name {
+    color: var(--muted);
+    font-size: 10px;
+  }
+
+  .cache-cell .value {
+    margin-top: 1px;
+    color: var(--fg);
+    font-size: 11px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .cache-cell .track {
+    height: 4px;
+    margin-top: 4px;
+  }
+
+  .cap-meter {
+    margin-top: 7px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+  }
+
+  .cap-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 10px;
+    margin-bottom: 4px;
+  }
+
+  .cap-head b {
+    color: var(--fg);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cap-meter .track { height: 5px; }
+  .cap-meter .track > span { background: var(--accent); }
+
+  details {
+    margin-top: 7px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+  }
+
+  summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    list-style: none;
+    color: var(--muted);
+    font-size: 10.5px;
+    cursor: pointer;
+  }
+
+  summary::-webkit-details-marker { display: none; }
+
+  summary::after {
+    content: "+";
+    color: var(--faint);
+    font-size: 12px;
+  }
+
+  details[open] summary::after { content: "−"; }
+
+  .detail-list {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 3px 8px;
+    margin-top: 6px;
+    color: var(--muted);
+    font-size: 10px;
+  }
+
+  .detail-list dd {
+    margin: 0;
+    color: var(--fg);
+    text-align: right;
+    overflow-wrap: anywhere;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .doc-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+    margin-bottom: 7px;
+  }
+
+  .doc-stat {
+    padding: 6px 7px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+  }
+
+  .doc-stat span { color: var(--muted); font-size: 10px; }
+
+  .doc-stat strong {
+    display: block;
+    margin-top: 1px;
+    font-size: 15px;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .char-row {
+    display: grid;
+    grid-template-columns: 30px minmax(40px, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+    min-height: 18px;
+    color: var(--muted);
+    font-size: 10px;
+  }
+
+  .char-row .track { height: 4px; }
+  .char-row .track > span { background: var(--accent); }
+
+  .char-row .value {
+    color: var(--fg);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .hist-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 3px;
+  }
+
+  .hist-cell {
+    min-width: 0;
+    padding: 5px 2px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--surface);
+    text-align: center;
+  }
+
+  .hist-cell b {
+    display: block;
+    color: var(--fg);
+    font-size: 12px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hist-cell span {
+    display: block;
+    margin-top: 1px;
+    color: var(--muted);
+    font-size: 8.5px;
+    white-space: nowrap;
+  }
+
+  .hist-cell.bad b { color: var(--bad); }
+
+  .foot {
+    margin-top: 10px;
+    padding: 0 4px;
+    color: var(--faint);
+    font-size: 10px;
+    line-height: 1.5;
+  }
+
+  .foot strong {
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  @media (max-width: 360px) {
+    body { padding-inline: 12px; }
+    .pool-row { grid-template-columns: 44px minmax(50px, 1fr) auto; }
+    .stage-row { grid-template-columns: 35px minmax(50px, 1fr) 38px; }
+    .pool-meta { font-size: 9px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-meta">
+    <span>md_viewer 侧边栏 · 320 px</span>
+    <button class="theme-toggle" id="themeToggle" type="button">深色</button>
+  </div>
+
+  <section class="panel" aria-labelledby="panelTitle">
+    <header class="panel-head">
+      <div class="title-row">
+        <h1 id="panelTitle">渲染状态</h1>
+        <span class="status">渲染中</span>
+      </div>
+      <div class="file-line" title="Markdown多线程渲染Latex和mermaid设计.md">
+        Markdown多线程渲染Latex和mermaid设计.md
+      </div>
+      <div class="state-line">浅色 · 行号关 · 公式开 · Mermaid 开</div>
+      <div class="head-actions">
+        <button class="btn" type="button">刷新</button>
+        <button class="btn" type="button">计数清零</button>
+      </div>
+    </header>
+
+    <div class="content">
+      <article class="card">
+        <div class="card-head">
+          <h2>任务进度</h2>
+          <span class="hint">请求 #184</span>
+        </div>
+        <div class="progress-card">
+          <div class="donut" role="img" aria-label="已完成 12 个任务，共 14 个">
+            <div class="donut-center"><strong>12</strong><span>/ 14</span></div>
+          </div>
+          <div class="progress-copy">
+            <div class="big">85.7%</div>
+            <div class="sub">2 个任务处理中 · 1 个排队</div>
+            <div class="progress-chips">
+              <span class="chip good"><b>2</b> 活跃 worker</span>
+              <span class="chip"><b>0</b> 失败</span>
+              <span class="chip"><b>0</b> 取消</span>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <h2>耗时构成</h2>
+          <span class="hint">总 892 ms</span>
+        </div>
+        <div class="stage-row">
+          <span class="stage-label">解析</span>
+          <div class="track"><span class="seg-parse" style="width:0.75%"></span></div>
+          <span class="stage-value">3 ms</span>
+        </div>
+        <div class="stage-row">
+          <span class="stage-label">收集</span>
+          <div class="track"><span class="seg-collect" style="width:2.0%"></span></div>
+          <span class="stage-value">8 ms</span>
+        </div>
+        <div class="stage-row">
+          <span class="stage-label">worker</span>
+          <div class="track">
+            <span class="seg-worker" style="width:13.0%"></span>
+            <i class="worker-marker" style="left:10.25%" title="最慢任务 41 ms"></i>
+          </div>
+          <span class="stage-value">52 ms</span>
+        </div>
+        <div class="stage-row">
+          <span class="stage-label">组装</span>
+          <div class="track"><span class="seg-assemble" style="width:82.75%"></span></div>
+          <span class="stage-value">331 ms</span>
+        </div>
+        <div class="stage-row">
+          <span class="stage-label">布局</span>
+          <div class="track"><span class="seg-layout" style="width:89.5%"></span></div>
+          <span class="stage-value">358 ms</span>
+        </div>
+        <div class="stage-row">
+          <span class="stage-label">其它</span>
+          <div class="track"><span class="seg-other" style="width:35.0%"></span></div>
+          <span class="stage-value">140 ms</span>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <h2>worker 池</h2>
+          <span class="hint">2 + 2 + 4</span>
+        </div>
+
+        <div class="pool-row">
+          <div class="pool-name">高亮<small>2 workers</small></div>
+          <div class="pips" role="img" aria-label="高亮池：2 个 worker 空闲">
+            <i class="pip"></i><i class="pip"></i>
+          </div>
+          <div class="pool-meta">排队 <b>0</b> · 处理 <b>0</b> · JS <b>2.1</b> MB</div>
+        </div>
+
+        <div class="pool-row">
+          <div class="pool-name">公式<small>2 workers</small></div>
+          <div class="pips" role="img" aria-label="公式池：1 个 worker 处理中，1 个空闲">
+            <i class="pip processing"></i><i class="pip"></i>
+          </div>
+          <div class="pool-meta">排队 <b>0</b> · 处理 <b>1</b> · JS <b>4.8</b> MB</div>
+        </div>
+
+        <div class="pool-row">
+          <div class="pool-name">Mermaid<small>4 workers</small></div>
+          <div class="pips" role="img" aria-label="Mermaid 池：2 个 worker 处理中，2 个空闲">
+            <i class="pip processing"></i><i class="pip processing"></i>
+            <i class="pip"></i><i class="pip"></i>
+          </div>
+          <div class="pool-meta">排队 <b>1</b> · 处理 <b>2</b> · JS <b>18.6</b> MB</div>
+        </div>
+
+        <div class="pool-legend">
+          <span><i class="pip processing"></i>处理中</span>
+          <span><i class="pip"></i>空闲</span>
+          <span><i class="pip failed"></i>失败</span>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <h2>引擎命中</h2>
+          <span class="hint">调用 = 渲染 + 命中</span>
+        </div>
+
+        <div class="engine-row">
+          <div class="engine-top">
+            <span class="engine-name">高亮 <span class="pill">已加载</span></span>
+            <span class="engine-sub">首次 12 ms · 调用 240</span>
+          </div>
+          <div class="hit-bar" role="img" aria-label="高亮：实际渲染 34%，内存命中 50%，磁盘命中 16%">
+            <span class="hit-render" style="width:34.2%" title="渲染 82"></span>
+            <span class="hit-memory" style="width:50.0%" title="内存命中 120"></span>
+            <span class="hit-disk" style="width:15.8%" title="磁盘命中 38"></span>
+          </div>
+          <div class="engine-counts">
+            <span>渲染 <b>82</b></span>
+            <span>内存 <b>120</b></span>
+            <span>磁盘 <b>38</b></span>
+            <span>失败 <b>0</b></span>
+          </div>
+        </div>
+
+        <div class="engine-row">
+          <div class="engine-top">
+            <span class="engine-name">公式 <span class="pill">已加载</span></span>
+            <span class="engine-sub">首次 85 ms · 调用 64</span>
+          </div>
+          <div class="hit-bar" role="img" aria-label="公式：实际渲染 31%，内存命中 47%，磁盘命中 22%">
+            <span class="hit-render" style="width:31.3%" title="渲染 20"></span>
+            <span class="hit-memory" style="width:46.9%" title="内存命中 30"></span>
+            <span class="hit-disk" style="width:21.8%" title="磁盘命中 14"></span>
+          </div>
+          <div class="engine-counts">
+            <span>渲染 <b>20</b></span>
+            <span>内存 <b>30</b></span>
+            <span>磁盘 <b>14</b></span>
+            <span>失败 <b>1</b></span>
+          </div>
+        </div>
+
+        <div class="engine-row">
+          <div class="engine-top">
+            <span class="engine-name">Mermaid <span class="pill">已加载</span></span>
+            <span class="engine-sub">首次 940 ms · 调用 18</span>
+          </div>
+          <div class="hit-bar" role="img" aria-label="Mermaid：实际渲染 44%，内存命中 33%，磁盘命中 22%">
+            <span class="hit-render" style="width:44.4%" title="渲染 8"></span>
+            <span class="hit-memory" style="width:33.3%" title="内存命中 6"></span>
+            <span class="hit-disk" style="width:22.2%" title="磁盘命中 4"></span>
+          </div>
+          <div class="engine-counts">
+            <span>渲染 <b>8</b></span>
+            <span>内存 <b>6</b></span>
+            <span>磁盘 <b>4</b></span>
+            <span>失败 <b>0</b></span>
+          </div>
+        </div>
+
+        <div class="hit-legend">
+          <span><i class="dot hit-render"></i>实际渲染</span>
+          <span><i class="dot hit-memory"></i>内存命中</span>
+          <span><i class="dot hit-disk"></i>磁盘命中</span>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <h2>缓存</h2>
+          <span class="hint">memory cache</span>
+        </div>
+
+        <div class="cache-grid">
+          <div class="cache-cell">
+            <div class="name">高亮</div>
+            <div class="value">386 条 · 2.1 MB</div>
+            <div class="track"><span class="seg-parse" style="width:4.9%"></span></div>
+          </div>
+          <div class="cache-cell">
+            <div class="name">公式</div>
+            <div class="value">128 条 · 4.8 MB</div>
+            <div class="track"><span class="seg-worker" style="width:11.3%"></span></div>
+          </div>
+          <div class="cache-cell">
+            <div class="name">Mermaid</div>
+            <div class="value">42 条 · 18.6 MB</div>
+            <div class="track"><span class="seg-assemble" style="width:43.7%"></span></div>
+          </div>
+          <div class="cache-cell">
+            <div class="name">图片</div>
+            <div class="value">36 条 · 42.6 MB</div>
+            <div class="track"><span class="seg-layout" style="width:100%"></span></div>
+          </div>
+        </div>
+
+        <div class="cap-meter">
+          <div class="cap-head">
+            <span>图片缓存 / 上限</span>
+            <span><b>42.6 MB</b> / 128 MB</span>
+          </div>
+          <div class="track"><span style="width:33.3%"></span></div>
+        </div>
+
+        <details>
+          <summary>持久缓存和诊断</summary>
+          <dl class="detail-list">
+            <dt>持久缓存</dt><dd>开 · D:\temp\md-cache</dd>
+            <dt>条目上限</dt><dd>高亮 2048 · 公式 1024 · Mermaid 512</dd>
+            <dt>进程内存</dt><dd>工作集 612 MB · 峰值 748 MB</dd>
+            <dt>诊断</dt><dd>trace 开 · dump D:\temp\md-dump</dd>
+          </dl>
+        </details>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <h2>文档</h2>
+          <span class="hint">当前文档</span>
+        </div>
+        <div class="doc-grid">
+          <div class="doc-stat"><span>标题</span><strong>21</strong></div>
+          <div class="doc-stat"><span>代码块</span><strong>37</strong></div>
+          <div class="doc-stat"><span>公式</span><strong>9</strong></div>
+          <div class="doc-stat"><span>Mermaid</span><strong>2</strong></div>
+        </div>
+        <div class="char-row">
+          <span>源码</span>
+          <div class="track"><span style="width:19.1%"></span></div>
+          <span class="value">18,420 字符</span>
+        </div>
+        <div class="char-row">
+          <span>HTML</span>
+          <div class="track"><span style="width:100%"></span></div>
+          <span class="value">96,310 字符</span>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <h2>请求历史</h2>
+          <span class="hint">本视图累计</span>
+        </div>
+        <div class="hist-grid">
+          <div class="hist-cell"><b>1</b><span>开始</span></div>
+          <div class="hist-cell"><b>0</b><span>完成</span></div>
+          <div class="hist-cell"><b>0</b><span>取消</span></div>
+          <div class="hist-cell"><b>0</b><span>过期</span></div>
+          <div class="hist-cell bad"><b>0</b><span>worker 失败</span></div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <p class="foot">
+    <strong>Qt 映射：</strong>ExProgressRing（进度环）、QProgressBar（阶段条与容量条）、
+    ExExpander（持久缓存和诊断）、三条无文本 QProgressBar 拼成引擎命中条、
+    自定义圆点表示 worker 状态。静态原型，数值为示例数据。
+  </p>
+</div>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var button = document.getElementById('themeToggle');
+    var key = 'md-render-status-theme';
+
+    function initialTheme() {
+      var saved = null;
+      try {
+        saved = window.localStorage.getItem(key);
+      } catch (error) {
+        saved = null;
+      }
+      if (saved === 'light' || saved === 'dark') {
+        return saved;
+      }
+      return window.matchMedia &&
+        window.matchMedia('(prefers-color-scheme: dark)').matches
+        ? 'dark'
+        : 'light';
+    }
+
+    function apply(theme) {
+      root.setAttribute('data-theme', theme);
+      button.textContent = theme === 'dark' ? '浅色' : '深色';
+      button.setAttribute('aria-label',
+        theme === 'dark' ? '切换到浅色主题' : '切换到深色主题');
+    }
+
+    apply(initialTheme());
+    button.addEventListener('click', function () {
+      var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      apply(next);
+      try {
+        window.localStorage.setItem(key, next);
+      } catch (error) {
+        // 本地文件或隐私模式下不可用，忽略即可。
+      }
+    });
+  })();
+</script>
+</body>
+</html>
