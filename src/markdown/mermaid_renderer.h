@@ -29,6 +29,11 @@ QString MermaidToImgTag(MarkdownRenderContext& context, const QString& code,
                         MarkdownTheme theme, QString* cache_key = nullptr);
 QString MermaidToImgTag(const QString& code);
 
+// 内存/任务去重用的稳定 key；主题与字体指纹参与
+QString MermaidRenderKey(const QString& code, MarkdownTheme theme);
+// key 的 variant 部分（主题|字体指纹），磁盘缓存 key 也要用
+QString MermaidRenderVariant(MarkdownTheme theme);
+
 // 载荷是否可用（加载失败即永久不可用，不会反复重试）
 bool MermaidRendererReady();
 

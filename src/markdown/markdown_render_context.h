@@ -6,8 +6,8 @@
 #include "markdown_types.h"
 
 // 每个 MarkdownView 一份的渲染状态：内存缓存、计数、配置。
-// 引擎（QuickJS runtime + 载荷）是进程级共享的，不在这里；上下文本体
-// 限定单线程使用（当前 GUI 线程），不可拷贝。
+// 引擎状态不在这里：同步入口使用线程局部默认引擎，异步 worker 各自持有；
+// 上下文本体限定单线程使用（当前 GUI 线程），不可拷贝。
 class MarkdownRenderContext {
  public:
   MarkdownRenderContext();
@@ -19,9 +19,11 @@ class MarkdownRenderContext {
   const MarkdownRenderContextOptions& options() const;
   void SetDiagnostics(const MarkdownDiagnostics& diagnostics);
   MarkdownDiagnostics diagnostics() const;
-  // 本上下文计数 + 共享引擎状态；不触发任何加载
+  // 本上下文计数 + 调用线程的默认引擎状态；不触发任何加载
   MarkdownRendererStatus status() const;
-  // 清公式/Mermaid 内存缓存；不动持久缓存。换文档时用
+  // 当前内存缓存的实际条目与估算占用；供状态面板诊断
+  MarkdownCacheUsage cache_usage() const;
+  // 清高亮/公式/Mermaid 内存缓存；不动持久缓存。换文档时用
   void ClearMemoryCaches();
   // 清计数；loaded/permanently_failed 等引擎状态不动
   void ResetStats();

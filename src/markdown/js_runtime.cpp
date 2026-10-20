@@ -10,6 +10,11 @@ namespace {
 // 与 formula/mermaid 的递归深度配对：JS 配额是软上限，宿主线程栈是硬的
 constexpr size_t kJsMaxStackSize = 16U << 20;
 
+int JsInterruptHandler(JSRuntime*, void* opaque) {
+  const auto* flag = static_cast<const std::atomic<bool>*>(opaque);
+  return (flag != nullptr && flag->load(std::memory_order_relaxed)) ? 1 : 0;
+}
+
 // qjsc 字节码：ReadObject + EvalFunction。失败时 error 带原因；
 // EvalFunction 成功后接管 obj 所有权，内部不再 Free obj
 bool EvalBytecode(JSContext* context, const uint8_t* data, uint32_t size,
@@ -74,6 +79,13 @@ void JsRuntime::set_on_fail(std::function<void(JSContext*)> on_fail) {
   on_fail_ = std::move(on_fail);
 }
 
+void JsRuntime::SetRuntimeOpaque(void* opaque) {
+  runtime_opaque_ = opaque;
+  if (runtime_ != nullptr) {
+    JS_SetRuntimeOpaque(runtime_, opaque);
+  }
+}
+
 void JsRuntime::set_preserve_first_load(bool preserve) {
   preserve_first_load_ = preserve;
 }
@@ -98,6 +110,10 @@ bool JsRuntime::EnsureLoaded(
     return FailLoad();
   }
   JS_SetMaxStackSize(runtime_, kJsMaxStackSize);
+  JS_SetRuntimeOpaque(runtime_, runtime_opaque_);
+  if (interrupt_flag_ != nullptr) {
+    JS_SetInterruptHandler(runtime_, &JsInterruptHandler, interrupt_flag_);
+  }
   context_ = JS_NewContext(runtime_);
   if (context_ == nullptr) {
     return FailLoad();
@@ -135,6 +151,15 @@ bool JsRuntime::Eval(const QByteArray& code, const char* script_name,
   return ok;
 }
 
+qint64 JsRuntime::MemoryBytes() const {
+  if (runtime_ == nullptr) {
+    return 0;
+  }
+  JSMemoryUsage usage{};
+  JS_ComputeMemoryUsage(runtime_, &usage);
+  return static_cast<qint64>(usage.malloc_size);
+}
+
 MarkdownEngineStatus JsRuntime::status() const {
   MarkdownEngineStatus status;
   status.loaded = context_ != nullptr;
@@ -144,6 +169,31 @@ MarkdownEngineStatus JsRuntime::status() const {
 }
 
 void JsRuntime::Abort() { FailLoad(); }
+
+void JsRuntime::SetInterruptFlag(std::atomic<bool>* flag) {
+  interrupt_flag_ = flag;
+  if (runtime_ != nullptr) {
+    JS_SetInterruptHandler(runtime_, &JsInterruptHandler, flag);
+  }
+}
+
+void JsRuntime::ResetForReload() {
+  if (context_ != nullptr) {
+    if (on_fail_) {
+      on_fail_(context_);
+    }
+    JS_FreeContext(context_);
+    context_ = nullptr;
+  }
+  if (runtime_ != nullptr) {
+    JS_FreeRuntime(runtime_);
+    runtime_ = nullptr;
+  }
+  load_failed_ = false;
+  load_attempted_ = false;
+  first_load_ms_ = 0;
+  load_clock_ = QElapsedTimer();
+}
 
 bool JsRuntime::FailLoad() {
   if (context_ != nullptr) {

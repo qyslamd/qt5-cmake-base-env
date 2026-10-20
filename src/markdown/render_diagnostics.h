@@ -19,7 +19,7 @@ void TraceRender(const MarkdownDiagnostics& diagnostics,
 // MD_MARKDOWN_DUMP 控制全部产物，MD_MERMAID_DUMP 只控制 mermaid/ 子目录
 // （保持旧语义：设了它不会把文档原文落盘）。每个基目录第一次写时创建
 // <dir>/<yyyyMMdd-hhmmss>-<seq>/，name 可以带子目录（apply/、formula/、
-// mermaid/）。只在 GUI 线程调用
+// mermaid/）。目录映射内部串行化，可在 worker 调用；name 由调用方保证唯一
 void DumpRenderArtifact(const MarkdownDiagnostics& diagnostics,
                         const QString& name, const QByteArray& data);
 

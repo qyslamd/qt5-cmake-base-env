@@ -30,11 +30,13 @@ class MarkdownWindow : public QDialog {
   void initUi();
   void initSignals();
   void OnLinkClicked(const QUrl& url);
-  void ShowDocument(const QString& path);
+  void ShowDocument(const QString& path, const QString& fragment = QString());
 
   MarkdownView* view_ = nullptr;
   QLabel* path_label_ = nullptr;
   QPushButton* open_button_ = nullptr;
+  // 换文档后要等的锚点；renderFinished 时再滚
+  QString pending_fragment_;
 };
 
 #endif  // FILE_APP_DIALOGS_MARKDOWN_WINDOW_H_

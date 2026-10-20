@@ -2,6 +2,7 @@
 
 #include <quickjs.h>
 
+#include <atomic>
 #include <cmath>
 
 #include <QBuffer>
@@ -14,30 +15,34 @@
 
 #include "js_runtime.h"
 #include "markdown_bytecode.h"
+#include "markdown_engine_state.h"
 #include "markdown_render_context_internal.h"
 #include "render_cache.h"
 #include "render_diagnostics.h"
 
 namespace {
 
-// 载荷是 qjsc 构建期编出的字节码（见 CMakeLists.txt 的 qjsc 段）
-JsRuntime g_engine;
+// 同步入口的线程局部引擎；异步 worker 自己持有 state
+FormulaEngineState& DefaultEngine() {
+  thread_local FormulaEngineState engine;
+  return engine;
+}
 
-bool EnsureLoaded() {
-  if (g_engine.status().loaded) {
-    return true;
+void AddArtifact(const MarkdownDiagnostics& diagnostics, const QString& name,
+                 const QByteArray& data,
+                 QVector<MarkdownRenderArtifact>* artifacts) {
+  if (artifacts != nullptr) {
+    artifacts->append(MarkdownRenderArtifact{name, data});
+  } else {
+    DumpRenderArtifact(diagnostics, name, data);
   }
-  if (g_engine.status().permanently_failed) {
-    return false;
-  }
-  return g_engine.EnsureLoaded(
-      {JsPayload{md_mj, md_mj_size, "mathjax-svg.min.js"}}, nullptr, nullptr);
 }
 
 // SVG 字符串 → <img>。失败返回空串。color 有效时替换 currentColor
 QString SvgToImgTag(const QString& svg, bool display, const QColor& color,
                     const MarkdownDiagnostics& diagnostics,
-                    const QString& artifact_prefix) {
+                    const QString& artifact_prefix,
+                    QVector<MarkdownRenderArtifact>* artifacts) {
   // MathJax 的输出包在 <mjx-container> 里，而 QSvgRenderer 只认 svg 根元素
   const int svg_start = svg.indexOf(QLatin1String("<svg"));
   const int svg_end = svg.lastIndexOf(QLatin1String("</svg>"));
@@ -132,8 +137,8 @@ QString SvgToImgTag(const QString& svg, bool display, const QColor& color,
     return {};  // PNG 编不出：返回空，正文落回原文而不是坏 img
   }
   if (DumpEnabled(diagnostics, artifact_prefix)) {
-    DumpRenderArtifact(diagnostics, artifact_prefix + QStringLiteral(".png"),
-                       buffer.data());
+    AddArtifact(diagnostics, artifact_prefix + QStringLiteral(".png"),
+                buffer.data(), artifacts);
   }
 
   // data URI 内联：自定义 scheme 会被 qlitehtml 当主机名做浏览器式扩展
@@ -149,66 +154,32 @@ QString SvgToImgTag(const QString& svg, bool display, const QColor& color,
 
 }  // namespace
 
-bool FormulaRendererReady() { return EnsureLoaded(); }
-
-MarkdownEngineStatus FormulaEngineStatus() { return g_engine.status(); }
-
-void ClearFormulaCache() {
-  MarkdownRenderContextAccess::State(DefaultRenderContext())
-      .formula_cache.Clear();
+bool EnsureFormulaEngine(FormulaEngineState& engine) {
+  if (engine.runtime.status().loaded) {
+    return true;
+  }
+  if (engine.runtime.status().permanently_failed) {
+    return false;
+  }
+  return engine.runtime.EnsureLoaded(
+      {JsPayload{md_mj, md_mj_size, "mathjax-svg.min.js"}}, nullptr, nullptr);
 }
 
-QString FormulaToImgTag(MarkdownRenderContext& context, const QString& tex,
-                        bool display, const QColor& color, QString* cache_key) {
-  MarkdownRenderContextState& state =
-      MarkdownRenderContextAccess::State(context);
-  // MathJax 在数学模式下对首尾空白不敏感：key 与渲染输入统一用 trim 后的
-  // 文本，避免 "x" 与 " x " 生成两条内容相同的缓存
+MarkdownEngineStatus FormulaEngineStatus(const FormulaEngineState& engine) {
+  return engine.runtime.status();
+}
+
+MarkdownEngineStatus FormulaEngineStatus() {
+  return FormulaEngineStatus(DefaultEngine());
+}
+
+QString RenderFormulaOnEngine(FormulaEngineState& engine, const QString& tex,
+                              bool display, const QColor& color,
+                              const MarkdownDiagnostics& diagnostics,
+                              QVector<MarkdownRenderArtifact>* artifacts) {
   const QString normalized = tex.trimmed();
-  const QString variant =
-      color.isValid() ? color.name() : QStringLiteral("legacy");
-  const QString key = (display ? QStringLiteral("D") : QStringLiteral("I")) +
-                      variant + QLatin1Char('|') + normalized;
-  if (cache_key != nullptr) {
-    *cache_key = key;
-  }
-  const MarkdownDiagnostics& diagnostics = state.options.diagnostics;
-  if (const QString* cached = state.formula_cache.Find(key)) {
-    ++state.formula_stats.memory_cache_hits;
-    if (diagnostics.trace) {
-      TraceRender(
-          diagnostics,
-          QStringLiteral("formula cache hit: %1").arg(normalized.left(60)));
-    }
-    return *cached;
-  }
-  ++state.formula_stats.memory_cache_misses;
-  const RenderCacheConfig cache_config =
-      MakeRenderCacheConfig(state.options, QStringLiteral("formula"));
-  QString disk_key;
-  if (cache_config.enabled) {
-    disk_key = MakeRenderCacheKey(
-        QStringLiteral("formula"), normalized,
-        (display ? QStringLiteral("D") : QStringLiteral("I")) +
-            QLatin1Char('|') + variant);
-    QString disk_tag;
-    if (LoadRenderCacheEntry(cache_config, QStringLiteral("formula"), disk_key,
-                             &disk_tag)) {
-      ++state.formula_stats.disk_cache_hits;
-      if (diagnostics.trace) {
-        TraceRender(
-            diagnostics,
-            QStringLiteral("formula disk hit: %1").arg(normalized.left(60)));
-      }
-      state.formula_cache.Insert(key, disk_tag);
-      return disk_tag;
-    }
-    ++state.formula_stats.disk_cache_misses;
-  }
-  ++state.formula_stats.renders;
-  const bool was_loaded = FormulaEngineStatus().loaded;
-  if (!EnsureLoaded()) {
-    ++state.formula_stats.failures;
+  const bool was_loaded = engine.runtime.status().loaded;
+  if (!EnsureFormulaEngine(engine)) {
     if (diagnostics.trace) {
       TraceRender(
           diagnostics,
@@ -219,9 +190,9 @@ QString FormulaToImgTag(MarkdownRenderContext& context, const QString& tex,
   if (!was_loaded && diagnostics.trace) {
     // 冷加载单独记账：first_load_ms 已经算好，别混进下面的渲染耗时
     TraceRender(diagnostics, QStringLiteral("formula engine loaded in %1 ms")
-                                 .arg(FormulaEngineStatus().first_load_ms));
+                                 .arg(engine.runtime.status().first_load_ms));
   }
-  JSContext* js = g_engine.context();
+  JSContext* js = engine.runtime.context();
   QElapsedTimer render_clock;
   render_clock.start();
 
@@ -266,15 +237,21 @@ QString FormulaToImgTag(MarkdownRenderContext& context, const QString& tex,
       const QString converted = QString::fromUtf8(raw);
       JS_FreeCString(js, raw);
       if (converted.startsWith(QLatin1String("SVGOK:"))) {
-        static int dump_index = 0;
+        // worker 并发时用原子序号，避免产物同名互相覆盖
+        static std::atomic<int> dump_index{0};
+        const int index =
+            dump_index.fetch_add(1, std::memory_order_relaxed) + 1;
+        const QString variant =
+            color.isValid() ? color.name() : QStringLiteral("legacy");
         const QString artifact =
-            QStringLiteral("formula/%1-%2").arg(++dump_index).arg(variant);
+            QStringLiteral("formula/%1-%2").arg(index).arg(variant);
         const QString svg = converted.mid(6);
         if (DumpEnabled(diagnostics, artifact)) {
-          DumpRenderArtifact(diagnostics, artifact + QStringLiteral(".svg"),
-                             svg.toUtf8());
+          AddArtifact(diagnostics, artifact + QStringLiteral(".svg"),
+                      svg.toUtf8(), artifacts);
         }
-        tag = SvgToImgTag(svg, display, color, diagnostics, artifact);
+        tag =
+            SvgToImgTag(svg, display, color, diagnostics, artifact, artifacts);
       } else {
         qWarning() << "formula convert failed:" << converted;
         if (diagnostics.trace) {
@@ -286,15 +263,83 @@ QString FormulaToImgTag(MarkdownRenderContext& context, const QString& tex,
   }
   JS_FreeValue(js, value);
 
-  if (tag.isEmpty()) {
-    ++state.formula_stats.failures;
-  }
   if (diagnostics.trace) {
     TraceRender(diagnostics,
                 QStringLiteral("formula render: %1 ms, %2 bytes, display=%3")
                     .arg(render_clock.elapsed())
                     .arg(tag.size())
                     .arg(display));
+  }
+  return tag;
+}
+
+bool FormulaRendererReady() { return EnsureFormulaEngine(DefaultEngine()); }
+
+void ClearFormulaCache() {
+  MarkdownRenderContextAccess::State(DefaultRenderContext())
+      .formula_cache.Clear();
+}
+
+QString FormulaRenderKey(const QString& tex, bool display,
+                         const QColor& color) {
+  // MathJax 在数学模式下对首尾空白不敏感：key 与渲染输入统一用 trim 后的
+  // 文本，避免 "x" 与 " x " 生成两条内容相同的缓存
+  const QString normalized = tex.trimmed();
+  const QString variant =
+      color.isValid() ? color.name() : QStringLiteral("legacy");
+  return (display ? QStringLiteral("D") : QStringLiteral("I")) + variant +
+         QLatin1Char('|') + normalized;
+}
+
+QString FormulaToImgTag(MarkdownRenderContext& context, const QString& tex,
+                        bool display, const QColor& color, QString* cache_key) {
+  MarkdownRenderContextState& state =
+      MarkdownRenderContextAccess::State(context);
+  const QString normalized = tex.trimmed();
+  const QString variant =
+      color.isValid() ? color.name() : QStringLiteral("legacy");
+  const QString key = FormulaRenderKey(normalized, display, color);
+  if (cache_key != nullptr) {
+    *cache_key = key;
+  }
+  const MarkdownDiagnostics& diagnostics = state.options.diagnostics;
+  if (const QString* cached = state.formula_cache.Find(key)) {
+    ++state.formula_stats.memory_cache_hits;
+    if (diagnostics.trace) {
+      TraceRender(
+          diagnostics,
+          QStringLiteral("formula cache hit: %1").arg(normalized.left(60)));
+    }
+    return *cached;
+  }
+  ++state.formula_stats.memory_cache_misses;
+  const RenderCacheConfig cache_config =
+      MakeRenderCacheConfig(state.options, QStringLiteral("formula"));
+  QString disk_key;
+  if (cache_config.enabled) {
+    disk_key = MakeRenderCacheKey(
+        QStringLiteral("formula"), normalized,
+        (display ? QStringLiteral("D") : QStringLiteral("I")) +
+            QLatin1Char('|') + variant);
+    QString disk_tag;
+    if (LoadRenderCacheEntry(cache_config, QStringLiteral("formula"), disk_key,
+                             &disk_tag)) {
+      ++state.formula_stats.disk_cache_hits;
+      if (diagnostics.trace) {
+        TraceRender(
+            diagnostics,
+            QStringLiteral("formula disk hit: %1").arg(normalized.left(60)));
+      }
+      state.formula_cache.Insert(key, disk_tag);
+      return disk_tag;
+    }
+    ++state.formula_stats.disk_cache_misses;
+  }
+  ++state.formula_stats.renders;
+  const QString tag = RenderFormulaOnEngine(DefaultEngine(), normalized,
+                                            display, color, diagnostics);
+  if (tag.isEmpty()) {
+    ++state.formula_stats.failures;
   }
   state.formula_cache.Insert(key, tag);
   if (!tag.isEmpty() && !disk_key.isEmpty()) {

@@ -30,6 +30,9 @@ QString FormulaToImgTag(MarkdownRenderContext& context, const QString& tex,
 // 便捷重载：进程默认上下文，旧行为
 QString FormulaToImgTag(const QString& tex, bool display);
 
+// 内存/任务去重用的稳定 key；与 FormulaToImgTag 的缓存规则一致
+QString FormulaRenderKey(const QString& tex, bool display, const QColor& color);
+
 // JS 载荷是否可用（加载失败即永久不可用，不会反复重试）
 bool FormulaRendererReady();
 

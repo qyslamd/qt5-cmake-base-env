@@ -3,6 +3,7 @@
 
 #include <quickjs.h>
 
+#include <atomic>
 #include <functional>
 
 #include <QByteArray>
@@ -43,13 +44,27 @@ class JsRuntime {
   // mermaid 泵微任务需要 runtime（JS_ExecutePendingJob）
   JSRuntime* runtime() const { return runtime_; }
   MarkdownEngineStatus status() const;
+  // QuickJS 堆占用（malloc_size）；未加载返回 0
+  qint64 MemoryBytes() const;
 
   // 释放 context 前调用：highlighter 释放函数引用，mermaid 复位 initialize 标志
   void set_on_fail(std::function<void(JSContext*)> on_fail);
+  // 传给 C 回调的引擎状态；runtime 创建时写入 QuickJS opaque 槽。
+  // 指针生命周期必须覆盖 runtime
+  void SetRuntimeOpaque(void* opaque);
   // true：首次加载耗时只在为 0 时写入（mermaid 语义）；默认失败也覆盖
   void set_preserve_first_load(bool preserve);
   // 载荷之后的自检失败（如 initialize 失败）也要作废引擎
   void Abort();
+
+  // 取消：旗标由调用方持有，生命周期必须覆盖 runtime。置 true 后
+  // QuickJS 抛出不可捕获的 interrupted 异常；只能在引擎所属线程调用
+  void SetInterruptFlag(std::atomic<bool>* flag);
+
+  // 中断后丢弃 runtime/context，允许重新加载；会清掉 load_failed_，
+  // 因此永久失败的引擎也会重新尝试。只用于取消后的重载；旗标仍为 true
+  // 时重载会立刻再次失败
+  void ResetForReload();
 
   // QuickJS 错误处理：消费 pending 异常并返回可读消息；value 是异常哨兵时
   // 取消息、qWarning、写 error 并返回 false。无状态，测试可直接用裸 context
@@ -68,6 +83,8 @@ class JsRuntime {
   QElapsedTimer load_clock_;
   std::function<void(JSContext*)> on_fail_;
   bool preserve_first_load_ = false;
+  std::atomic<bool>* interrupt_flag_ = nullptr;
+  void* runtime_opaque_ = nullptr;
 };
 
 #endif  // FILE_MARKDOWN_JS_RUNTIME_H_

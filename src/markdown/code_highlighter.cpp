@@ -6,39 +6,44 @@
 #include <QElapsedTimer>
 
 #include "html_escape.h"
-#include "js_runtime.h"
 #include "markdown_bytecode.h"
+#include "markdown_engine_state.h"
 #include "markdown_render_context_internal.h"
 #include "render_diagnostics.h"
 
 namespace {
 
-JsRuntime g_engine;
-// 载荷里的 globalThis.__highlight，加载完成后拿一次引用；每次高亮直接
-// JS_Call，不再现译一段 IIFE
-JSValue g_highlight_fn = JS_UNDEFINED;
-
-void ResetHighlightFn(JSContext* context) {
-  JS_FreeValue(context, g_highlight_fn);
-  g_highlight_fn = JS_UNDEFINED;
+// 同步入口的线程局部引擎；异步 worker 自己持有 state
+HighlightEngineState& DefaultEngine() {
+  thread_local HighlightEngineState engine;
+  return engine;
 }
 
-bool EnsureLoaded() {
-  if (g_engine.status().loaded) {
+void ReleaseHighlightFn(JSContext* context, JSValue* fn) {
+  JS_FreeValue(context, *fn);
+  *fn = JS_UNDEFINED;
+}
+
+}  // namespace
+
+bool EnsureHighlightEngine(HighlightEngineState& engine) {
+  if (engine.runtime.status().loaded) {
     return true;
   }
-  if (g_engine.status().permanently_failed) {
+  if (engine.runtime.status().permanently_failed) {
     return false;
   }
-  g_engine.set_on_fail(ResetHighlightFn);
-  return g_engine.EnsureLoaded(
+  engine.runtime.set_on_fail([&engine](JSContext* context) {
+    ReleaseHighlightFn(context, &engine.highlight_fn);
+  });
+  return engine.runtime.EnsureLoaded(
       {JsPayload{md_hl, md_hl_size, "highlight.min.js"}}, nullptr,
-      [](JSContext* context) {
+      [&engine](JSContext* context) {
         // 只解析一次函数引用；载荷没导出 __highlight 说明资源版本对不上
         JSValue global = JS_GetGlobalObject(context);
-        g_highlight_fn = JS_GetPropertyStr(context, global, "__highlight");
+        engine.highlight_fn = JS_GetPropertyStr(context, global, "__highlight");
         JS_FreeValue(context, global);
-        if (!JS_IsFunction(context, g_highlight_fn)) {
+        if (!JS_IsFunction(context, engine.highlight_fn)) {
           qWarning() << "highlight payload lacks __highlight";
           return false;
         }
@@ -46,33 +51,32 @@ bool EnsureLoaded() {
       });
 }
 
-}  // namespace
-
-MarkdownEngineStatus HighlightEngineStatus() { return g_engine.status(); }
-
-QString HighlightCode(MarkdownRenderContext& context, const QString& code,
-                      const QString& language) {
+QString RenderHighlightOnEngine(HighlightEngineState& engine,
+                                const QString& code, const QString& language,
+                                const MarkdownDiagnostics& diagnostics,
+                                bool* failed) {
+  if (failed != nullptr) {
+    *failed = false;
+  }
   if (code.isEmpty()) {
     return {};
   }
-  MarkdownRenderContextState& state =
-      MarkdownRenderContextAccess::State(context);
-  const MarkdownDiagnostics& diagnostics = state.options.diagnostics;
-  ++state.highlight_stats.renders;
-  const bool was_loaded = HighlightEngineStatus().loaded;
-  if (!EnsureLoaded()) {
-    ++state.highlight_stats.failures;
+  const bool was_loaded = engine.runtime.status().loaded;
+  if (!EnsureHighlightEngine(engine)) {
+    if (failed != nullptr) {
+      *failed = true;
+    }
     if (diagnostics.trace) {
       TraceRender(diagnostics, QStringLiteral("highlight load failed"));
     }
-    return EscapeHtml(code);  // 载荷挂了：纯转义兜底
+    return {};
   }
   if (!was_loaded && diagnostics.trace) {
     // 冷加载单独记账：first_load_ms 已经算好，别混进下面的渲染耗时
     TraceRender(diagnostics, QStringLiteral("highlight engine loaded in %1 ms")
-                                 .arg(HighlightEngineStatus().first_load_ms));
+                                 .arg(engine.runtime.status().first_load_ms));
   }
-  JSContext* js = g_engine.context();
+  JSContext* js = engine.runtime.context();
   QElapsedTimer render_clock;
   render_clock.start();
 
@@ -90,14 +94,16 @@ QString HighlightCode(MarkdownRenderContext& context, const QString& code,
     qWarning() << "highlight argument alloc failed:" << message;
     JS_FreeValue(js, argv[0]);
     JS_FreeValue(js, argv[1]);
-    ++state.highlight_stats.failures;
+    if (failed != nullptr) {
+      *failed = true;
+    }
     if (diagnostics.trace) {
       TraceRender(diagnostics,
                   QStringLiteral("highlight argument alloc failed"));
     }
-    return EscapeHtml(code);
+    return {};
   }
-  const JSValue value = JS_Call(js, g_highlight_fn, JS_UNDEFINED, 2, argv);
+  const JSValue value = JS_Call(js, engine.highlight_fn, JS_UNDEFINED, 2, argv);
   JS_FreeValue(js, argv[0]);
   JS_FreeValue(js, argv[1]);
 
@@ -105,7 +111,9 @@ QString HighlightCode(MarkdownRenderContext& context, const QString& code,
   QString error;
   if (!JsRuntime::CheckResult(js, value, QStringLiteral("highlight call"),
                               &error)) {
-    ++state.highlight_stats.failures;
+    if (failed != nullptr) {
+      *failed = true;
+    }
     if (diagnostics.trace) {
       TraceRender(diagnostics,
                   QStringLiteral("highlight exception: %1").arg(error));
@@ -121,8 +129,8 @@ QString HighlightCode(MarkdownRenderContext& context, const QString& code,
   }
   JS_FreeValue(js, value);
 
-  // 空结果（未注册语言、JS 侧异常）都退纯转义：高亮挂了不至于白块。
-  // 未注册语言是正常回退，不计 failure
+  // 空结果（未注册语言、JS 侧异常）由调用方退纯转义；未注册语言是正常
+  // 回退，不计 failure
   if (result.isEmpty()) {
     if (diagnostics.trace) {
       TraceRender(
@@ -130,7 +138,7 @@ QString HighlightCode(MarkdownRenderContext& context, const QString& code,
           QStringLiteral("highlight fallback: language=%1")
               .arg(language.isEmpty() ? QStringLiteral("text") : language));
     }
-    return EscapeHtml(code);
+    return {};
   }
   if (diagnostics.trace) {
     TraceRender(diagnostics,
@@ -138,6 +146,57 @@ QString HighlightCode(MarkdownRenderContext& context, const QString& code,
                     .arg(language.isEmpty() ? QStringLiteral("text") : language)
                     .arg(render_clock.elapsed())
                     .arg(result.size()));
+  }
+  return result;
+}
+
+MarkdownEngineStatus HighlightEngineStatus(const HighlightEngineState& engine) {
+  return engine.runtime.status();
+}
+
+MarkdownEngineStatus HighlightEngineStatus() {
+  return HighlightEngineStatus(DefaultEngine());
+}
+
+QString HighlightRenderKey(const QString& code, const QString& language) {
+  return language + QLatin1Char('\n') + code;
+}
+
+QString HighlightCode(MarkdownRenderContext& context, const QString& code,
+                      const QString& language) {
+  if (code.isEmpty()) {
+    return {};
+  }
+  MarkdownRenderContextState& state =
+      MarkdownRenderContextAccess::State(context);
+  const MarkdownDiagnostics& diagnostics = state.options.diagnostics;
+  const QString key = HighlightRenderKey(code, language);
+  if (const QString* cached = state.highlight_cache.Find(key)) {
+    ++state.highlight_stats.memory_cache_hits;
+    if (diagnostics.trace) {
+      TraceRender(
+          diagnostics,
+          QStringLiteral("highlight cache hit: language=%1")
+              .arg(language.isEmpty() ? QStringLiteral("text") : language));
+    }
+    return *cached;
+  }
+  ++state.highlight_stats.memory_cache_misses;
+  ++state.highlight_stats.renders;
+
+  bool failed = false;
+  QString result = RenderHighlightOnEngine(DefaultEngine(), code, language,
+                                           diagnostics, &failed);
+  if (failed) {
+    ++state.highlight_stats.failures;
+  }
+  if (result.isEmpty()) {
+    result = EscapeHtml(code);
+  }
+  // 未注册语言（failed=false）的转义结果可以缓存；加载/JS 异常不缓存，
+  // 下次还有重试机会
+  if (!failed) {
+    state.highlight_cache.Insert(key, result);
   }
   return result;
 }

@@ -7,6 +7,8 @@
 #include <QStringList>
 #include <QVector>
 
+#include "markdown_render_tasks.h"
+
 namespace {
 
 // GFM 的表格是这套渲染的硬需求之一：用默认 flags 解析时 md4c 会静默丢掉它，
@@ -541,6 +543,104 @@ TEST(MarkdownToHtmlTest, CopyButtonAppearsWithoutSink) {
   const QString html = MarkdownToHtml(QStringLiteral("```cpp\nint a;\n```\n"));
   EXPECT_TRUE(html.contains(QStringLiteral("href=\"copy:0\"")))
       << html.toStdString();
+}
+
+// Parse/Assemble 拆开后，用同一组假渲染结果组装，产物必须与同步参考实现
+// 逐字节一致
+TEST(MarkdownToHtmlTest, ParseAndAssembleMatchSyncOutput) {
+  const QString markdown = QStringLiteral(
+      "# 标题\n\n公式 $x+1$ 与 $x+1$\n\n```cpp\nint a;\n```\n\n"
+      "```mermaid\nflowchart LR\n  A --> B\n```\n");
+  const MarkdownRenderResolver resolver =
+      [](MarkdownRenderKind kind, const QString& payload,
+         const QString& language, bool display) {
+        switch (kind) {
+          case MarkdownRenderKind::Formula:
+            return QStringLiteral("<img data-tex=\"%1\" data-display=\"%2\">")
+                .arg(payload)
+                .arg(display);
+          case MarkdownRenderKind::Mermaid:
+            return QStringLiteral("<div class=\"mermaid-mock\">%1</div>")
+                .arg(payload);
+          case MarkdownRenderKind::Highlight:
+            return QStringLiteral("<span class=\"mock-%1\">%2</span>")
+                .arg(language, payload);
+        }
+        return QString();
+      };
+  const MarkdownParseResult parsed = ParseMarkdown(markdown, true);
+  ASSERT_FALSE(parsed.parse_error);
+  const QString assembled =
+      AssembleMarkdown(parsed, resolver, CodeBlockSink(), HeadingSink(), {});
+
+  MarkdownRenderOptions options;
+  options.highlight = [](const QString& code, const QString& language) {
+    return QStringLiteral("<span class=\"mock-%1\">%2</span>")
+        .arg(language, code);
+  };
+  const QString reference = MarkdownToHtml(
+      markdown,
+      [](const QString& tex, bool display) {
+        return QStringLiteral("<img data-tex=\"%1\" data-display=\"%2\">")
+            .arg(tex)
+            .arg(display);
+      },
+      [](const QString& code) {
+        return QStringLiteral("<div class=\"mermaid-mock\">%1</div>").arg(code);
+      },
+      CodeBlockSink(), HeadingSink(), options);
+
+  EXPECT_EQ(assembled, reference);
+}
+
+// 关闭公式时盐也必须存在；否则 RestoreMath 会把用户正文里的字面占位符
+// 当成公式槽吞掉
+TEST(MarkdownToHtmlTest, LiteralPlaceholderSurvivesWithoutFormulaSink) {
+  const QString html = MarkdownToHtml(QStringLiteral("@@mj--0@@\n"));
+  EXPECT_TRUE(html.contains(QStringLiteral("@@mj--0@@"))) << html.toStdString();
+}
+
+// 高亮 resolver 返回空（取消/缺失）时，组装层必须退回纯转义，不能出空代码块
+TEST(MarkdownToHtmlTest, AssembleFallsBackWhenHighlightIsEmpty) {
+  const MarkdownParseResult parsed =
+      ParseMarkdown(QStringLiteral("```cpp\na < b;\n```\n"), false);
+  ASSERT_FALSE(parsed.parse_error);
+  const QString html =
+      AssembleMarkdown(parsed,
+                       [](MarkdownRenderKind, const QString&, const QString&,
+                          bool) { return QString(); },
+                       CodeBlockSink(), HeadingSink(), {});
+  EXPECT_TRUE(html.contains(QStringLiteral("a &lt; b;"))) << html.toStdString();
+}
+
+// 任务收集：公式同 key 去重；每个代码块有高亮任务；mermaid 额外有图任务，
+// 且高亮任务保留作失败回退
+TEST(MarkdownToHtmlTest, CollectTasksDedupesAndKeepsMermaidFallback) {
+  const QString markdown = QStringLiteral(
+      "$x$\n\n$x$\n\n```cpp\nint a;\n```\n\n"
+      "```mermaid\nflowchart LR\n  A --> B\n```\n");
+  const MarkdownParseResult parsed = ParseMarkdown(markdown, true);
+  ASSERT_FALSE(parsed.parse_error);
+  const QVector<MarkdownRenderTask> tasks =
+      CollectRenderTasks(parsed, true, QColor(), MarkdownTheme::Light);
+
+  int formula = 0;
+  int highlight = 0;
+  int mermaid = 0;
+  for (const MarkdownRenderTask& task : tasks) {
+    if (task.kind == MarkdownRenderKind::Formula) {
+      ++formula;
+      EXPECT_EQ(task.indices.size(), 2);
+    } else if (task.kind == MarkdownRenderKind::Highlight) {
+      ++highlight;
+    } else if (task.kind == MarkdownRenderKind::Mermaid) {
+      ++mermaid;
+      EXPECT_EQ(task.indices.size(), 1);
+    }
+  }
+  EXPECT_EQ(formula, 1);
+  EXPECT_EQ(highlight, 2);
+  EXPECT_EQ(mermaid, 1);
 }
 
 }  // namespace

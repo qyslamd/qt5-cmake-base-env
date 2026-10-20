@@ -7,6 +7,7 @@
 #include <QStandardPaths>
 #include <QTemporaryDir>
 
+#include "markdown_test_wait.h"
 #include "markdown_view.h"
 #include "render_status_panel.h"
 
@@ -36,10 +37,11 @@ TEST(RenderStatusPanelTest, MermaidCountersReachTheStatusLabel) {
   view.SetPersistentRenderCacheEnabled(false);
   RenderStatusPanel panel(&view);
 
+  RenderWaiter wait(&view);
   view.SetContent(
       QStringLiteral("```mermaid\nflowchart LR\n    A --> B\n```\n"),
       QString());
-  QApplication::processEvents();
+  ASSERT_TRUE(wait.Wait());
 
   auto* label = panel.findChild<QLabel*>(QStringLiteral("statusMermaid"));
   ASSERT_NE(label, nullptr);
@@ -59,18 +61,21 @@ TEST(RenderStatusPanelTest, DiskCacheHitStillShowsActivity) {
   {
     MarkdownView warm;
     warm.SetRenderCacheDirectory(dir.path());
+    RenderWaiter wait(&warm);
     warm.SetContent(
         QStringLiteral("```mermaid\nflowchart LR\n    C --> D\n```\n"),
         QString());
+    ASSERT_TRUE(wait.Wait());
   }
 
   MarkdownView view;
   view.SetRenderCacheDirectory(dir.path());
   RenderStatusPanel panel(&view);
+  RenderWaiter wait(&view);
   view.SetContent(
       QStringLiteral("```mermaid\nflowchart LR\n    C --> D\n```\n"),
       QString());
-  QApplication::processEvents();
+  ASSERT_TRUE(wait.Wait());
 
   auto* label = panel.findChild<QLabel*>(QStringLiteral("statusMermaid"));
   ASSERT_NE(label, nullptr);

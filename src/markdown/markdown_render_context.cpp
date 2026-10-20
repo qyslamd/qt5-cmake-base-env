@@ -24,9 +24,11 @@ MarkdownRenderContext& DefaultRenderContext() {
 void MarkdownRenderContext::SetOptions(
     const MarkdownRenderContextOptions& options) {
   impl_->state.options = options;
+  impl_->state.highlight_cache.max_entries = options.highlight_cache_entries;
   impl_->state.formula_cache.max_entries = options.formula_cache_entries;
   impl_->state.mermaid_cache.max_entries = options.mermaid_cache_entries;
   // 调小上限立即生效，不让旧条目继续占着
+  impl_->state.highlight_cache.Trim();
   impl_->state.formula_cache.Trim();
   impl_->state.mermaid_cache.Trim();
   impl_->state.UpdatePixmapCacheLimit();
@@ -57,7 +59,22 @@ MarkdownRendererStatus MarkdownRenderContext::status() const {
   return status;
 }
 
+MarkdownCacheUsage MarkdownRenderContext::cache_usage() const {
+  MarkdownCacheUsage usage;
+  usage.highlight_entries = impl_->state.highlight_cache.entries.size();
+  usage.highlight_bytes = impl_->state.highlight_cache.ByteSize();
+  usage.formula_entries = impl_->state.formula_cache.entries.size();
+  usage.formula_bytes = impl_->state.formula_cache.ByteSize();
+  usage.mermaid_entries = impl_->state.mermaid_cache.entries.size();
+  usage.mermaid_bytes = impl_->state.mermaid_cache.ByteSize();
+  usage.pixmap_entries = impl_->state.pixmap_cache.size();
+  usage.pixmap_bytes = impl_->state.pixmap_cache.totalCost();
+  usage.pixmap_limit_bytes = impl_->state.pixmap_cache.maxCost();
+  return usage;
+}
+
 void MarkdownRenderContext::ClearMemoryCaches() {
+  impl_->state.highlight_cache.Clear();
   impl_->state.formula_cache.Clear();
   impl_->state.mermaid_cache.Clear();
   impl_->state.pixmap_cache.clear();

@@ -13,6 +13,7 @@
 #include <QWidget>
 
 #include "markdown_render_context.h"
+#include "markdown_test_wait.h"
 #include "markdown_view.h"
 
 // 开关的行为判据。用真正的 MarkdownView + QLiteHtmlWidget（offscreen），
@@ -56,10 +57,12 @@ TEST(RenderTogglesTest, DisabledRenderersDoNotLoadOrRender) {
   MarkdownView view;
   view.SetFormulaRenderingEnabled(false);
   view.SetMermaidRenderingEnabled(false);
+  RenderWaiter wait(&view);
   view.SetContent(
       QStringLiteral("价格 $x^2$ 收尾\n\n"
                      "```mermaid\nflowchart LR\n    A --> B\n```\n"),
       QString());
+  ASSERT_TRUE(wait.Wait());
 
   const QString html = HtmlOf(view);
   ASSERT_FALSE(html.isEmpty());
@@ -79,10 +82,14 @@ TEST(RenderTogglesTest, DisabledRenderersDoNotLoadOrRender) {
 TEST(RenderTogglesTest, EnablingFormulaRendersOnReapply) {
   MarkdownView view;
   view.SetFormulaRenderingEnabled(false);
+  RenderWaiter first(&view);
   view.SetContent(QStringLiteral("$x^2$\n"), QString());
+  ASSERT_TRUE(first.Wait());
   EXPECT_FALSE(view.renderer_status().formula.loaded);
 
+  RenderWaiter reapply(&view);
   view.SetFormulaRenderingEnabled(true);
+  ASSERT_TRUE(reapply.Wait());
   const QString html = HtmlOf(view);
   EXPECT_TRUE(html.contains(QStringLiteral("mj:f/"))) << html.toStdString();
   EXPECT_FALSE(html.contains(QStringLiteral("data:image/png;base64")))
@@ -92,7 +99,9 @@ TEST(RenderTogglesTest, EnablingFormulaRendersOnReapply) {
   // 再 ApplyDocument 一次：公式命中内容缓存、图片命中 token 缓存，
   // 不能重新渲染，也不能出现 token 悬空
   const MarkdownRendererStatus before = view.renderer_status();
+  RenderWaiter line_numbers(&view);
   view.SetCodeLineNumbers(true);
+  ASSERT_TRUE(line_numbers.Wait());
   const QString reapply_html = HtmlOf(view);
   EXPECT_TRUE(reapply_html.contains(QStringLiteral("mj:f/")))
       << reapply_html.toStdString();
@@ -164,17 +173,23 @@ TEST(ImageTokenTest, InvalidTagsFallBackUnchanged) {
 
 TEST(RenderTogglesTest, LineNumbersToggleChangesStructure) {
   MarkdownView view;
+  RenderWaiter first(&view);
   view.SetContent(QStringLiteral("```cpp\nint a;\n```\n"), QString());
+  ASSERT_TRUE(first.Wait());
   ASSERT_TRUE(HtmlOf(view).contains(QStringLiteral("<pre><code")));
 
+  RenderWaiter line_numbers_on(&view);
   view.SetCodeLineNumbers(true);
+  ASSERT_TRUE(line_numbers_on.Wait());
   QString html = HtmlOf(view);
   EXPECT_TRUE(html.contains(QStringLiteral("<table class=\"md-code\">")))
       << html.toStdString();
   EXPECT_TRUE(html.contains(QStringLiteral("md-code-ln")))
       << html.toStdString();
 
+  RenderWaiter line_numbers_off(&view);
   view.SetCodeLineNumbers(false);
+  ASSERT_TRUE(line_numbers_off.Wait());
   html = HtmlOf(view);
   EXPECT_TRUE(html.contains(QStringLiteral("<pre><code")))
       << html.toStdString();
@@ -186,7 +201,9 @@ TEST(RenderTogglesTest, LineNumbersToggleChangesStructure) {
 TEST(RenderTogglesTest, StatusCountsRenders) {
   MarkdownView view;
   view.ResetRendererStats();
+  RenderWaiter wait(&view);
   view.SetContent(QStringLiteral("```cpp\nint a;\n```\n"), QString());
+  ASSERT_TRUE(wait.Wait());
   const MarkdownRendererStatus status = view.renderer_status();
   EXPECT_EQ(status.highlight_context.renders, 1U);
 }
@@ -194,14 +211,18 @@ TEST(RenderTogglesTest, StatusCountsRenders) {
 // 主题切换 = 换样式表 + 重渲染（公式颜色变了，缓存 key 也变）
 TEST(RenderTogglesTest, ThemeSwitchUpdatesCssAndRerenders) {
   MarkdownView view;
+  RenderWaiter first(&view);
   view.SetContent(QStringLiteral("$x$\n"), QString());
+  ASSERT_TRUE(first.Wait());
   EXPECT_EQ(view.theme(), MarkdownTheme::Light);
   const QString light_html = HtmlOf(view);
   ASSERT_FALSE(light_html.isEmpty());
   const quint64 renders = view.renderer_status().formula_context.renders;
   ASSERT_GE(renders, 1U);
 
+  RenderWaiter theme_wait(&view);
   view.SetTheme(MarkdownTheme::Dark);
+  ASSERT_TRUE(theme_wait.Wait());
   EXPECT_EQ(view.theme(), MarkdownTheme::Dark);
   const QString dark_html = HtmlOf(view);
   EXPECT_NE(light_html, dark_html);
@@ -222,9 +243,10 @@ TEST(RenderTogglesTest, OutlineAndAnchorYFollowDocument) {
   int changed = 0;
   QObject::connect(&view, &MarkdownView::outlineChanged,
                    [&changed] { ++changed; });
+  RenderWaiter wait(&view);
   view.SetContent(QStringLiteral("# A\n\n第一段\n\n## B\n\n第二段\n"),
                   QString());
-  QApplication::processEvents();
+  ASSERT_TRUE(wait.Wait());
 
   EXPECT_EQ(changed, 1);
   ASSERT_EQ(view.outline().size(), 2);
@@ -248,8 +270,9 @@ TEST(RenderTogglesTest, ReapplyReportsScrollPosition) {
   MarkdownView view;
   view.resize(800, 600);
   view.show();
+  RenderWaiter first(&view);
   view.SetContent(QStringLiteral("# A\n\n正文\n"), QString());
-  QApplication::processEvents();
+  ASSERT_TRUE(first.Wait());
 
   int reports = 0;
   int last_y = -1;
@@ -258,8 +281,9 @@ TEST(RenderTogglesTest, ReapplyReportsScrollPosition) {
                      ++reports;
                      last_y = y;
                    });
+  RenderWaiter theme_wait(&view);
   view.SetTheme(MarkdownTheme::Dark);
-  QApplication::processEvents();
+  ASSERT_TRUE(theme_wait.Wait());
 
   EXPECT_GE(reports, 1) << "重渲染后必须补报滚动位置";
   EXPECT_EQ(last_y, 0) << "文档在顶部，坐标应为 0";
@@ -271,9 +295,11 @@ TEST(RenderTogglesTest, StatusCountsMermaidRenders) {
   ASSERT_TRUE(dir.isValid());
   MarkdownView view;
   view.SetRenderCacheDirectory(dir.path());
+  RenderWaiter wait(&view);
   view.SetContent(
       QStringLiteral("```mermaid\nflowchart LR\n    A --> B\n```\n"),
       QString());
+  ASSERT_TRUE(wait.Wait());
   const MarkdownRendererStatus status = view.renderer_status();
   EXPECT_TRUE(status.mermaid.loaded);
   EXPECT_EQ(status.mermaid_context.renders, 1U);
@@ -290,7 +316,9 @@ TEST(RenderTogglesTest, PersistentCacheCanBeConfiguredAndCleared) {
 
   view.SetRenderCacheDirectory(dir.path());
   EXPECT_EQ(view.render_context().options().cache_directory, dir.path());
+  RenderWaiter first(&view);
   view.SetContent(QStringLiteral("$x$\n"), QString());
+  ASSERT_TRUE(first.Wait());
   const QString formula_dir =
       QDir(dir.path()).filePath(QStringLiteral("formula"));
   EXPECT_FALSE(QDir(formula_dir).entryList(QDir::Files).isEmpty())
@@ -301,7 +329,9 @@ TEST(RenderTogglesTest, PersistentCacheCanBeConfiguredAndCleared) {
 
   view.SetPersistentRenderCacheEnabled(false);
   EXPECT_FALSE(view.persistent_render_cache_enabled());
+  RenderWaiter second(&view);
   view.SetContent(QStringLiteral("$y$\n"), QString());
+  ASSERT_TRUE(second.Wait());
   EXPECT_FALSE(QDir(formula_dir).exists()) << "关闭后不应再写盘";
 }
 

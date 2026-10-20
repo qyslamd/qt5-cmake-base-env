@@ -3,6 +3,7 @@
 
 #include <functional>
 
+#include <QByteArray>
 #include <QString>
 
 // 大纲条目：level 是 1..6，text 是去掉内联标签后的纯文本，anchor 是最终
@@ -34,7 +35,13 @@ struct MarkdownDiagnostics {
   QString dump_directory;
 };
 
-// 引擎状态：进程级（每个渲染器一个引擎，跨视图共享）
+// worker 回传的中间产物；由 GUI 统一分配序号并落盘
+struct MarkdownRenderArtifact {
+  QString name;
+  QByteArray bytes;
+};
+
+// 引擎状态：每个引擎一份（同步入口线程局部，异步 worker 各自持有）
 struct MarkdownEngineStatus {
   bool loaded = false;
   bool permanently_failed = false;
@@ -63,6 +70,65 @@ struct MarkdownRendererStatus {
   MarkdownContextStatus image_context;
 };
 
+// 共享 worker 池的实时状态；queued = 还没取出的任务，processing = 正在算的
+struct MarkdownPoolStatus {
+  QString name;
+  int workers = 0;
+  int alive = 0;
+  int failed = 0;
+  int queued = 0;
+  int processing = 0;
+  qint64 js_memory_bytes = 0;
+};
+
+struct MarkdownServiceStatus {
+  MarkdownPoolStatus highlight;
+  MarkdownPoolStatus formula;
+  MarkdownPoolStatus mermaid;
+  int pending_batches = 0;
+  int pending_tasks = 0;
+};
+
+// 内存缓存实际占用（QString 按 UTF-16 字符估算，pixmap 用 QCache cost）
+struct MarkdownCacheUsage {
+  int highlight_entries = 0;
+  qint64 highlight_bytes = 0;
+  int formula_entries = 0;
+  qint64 formula_bytes = 0;
+  int mermaid_entries = 0;
+  qint64 mermaid_bytes = 0;
+  int pixmap_entries = 0;
+  qint64 pixmap_bytes = 0;
+  qint64 pixmap_limit_bytes = 0;
+};
+
+struct MarkdownDocumentStats {
+  int source_chars = 0;
+  int html_chars = 0;
+  int headings = 0;
+  int code_blocks = 0;
+  int formulas = 0;
+  int mermaid_blocks = 0;
+};
+
+struct MarkdownRenderTimings {
+  qint64 parse_ms = 0;
+  qint64 collect_ms = 0;
+  qint64 worker_ms = 0;
+  qint64 worker_max_ms = 0;
+  qint64 assemble_ms = 0;
+  qint64 layout_ms = 0;
+  qint64 total_ms = 0;
+};
+
+struct MarkdownRenderHistory {
+  quint64 requests_started = 0;
+  quint64 requests_finished = 0;
+  quint64 requests_cancelled = 0;
+  quint64 stale_results = 0;
+  quint64 failed_worker_results = 0;
+};
+
 // 上下文配置：缓存目录、容量、诊断。默认值即 MarkdownView 的默认行为
 struct MarkdownRenderContextOptions {
   bool persistent_cache_enabled = true;
@@ -71,6 +137,7 @@ struct MarkdownRenderContextOptions {
   QString cache_directory;
   qint64 image_cache_bytes = 64LL * 1024 * 1024;
   // 条目上限同时约束内存与磁盘；字节上限只约束磁盘
+  int highlight_cache_entries = 512;
   int formula_cache_entries = 512;
   int mermaid_cache_entries = 64;
   qint64 formula_cache_bytes = 16LL * 1024 * 1024;

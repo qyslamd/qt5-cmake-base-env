@@ -4,6 +4,7 @@
 #include <functional>
 
 #include <QString>
+#include <QVector>
 
 #include "heading_ids.h"
 #include "markdown_types.h"
@@ -27,6 +28,53 @@ using MermaidSink = std::function<QString(const QString& code)>;
 // 就能验 id 与源码的对应
 using CodeBlockSink =
     std::function<void(const QString& id, const QString& code)>;
+
+// 异步管线的中间阶段：解析结果不依赖任何渲染引擎。html 保留 md4c 生成的
+// <pre><code> 与公式占位符，blocks/segments 是后续收集任务的数据源
+struct MarkdownMathSegment {
+  QString tex;
+  bool display = false;
+};
+
+struct MarkdownCodeBlock {
+  int index = 0;
+  QString language;
+  QString code;
+};
+
+struct MarkdownParseResult {
+  QString html;
+  QString math_salt;
+  QVector<MarkdownMathSegment> segments;
+  QVector<MarkdownCodeBlock> blocks;
+  bool parse_error = false;
+};
+
+enum class MarkdownRenderKind {
+  Highlight,
+  Formula,
+  Mermaid,
+};
+
+// 组装阶段按 (kind, payload, language, display) 取已渲染结果；空串表示
+// 渲染失败/取消，由组装层按原文或代码块兜底。
+// payload 是每次出现的原文，公式空白可能不同；resolver 应使用
+// FormulaRenderKey/MermaidRenderKey/HighlightRenderKey 查结果表，不能拿
+// payload 直接当 key
+using MarkdownRenderResolver =
+    std::function<QString(MarkdownRenderKind kind, const QString& payload,
+                          const QString& language, bool display)>;
+
+// 同步解析：抽公式、跑 md4c、收集代码块。extract_math=false 时 $…$ 原样
+// 保留，不产生公式段
+MarkdownParseResult ParseMarkdown(const QString& markdown, bool extract_math);
+
+// 用已渲染结果组装最终 HTML；不触发任何渲染
+QString AssembleMarkdown(const MarkdownParseResult& parsed,
+                         const MarkdownRenderResolver& resolver,
+                         const CodeBlockSink& code_blocks,
+                         const HeadingSink& heading_ids,
+                         const MarkdownRenderOptions& options);
 
 // Markdown → HTML 正文（不含 <html>/<style> 外壳，由调用方套样式）。
 // 按 GFM 方言解析：表格、删除线、任务列表都在这个 dialect 里，用默认 flags

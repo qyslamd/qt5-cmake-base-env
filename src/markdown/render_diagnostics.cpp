@@ -1,5 +1,7 @@
 #include "render_diagnostics.h"
 
+#include <mutex>
+
 #include <QDateTime>
 #include <QDebug>
 #include <QDir>
@@ -16,14 +18,13 @@ void TraceRender(const MarkdownDiagnostics& diagnostics,
   }
   // 类别是进程级的：只启用一次，不随某个视图关闭而关掉（另一个视图可能
   // 还开着）。是否输出由各调用点的 trace 标志决定
-  static bool category_enabled = false;
-  if (!category_enabled) {
+  static std::once_flag category_once;
+  std::call_once(category_once, [] {
     // Q_LOGGING_CATEGORY 的访问器返回 const 引用，但底下是函数级静态对象；
     // 打开调试级别是 setEnabled 的正当用法
     const_cast<QLoggingCategory&>(lcMarkdownRender())
         .setEnabled(QtDebugMsg, true);
-    category_enabled = true;
-  }
+  });
   qCDebug(lcMarkdownRender) << message;
 }
 
@@ -33,11 +34,13 @@ QString EnsureRunDir(const QString& base_dir) {
   // 基目录 → 本次进程的产物目录。同一目录下多次 ApplyDocument 复用同一个
   // run 目录，文件名里带序号避免覆盖
   static QHash<QString, QString> run_dirs;
+  static int sequence = 0;
+  static std::mutex mutex;
+  const std::lock_guard<std::mutex> lock(mutex);
   const auto it = run_dirs.constFind(base_dir);
   if (it != run_dirs.constEnd()) {
     return *it;
   }
-  static int sequence = 0;
   const QString name =
       QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-hhmmss")) +
       QStringLiteral("-%1").arg(++sequence, 2, 10, QLatin1Char('0'));

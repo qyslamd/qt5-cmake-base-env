@@ -10,6 +10,7 @@
 #include <QTemporaryDir>
 #include <QWidget>
 
+#include "markdown_test_wait.h"
 #include "markdown_view.h"
 
 // MD_MARKDOWN_CSS 的语义钉在独立进程里：LoadDefaultCss 只在首次调用时
@@ -72,7 +73,9 @@ namespace {
 
 TEST(CssOverrideTest, ThemeSwitchKeepsOverrideCssAndWarns) {
   MarkdownView view;
+  RenderWaiter first(&view);
   view.SetContent(QStringLiteral("$x$\n"), QString());
+  ASSERT_TRUE(first.Wait());
   ASSERT_TRUE(HtmlOf(view).contains(QStringLiteral("#123456")));
 
   const quint64 renders = view.renderer_status().formula_context.renders;
@@ -80,8 +83,10 @@ TEST(CssOverrideTest, ThemeSwitchKeepsOverrideCssAndWarns) {
 
   g_warnings.clear();
   const QtMessageHandler old_handler = qInstallMessageHandler(CaptureWarnings);
+  RenderWaiter reapply(&view);
   view.SetTheme(MarkdownTheme::Dark);
   qInstallMessageHandler(old_handler);
+  ASSERT_TRUE(reapply.Wait());
 
   EXPECT_EQ(view.theme(), MarkdownTheme::Dark);
   const QString html = HtmlOf(view);

@@ -1,9 +1,13 @@
 #include "code_highlighter.h"
 
 #include <gtest/gtest.h>
+#include <thread>
 
 #include <QString>
 #include <QStringList>
+
+#include "markdown_engine_state.h"
+#include "markdown_render_context.h"
 
 // 高亮的端到端判据：qrc 载荷 → QuickJS 里跑 highlight.js → 类名映射后的
 // HTML。类名（kw/str/num/cmt/…）是与主题样式表的唯一契约，这里
@@ -75,6 +79,68 @@ TEST(CodeHighlighterTest, NoUnmappedHljsClassNamesRemain) {
       QStringLiteral("#include <vector>\nstruct S { double x; };\n"),
       QStringLiteral("cpp"));
   EXPECT_FALSE(html.contains(QStringLiteral("hljs-"))) << html.toStdString();
+}
+
+// 同一语言 + 源码第二次命中内存缓存，不再进 QuickJS；语言参与 key
+TEST(CodeHighlighterTest, CacheHitSkipsSecondRender) {
+  MarkdownRenderContext context;
+  const QString code = QStringLiteral("int a = 1;");
+  const QString first = HighlightCode(context, code, QStringLiteral("cpp"));
+  const QString second = HighlightCode(context, code, QStringLiteral("cpp"));
+  HighlightCode(context, code, QStringLiteral("python"));
+
+  EXPECT_EQ(first, second);
+  const MarkdownContextStatus status = context.status().highlight_context;
+  EXPECT_EQ(status.renders, 2u);
+  EXPECT_EQ(status.memory_cache_misses, 2u);
+  EXPECT_EQ(status.memory_cache_hits, 1u);
+}
+
+// 未注册语言的转义兜底也进缓存；第二次不再进 QuickJS，且不算 failure
+TEST(CodeHighlighterTest, UnknownLanguageFallbackIsCached) {
+  MarkdownRenderContext context;
+  const QString code = QStringLiteral("a < b & c");
+  const QString first =
+      HighlightCode(context, code, QStringLiteral("notalang"));
+  const QString second =
+      HighlightCode(context, code, QStringLiteral("notalang"));
+
+  EXPECT_EQ(first, QStringLiteral("a &lt; b &amp; c"));
+  EXPECT_EQ(second, first);
+  const MarkdownContextStatus status = context.status().highlight_context;
+  EXPECT_EQ(status.renders, 1u);
+  EXPECT_EQ(status.memory_cache_misses, 1u);
+  EXPECT_EQ(status.memory_cache_hits, 1u);
+  EXPECT_EQ(status.failures, 0u);
+}
+
+// 显式 EngineState 必须能在非主线程独立加载并渲染
+TEST(CodeHighlighterTest, ExplicitEngineRendersOnWorkerThread) {
+  QString html;
+  bool failed = true;
+  std::thread worker([&html, &failed] {
+    HighlightEngineState engine;
+    const MarkdownDiagnostics diagnostics;
+    html = RenderHighlightOnEngine(engine, QStringLiteral("int a = 1;"),
+                                   QStringLiteral("cpp"), diagnostics, &failed);
+  });
+  worker.join();
+
+  EXPECT_FALSE(failed);
+  EXPECT_TRUE(html.contains(QStringLiteral("<span"))) << html.toStdString();
+}
+
+// ClearMemoryCaches 必须把高亮缓存一起清掉
+TEST(CodeHighlighterTest, ClearMemoryCachesClearsHighlightCache) {
+  MarkdownRenderContext context;
+  const QString code = QStringLiteral("int a = 1;");
+  HighlightCode(context, code, QStringLiteral("cpp"));
+  context.ClearMemoryCaches();
+  HighlightCode(context, code, QStringLiteral("cpp"));
+
+  const MarkdownContextStatus status = context.status().highlight_context;
+  EXPECT_EQ(status.renders, 2u);
+  EXPECT_EQ(status.memory_cache_hits, 0u);
 }
 
 }  // namespace

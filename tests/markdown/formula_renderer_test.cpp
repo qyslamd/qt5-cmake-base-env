@@ -1,6 +1,7 @@
 #include "formula_renderer.h"
 
 #include <gtest/gtest.h>
+#include <thread>
 
 #include <QByteArray>
 #include <QDateTime>
@@ -11,6 +12,7 @@
 #include <QStringList>
 #include <QTemporaryDir>
 
+#include "markdown_engine_state.h"
 #include "markdown_render_context.h"
 #include "markdown_render_context_internal.h"
 #include "markdown_theme.h"
@@ -61,6 +63,20 @@ TEST(FormulaRendererTest, RendersInlineFormulaToInlineImage) {
   // 行内公式不加 display 类，随文排
   EXPECT_FALSE(tag.contains(QStringLiteral("math-display")))
       << tag.toStdString();
+}
+
+// 显式 EngineState 必须能在非主线程独立加载并渲染
+TEST(FormulaRendererTest, ExplicitEngineRendersOnWorkerThread) {
+  QString tag;
+  std::thread worker([&tag] {
+    FormulaEngineState engine;
+    const MarkdownDiagnostics diagnostics;
+    tag = RenderFormulaOnEngine(engine, QStringLiteral("x^2"), false, QColor(),
+                                diagnostics);
+  });
+  worker.join();
+
+  EXPECT_TRUE(tag.startsWith(QStringLiteral("<img"))) << tag.toStdString();
 }
 
 TEST(FormulaRendererTest, DisplayFormulaGetsDisplayClass) {

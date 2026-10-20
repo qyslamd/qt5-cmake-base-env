@@ -8,11 +8,14 @@ set(TARGET_SRCS
     js_runtime.cpp
     js_runtime.h
     markdown_bytecode.h
+    markdown_engine_state.h
     markdown_outline_widget.cpp
     markdown_outline_widget.h
     markdown_render_context.cpp
     markdown_render_context.h
     markdown_render_context_internal.h
+    markdown_render_tasks.cpp
+    markdown_render_tasks.h
     markdown_theme.cpp
     markdown_theme.h
     markdown_types.h
@@ -29,6 +32,8 @@ set(TARGET_SRCS
     render_cache.h
     render_diagnostics.cpp
     render_diagnostics.h
+    render_service.cpp
+    render_service.h
 )
 
 # 公式走 SVG→PNG（QSvgRenderer 在 Gui 里，Svg 模块提供 svg 支持）

@@ -18,9 +18,9 @@ namespace {
 constexpr double kDefaultFontSize = 16.0;
 
 // 属性名在调用点全是常量，正则按名字缓存：清洗一张图要查几十上百次属性，
-// 每次现编译一条正则是纯浪费（只在 GUI 线程用，QHash 无并发问题）
+// 每次现编译一条正则是纯浪费。worker 各持一份，避免 QHash 竞争
 QString AttrOf(const QString& tag, const QString& name) {
-  static QHash<QString, QRegularExpression> pattern_cache;
+  thread_local QHash<QString, QRegularExpression> pattern_cache;
   auto pattern = pattern_cache.constFind(name);
   if (pattern == pattern_cache.constEnd()) {
     pattern = pattern_cache.insert(

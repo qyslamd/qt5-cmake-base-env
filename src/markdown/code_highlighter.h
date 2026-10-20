@@ -19,4 +19,7 @@ QString HighlightCode(MarkdownRenderContext& context, const QString& code,
                       const QString& language);
 QString HighlightCode(const QString& code, const QString& language);
 
+// 内存/任务去重用的稳定 key；调度与渲染层共用
+QString HighlightRenderKey(const QString& code, const QString& language);
+
 #endif  // FILE_MARKDOWN_CODE_HIGHLIGHTER_H_

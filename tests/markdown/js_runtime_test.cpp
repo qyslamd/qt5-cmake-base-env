@@ -1,8 +1,12 @@
 #include "js_runtime.h"
 
+#include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <gtest/gtest.h>
+#include <thread>
 
+#include <QElapsedTimer>
 #include <QString>
 
 // JsRuntime 错误处理的判据：异常消息真的被消费、坏字节码不崩且作废引擎、
@@ -49,6 +53,46 @@ TEST(JsRuntimeTest, CorruptBytecodeFailsLoad) {
   JsRuntime runtime;
   EXPECT_FALSE(runtime.EnsureLoaded(payloads, {}, {}));
   EXPECT_TRUE(runtime.status().permanently_failed);
+}
+
+// 取消后 runtime 不能只留在半死状态：ResetForReload() 必须允许重新加载
+TEST(JsRuntimeTest, InterruptStopsEvalAndResetAllowsReload) {
+  JsRuntime runtime;
+  ASSERT_TRUE(runtime.EnsureLoaded({}, {}, {}));
+  std::atomic<bool> cancel{false};
+  runtime.SetInterruptFlag(&cancel);
+
+  std::thread canceller([&cancel] {
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    cancel.store(true, std::memory_order_relaxed);
+  });
+  QElapsedTimer clock;
+  clock.start();
+  const bool eval_ok = runtime.Eval("while (true) {}", "spin", "spin");
+  const qint64 elapsed = clock.elapsed();
+  canceller.join();
+
+  EXPECT_FALSE(eval_ok);
+  EXPECT_LT(elapsed, 2000);
+  EXPECT_TRUE(runtime.status().loaded);
+
+  runtime.ResetForReload();
+  EXPECT_FALSE(runtime.status().loaded);
+  EXPECT_FALSE(runtime.status().permanently_failed);
+
+  cancel.store(false, std::memory_order_relaxed);
+  EXPECT_TRUE(runtime.EnsureLoaded({}, {}, {}));
+  EXPECT_TRUE(runtime.Eval("1 + 1", "ok", "ok"));
+}
+
+// ResetForReload 必须走 on_fail，让渲染器释放自己持有的 JS 引用
+TEST(JsRuntimeTest, ResetForReloadInvokesOnFail) {
+  JsRuntime runtime;
+  int calls = 0;
+  runtime.set_on_fail([&calls](JSContext*) { ++calls; });
+  ASSERT_TRUE(runtime.EnsureLoaded({}, {}, {}));
+  runtime.ResetForReload();
+  EXPECT_EQ(calls, 1);
 }
 
 TEST(JsRuntimeTest, CheckResultAcceptsNonException) {

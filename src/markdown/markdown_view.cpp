@@ -14,9 +14,11 @@
 #include <QImageReader>
 #include <QKeyEvent>
 #include <QKeySequence>
+#include <QPointer>
 #include <QScrollBar>
 #include <QShortcut>
 #include <QTimer>
+#include <QUuid>
 #include <QVBoxLayout>
 #include <QWheelEvent>
 
@@ -31,6 +33,7 @@
 #include "qlitehtmlwidget.h"
 #include "render_cache.h"
 #include "render_diagnostics.h"
+#include "render_service.h"
 
 namespace {
 
@@ -75,6 +78,19 @@ const QString& DefaultCssFromResources(MarkdownTheme theme) {
       LoadCssResource(ThemeCssResource(MarkdownTheme::Dark)),
   };
   return kCss[ThemeIndex(theme)];
+}
+
+QString RenderIdentity(MarkdownRenderKind kind, const QString& key) {
+  return QString::number(static_cast<int>(kind)) + QLatin1Char('\n') + key;
+}
+
+QUrl BaseUrlForDir(const QString& base_dir) {
+  if (base_dir.isEmpty()) {
+    return QUrl();
+  }
+  QUrl base = QUrl::fromLocalFile(base_dir);
+  base.setPath(base.path() + QLatin1Char('/'));
+  return base;
 }
 
 QString CssOverridePath() {
@@ -265,7 +281,9 @@ QByteArray ReadResourceForUrl(const QUrl& url, const QString& base_dir) {
 }
 
 MarkdownView::MarkdownView(QWidget* parent)
-    : QWidget(parent), context_(new MarkdownRenderContext) {
+    : QWidget(parent),
+      context_(new MarkdownRenderContext),
+      view_id_(QUuid::createUuid().toString(QUuid::WithoutBraces)) {
   initUi();
   initSignals();
 }
@@ -279,7 +297,11 @@ QString CopyTextForLink(const QUrl& url,
 }
 
 // 析构写在 .cpp：成员里只有第三方控件的前向声明，需要完整类型才能生成
-MarkdownView::~MarkdownView() = default;
+MarkdownView::~MarkdownView() {
+  if (render_service_ != nullptr) {
+    render_service_->CancelView(view_id_);
+  }
+}
 
 void MarkdownView::initUi() {
   setObjectName(QStringLiteral("markdownView"));
@@ -291,7 +313,7 @@ void MarkdownView::initUi() {
     if (url.scheme() == QLatin1String("mj")) {
       return QByteArray();
     }
-    const QByteArray data = ReadResourceForUrl(url, base_dir_);
+    const QByteArray data = ReadResourceForUrl(url, committed_base_dir_);
     if (data.isEmpty() && url.scheme() != QLatin1String("data")) {
       emit resourceLoadFailed(url);
     }
@@ -456,6 +478,8 @@ void MarkdownView::FlushPendingZoom() {
 }
 
 bool MarkdownView::LoadFile(const QString& path) {
+  const bool notify_reload = reload_notify_on_load_;
+  reload_notify_on_load_ = false;
   QString text;
   if (!ReadMarkdownFile(path, &text)) {
     ClearDocument();
@@ -476,7 +500,7 @@ bool MarkdownView::LoadFile(const QString& path) {
   current_file_ = path;
   base_dir_ = QFileInfo(path).absolutePath();
   WatchCurrentFile();
-  ApplyDocument();
+  ApplyDocument(false, notify_reload);
   return true;
 }
 
@@ -486,6 +510,21 @@ void MarkdownView::SetContent(const QString& markdown,
   markdown_ = markdown;
   base_dir_ = base_dir;
   ApplyDocument();
+}
+
+void MarkdownView::ShowPlaceholder(const QString& text) {
+  // 只在第一次换成占位页时记滚动位置；后续调用读到的已经是占位页的 0
+  if (!placeholder_visible_) {
+    placeholder_scroll_ = html_->verticalScrollBar()->value();
+  }
+  placeholder_visible_ = true;
+  zoom_timer_->stop();
+  html_->setZoomFactorWithoutRender(zoom_);
+  html_->setUrl(BaseUrlForDir(base_dir_));
+  html_->setHtml(
+      WrapDocument(QStringLiteral("<p class=\"render-placeholder\">%1</p>")
+                       .arg(text.toHtmlEscaped()),
+                   LoadDefaultCss(theme_)));
 }
 
 void MarkdownView::ScrollToAnchor(const QString& anchor) {
@@ -563,7 +602,7 @@ bool MarkdownView::FindText(const QString& text, FindFlags flags, bool* wrapped,
 }
 
 void MarkdownView::Print(QPrinter* printer) {
-  if (printer == nullptr) {
+  if (printer == nullptr || rendering_) {
     return;
   }
   html_->print(printer);
@@ -639,10 +678,24 @@ void MarkdownView::SetTheme(MarkdownTheme theme) {
 }
 
 MarkdownRendererStatus MarkdownView::renderer_status() const {
-  return context_->status();
+  MarkdownRendererStatus status = context_->status();
+  status.highlighter = highlight_engine_status_;
+  status.formula = formula_engine_status_;
+  status.mermaid = mermaid_engine_status_;
+  return status;
 }
 
-void MarkdownView::ResetRendererStats() { context_->ResetStats(); }
+void MarkdownView::ResetRendererStats() {
+  context_->ResetStats();
+  render_history_ = MarkdownRenderHistory();
+}
+
+MarkdownServiceStatus MarkdownView::render_service_status() const {
+  if (render_service_ == nullptr) {
+    return {};
+  }
+  return render_service_->Status();
+}
 
 void MarkdownView::SetDiagnostics(const MarkdownDiagnostics& diagnostics) {
   context_->SetDiagnostics(diagnostics);
@@ -653,83 +706,355 @@ MarkdownDiagnostics MarkdownView::diagnostics() const {
 }
 
 void MarkdownView::ReapplyDocument() {
-  if (!has_document()) {
+  // 首次派发尚未提交时也要能换主题/开关：此时 markdown_ 里是待提交内容
+  if (!has_document() && !rendering_) {
     return;
   }
-  const int scroll = html_->verticalScrollBar()->value();
-  ApplyDocument();
-  html_->verticalScrollBar()->setValue(scroll);
-  // 值没变时 Qt 不发 valueChanged（典型：文档在顶部切主题）。大纲刚被
-  // outlineChanged 重建、选中已清空，这里显式报一次坐标让宿主恢复当前章节
-  emit viewportScrolled(html_->verticalScrollBar()->value());
+  ApplyDocument(true, false);
 }
 
-void MarkdownView::ApplyDocument() {
-  // 先 setUrl 再 setHtml：setHtml 会立刻渲染，顺序反了首帧的相对图片与相对
-  // 链接会按错误的基准解析。没有基准时也显式清掉，别让上一份文档的目录留下来
-  QUrl base;
-  if (!base_dir_.isEmpty()) {
-    base = QUrl::fromLocalFile(base_dir_);
-    base.setPath(base.path() + QLatin1Char('/'));
+void MarkdownView::ApplyDocument(bool preserve_scroll,
+                                 bool notify_document_reloaded) {
+  ++render_history_.requests_started;
+  if (active_request_id_ != 0 && render_service_ != nullptr) {
+    ++render_history_.requests_cancelled;
+    render_service_->Cancel(view_id_, active_request_id_);
   }
-  html_->setUrl(base);
-  // 公式与图表渲染以回调注入：markdown 模块不依赖渲染引擎，这里把它接上。
-  // 代码块表与锚点表每次重建——旧文档的表不能留到新文档里（一个是 copy:
-  // 链接的唯一数据源，串了会复制出上一份文档的代码；另一个会让 #锚点 跳到
-  // 上一份文档的元素上）
-  code_blocks_.clear();
-  heading_ids_.clear();
-  outline_.clear();
-  // 当前文档的 token 重新 pin；跨文档缓存不在这里清
-  document_pixmaps_.clear();
+  request_clock_.start();
+  pending_timings_ = MarkdownRenderTimings();
+  const quint64 request_id = ++render_request_id_;
+  active_request_id_ = request_id;
+  rendering_ = true;
+  pending_notify_reload_ = notify_document_reloaded;
+  pending_notify_viewport_ = preserve_scroll;
+  pending_scroll_ =
+      preserve_scroll ? std::optional<int>(html_->verticalScrollBar()->value())
+                      : std::nullopt;
+  pending_parse_ = MarkdownParseResult();
+  pending_rendered_.clear();
+  pending_total_ = 0;
+  pending_completed_ = 0;
+  pending_in_flight_ = 0;
+  // 解析/派发放到事件循环，保证 SetContent 返回时宿主已能接 renderFinished
+  QTimer::singleShot(0, this, [this, request_id]() {
+    if (request_id != active_request_id_) {
+      return;
+    }
+    StartRender(request_id);
+  });
+}
+
+void MarkdownView::StartRender(quint64 request_id) {
+  if (request_id != active_request_id_ || !rendering_) {
+    return;
+  }
+  QElapsedTimer stage_clock;
+  stage_clock.start();
+  pending_parse_ = ParseMarkdown(markdown_, formula_rendering_enabled_);
+  pending_timings_.parse_ms = stage_clock.elapsed();
+  const MarkdownDiagnostics diagnostics = context_->diagnostics();
+  if (pending_parse_.parse_error) {
+    pending_total_ = 0;
+    pending_completed_ = 0;
+    pending_in_flight_ = 0;
+    emit renderProgress(request_id, 0, 0, 0);
+    CommitRender(request_id);
+    return;
+  }
+
+  MarkdownRenderContextState& state =
+      MarkdownRenderContextAccess::State(*context_);
+  stage_clock.restart();
+  QVector<MarkdownRenderTask> tasks =
+      CollectRenderTasks(pending_parse_, mermaid_rendering_enabled_,
+                         ThemeFormulaColor(theme_), theme_);
+  pending_timings_.collect_ms = stage_clock.elapsed();
+  pending_total_ = tasks.size();
+  pending_completed_ = 0;
+  pending_in_flight_ = 0;
+
+  QVector<MarkdownRenderTask> dispatch;
+  for (MarkdownRenderTask task : tasks) {
+    task.diagnostics = diagnostics;
+    const QString identity = RenderIdentity(task.kind, task.cache_key);
+    MarkdownContextStatus* stats = nullptr;
+    const QString* memory_hit = nullptr;
+    if (task.kind == MarkdownRenderKind::Highlight) {
+      stats = &state.highlight_stats;
+      memory_hit = state.highlight_cache.Find(task.cache_key);
+    } else if (task.kind == MarkdownRenderKind::Formula) {
+      stats = &state.formula_stats;
+      memory_hit = state.formula_cache.Find(task.cache_key);
+    } else {
+      stats = &state.mermaid_stats;
+      memory_hit = state.mermaid_cache.Find(task.cache_key);
+    }
+
+    QString cached;
+    bool hit = false;
+    if (memory_hit != nullptr) {
+      cached = *memory_hit;
+      hit = true;
+      ++stats->memory_cache_hits;
+    } else {
+      ++stats->memory_cache_misses;
+      if (task.kind != MarkdownRenderKind::Highlight) {
+        const QString kind_name = task.kind == MarkdownRenderKind::Formula
+                                      ? QStringLiteral("formula")
+                                      : QStringLiteral("mermaid");
+        const RenderCacheConfig cache_config =
+            MakeRenderCacheConfig(state.options, kind_name);
+        if (cache_config.enabled) {
+          QString disk_key;
+          if (task.kind == MarkdownRenderKind::Formula) {
+            const QString variant = task.formula_color.isValid()
+                                        ? task.formula_color.name()
+                                        : QStringLiteral("legacy");
+            disk_key = MakeRenderCacheKey(
+                kind_name, task.payload.trimmed(),
+                (task.display ? QStringLiteral("D") : QStringLiteral("I")) +
+                    QLatin1Char('|') + variant);
+          } else {
+            disk_key = MakeRenderCacheKey(kind_name, task.payload,
+                                          MermaidRenderVariant(task.theme));
+          }
+          QString disk_tag;
+          if (LoadRenderCacheEntry(cache_config, kind_name, disk_key,
+                                   &disk_tag)) {
+            ++stats->disk_cache_hits;
+            cached = disk_tag;
+            hit = true;
+            RenderStringCache* memory_cache =
+                task.kind == MarkdownRenderKind::Formula ? &state.formula_cache
+                                                         : &state.mermaid_cache;
+            memory_cache->Insert(task.cache_key, disk_tag);
+          } else {
+            ++stats->disk_cache_misses;
+          }
+        }
+      }
+    }
+
+    if (hit) {
+      pending_rendered_.insert(identity, cached);
+      ++pending_completed_;
+    } else {
+      ++stats->renders;
+      dispatch.append(task);
+    }
+  }
+
+  pending_in_flight_ = dispatch.size();
+  emit renderProgress(request_id, pending_completed_, pending_total_,
+                      pending_in_flight_);
+  if (dispatch.isEmpty()) {
+    CommitRender(request_id);
+    return;
+  }
+  if (render_service_ == nullptr) {
+    render_service_ = &MarkdownRenderService::Instance();
+    connect(render_service_, &MarkdownRenderService::taskFinished, this,
+            [this](const QString& view_id, const MarkdownRenderResult& result) {
+              if (view_id == view_id_) {
+                OnTaskFinished(result.task.request_id, result);
+              }
+            });
+    connect(render_service_, &MarkdownRenderService::allFinished, this,
+            &MarkdownView::OnAllFinished);
+  }
+  render_service_->Submit(view_id_, request_id, dispatch);
+}
+
+void MarkdownView::OnTaskFinished(quint64 request_id,
+                                  const MarkdownRenderResult& result) {
+  if (request_id != active_request_id_ || !rendering_) {
+    ++render_history_.stale_results;
+    return;
+  }
+  pending_timings_.worker_ms += result.elapsed_ms;
+  pending_timings_.worker_max_ms =
+      qMax(pending_timings_.worker_max_ms, result.elapsed_ms);
+  if (result.engine_load_failed) {
+    ++render_history_.failed_worker_results;
+  }
+  MarkdownRenderContextState& state =
+      MarkdownRenderContextAccess::State(*context_);
+  const QString identity =
+      RenderIdentity(result.task.kind, result.task.cache_key);
+  pending_rendered_.insert(identity, result.rendered);
+
+  if (result.task.kind == MarkdownRenderKind::Highlight) {
+    if (!result.ok) {
+      ++state.highlight_stats.failures;
+    } else {
+      state.highlight_cache.Insert(result.task.cache_key, result.rendered);
+    }
+    if (result.loaded) {
+      highlight_engine_status_.loaded = true;
+      if (highlight_engine_status_.first_load_ms == 0) {
+        highlight_engine_status_.first_load_ms = result.first_load_ms;
+      }
+    }
+    if (result.engine_all_failed) {
+      highlight_engine_status_.permanently_failed = true;
+    }
+  } else if (result.task.kind == MarkdownRenderKind::Formula) {
+    if (result.rendered.isEmpty()) {
+      ++state.formula_stats.failures;
+    }
+    state.formula_cache.Insert(result.task.cache_key, result.rendered);
+    if (!result.rendered.isEmpty()) {
+      const QString variant = result.task.formula_color.isValid()
+                                  ? result.task.formula_color.name()
+                                  : QStringLiteral("legacy");
+      const QString disk_key = MakeRenderCacheKey(
+          QStringLiteral("formula"), result.task.payload.trimmed(),
+          (result.task.display ? QStringLiteral("D") : QStringLiteral("I")) +
+              QLatin1Char('|') + variant);
+      const RenderCacheConfig cache_config =
+          MakeRenderCacheConfig(state.options, QStringLiteral("formula"));
+      if (cache_config.enabled) {
+        StoreRenderCacheEntry(cache_config, QStringLiteral("formula"), disk_key,
+                              result.rendered);
+      }
+    }
+    if (result.loaded) {
+      formula_engine_status_.loaded = true;
+      if (formula_engine_status_.first_load_ms == 0) {
+        formula_engine_status_.first_load_ms = result.first_load_ms;
+      }
+    }
+    if (result.engine_all_failed) {
+      formula_engine_status_.permanently_failed = true;
+    }
+  } else {
+    if (result.rendered.isEmpty()) {
+      ++state.mermaid_stats.failures;
+    }
+    state.mermaid_cache.Insert(result.task.cache_key, result.rendered);
+    if (!result.rendered.isEmpty()) {
+      const QString disk_key =
+          MakeRenderCacheKey(QStringLiteral("mermaid"), result.task.payload,
+                             MermaidRenderVariant(result.task.theme));
+      const RenderCacheConfig cache_config =
+          MakeRenderCacheConfig(state.options, QStringLiteral("mermaid"));
+      if (cache_config.enabled) {
+        StoreRenderCacheEntry(cache_config, QStringLiteral("mermaid"), disk_key,
+                              result.rendered);
+      }
+    }
+    if (result.loaded) {
+      mermaid_engine_status_.loaded = true;
+      if (mermaid_engine_status_.first_load_ms == 0) {
+        mermaid_engine_status_.first_load_ms = result.first_load_ms;
+      }
+    }
+    if (result.engine_all_failed) {
+      mermaid_engine_status_.permanently_failed = true;
+    }
+  }
+
+  if (!result.artifacts.isEmpty()) {
+    const MarkdownDiagnostics diagnostics = context_->diagnostics();
+    for (const MarkdownRenderArtifact& artifact : result.artifacts) {
+      DumpRenderArtifact(diagnostics, artifact.name, artifact.bytes);
+    }
+  }
+
+  ++pending_completed_;
+  if (pending_in_flight_ > 0) {
+    --pending_in_flight_;
+  }
+  emit renderProgress(request_id, pending_completed_, pending_total_,
+                      pending_in_flight_);
+}
+
+void MarkdownView::OnAllFinished(const QString& view_id, quint64 request_id) {
+  if (view_id != view_id_ || request_id != active_request_id_ || !rendering_) {
+    if (view_id == view_id_) {
+      ++render_history_.stale_results;
+    }
+    return;
+  }
+  CommitRender(request_id);
+}
+
+void MarkdownView::CommitRender(quint64 request_id) {
+  if (request_id != active_request_id_ || !rendering_) {
+    return;
+  }
+  QHash<QString, QString> code_blocks;
+  QHash<QString, QString> heading_ids;
+  QVector<MarkdownHeading> outline;
+  QHash<QString, QPixmap> pixmaps;
   MarkdownRenderOptions options;
   options.code_line_numbers = code_line_numbers_;
-  options.outline = [this](const MarkdownHeading& heading) {
-    outline_.append(heading);
+  options.outline = [&outline](const MarkdownHeading& heading) {
+    outline.append(heading);
   };
-  options.highlight = [this](const QString& code, const QString& language) {
-    return HighlightCode(*context_, code, language);
-  };
-  // 关闭时不传对应 sink：MarkdownToHtml 会整段跳过抽取，也不会有任何
-  // JS 载荷加载
-  FormulaSink formula_sink;
-  if (formula_rendering_enabled_) {
-    formula_sink = [this](const QString& tex, bool display) {
-      QString key;
-      const QString tag = FormulaToImgTag(*context_, tex, display,
-                                          ThemeFormulaColor(theme_), &key);
-      return RegisterImageTag(MakeImageToken(QStringLiteral("f/"), key), tag);
-    };
+  const MarkdownRenderResolver resolver =
+      [this, &pixmaps](MarkdownRenderKind kind, const QString& payload,
+                       const QString& language, bool display) {
+        QString key;
+        switch (kind) {
+          case MarkdownRenderKind::Highlight:
+            key = HighlightRenderKey(payload, language);
+            break;
+          case MarkdownRenderKind::Formula:
+            key = FormulaRenderKey(payload, display, ThemeFormulaColor(theme_));
+            break;
+          case MarkdownRenderKind::Mermaid:
+            key = MermaidRenderKey(payload, theme_);
+            break;
+        }
+        const auto it = pending_rendered_.constFind(RenderIdentity(kind, key));
+        if (it == pending_rendered_.constEnd() || it.value().isEmpty()) {
+          return QString();
+        }
+        if (kind == MarkdownRenderKind::Formula) {
+          return RegisterImageTag(MakeImageToken(QStringLiteral("f/"), key),
+                                  it.value(), &pixmaps);
+        }
+        if (kind == MarkdownRenderKind::Mermaid) {
+          return RegisterImageTag(MakeImageToken(QStringLiteral("m/"), key),
+                                  it.value(), &pixmaps);
+        }
+        return it.value();
+      };
+  QElapsedTimer assemble_clock;
+  assemble_clock.start();
+  const QString body = AssembleMarkdown(
+      pending_parse_, resolver,
+      [&code_blocks](const QString& id, const QString& code) {
+        code_blocks.insert(id, code);
+      },
+      [&heading_ids](const QString& slug, const QString& id) {
+        heading_ids.insert(slug, id);
+      },
+      options);
+  pending_timings_.assemble_ms = assemble_clock.elapsed();
+  const QString final_html = WrapDocument(body, LoadDefaultCss(theme_));
+
+  document_stats_.source_chars = markdown_.size();
+  document_stats_.html_chars = final_html.size();
+  document_stats_.headings = outline.size();
+  document_stats_.code_blocks = pending_parse_.blocks.size();
+  document_stats_.formulas = pending_parse_.segments.size();
+  document_stats_.mermaid_blocks = 0;
+  for (const MarkdownCodeBlock& block : pending_parse_.blocks) {
+    if (block.language == QLatin1String("mermaid")) {
+      ++document_stats_.mermaid_blocks;
+    }
   }
-  MermaidSink mermaid_sink;
-  if (mermaid_rendering_enabled_) {
-    mermaid_sink = [this](const QString& code) {
-      QString key;
-      const QString tag = MermaidToImgTag(*context_, code, theme_, &key);
-      return RegisterImageTag(MakeImageToken(QStringLiteral("m/"), key), tag);
-    };
-  }
-  const QString final_html =
-      WrapDocument(MarkdownToHtml(
-                       markdown_, formula_sink, mermaid_sink,
-                       [this](const QString& id, const QString& code) {
-                         code_blocks_.insert(id, code);
-                       },
-                       [this](const QString& slug, const QString& id) {
-                         heading_ids_.insert(slug, id);
-                       },
-                       options),
-                   LoadDefaultCss(theme_));
 
   const MarkdownDiagnostics diagnostics = context_->diagnostics();
   if (diagnostics.trace) {
     TraceRender(diagnostics,
-                QStringLiteral("ApplyDocument: source=%1 chars, html=%2 chars")
+                QStringLiteral("render %1: source=%2 chars, html=%3 chars")
+                    .arg(request_id)
                     .arg(markdown_.size())
                     .arg(final_html.size()));
   }
-  // 每次 ApplyDocument 一组独立序号：与 formula/N-*、mermaid/N-* 的累积
-  // 语义一致，不会互相覆盖
   if (DumpEnabled(diagnostics, QStringLiteral("apply/source.md"))) {
     const int index = ++dump_apply_index_;
     DumpRenderArtifact(diagnostics,
@@ -739,17 +1064,112 @@ void MarkdownView::ApplyDocument() {
                        QStringLiteral("apply/%1-final.html").arg(index),
                        final_html.toUtf8());
   }
-  // setHtml 反正要排一次：把挂起的缩放直接写进控件、不单独重排
+
+  // 先 setUrl 再 setHtml：setHtml 会立刻渲染，顺序反了首帧的相对图片与相对
+  // 链接会按错误的基准解析
+  html_->setUrl(BaseUrlForDir(base_dir_));
+  code_blocks_ = std::move(code_blocks);
+  heading_ids_ = std::move(heading_ids);
+  outline_ = std::move(outline);
+  document_pixmaps_ = std::move(pixmaps);
+  committed_file_ = current_file_;
+  committed_base_dir_ = base_dir_;
+  committed_markdown_ = markdown_;
+  committed_html_ = final_html;
+  has_committed_ = !markdown_.isEmpty() || !current_file_.isEmpty();
+  placeholder_visible_ = false;
+  placeholder_scroll_ = 0;
   zoom_timer_->stop();
   html_->setZoomFactorWithoutRender(zoom_);
+  QElapsedTimer layout_clock;
+  layout_clock.start();
   html_->setHtml(final_html);
+  pending_timings_.layout_ms = layout_clock.elapsed();
+  if (pending_scroll_.has_value()) {
+    html_->verticalScrollBar()->setValue(*pending_scroll_);
+  }
+  const int scroll = html_->verticalScrollBar()->value();
+  pending_timings_.total_ms =
+      request_clock_.isValid() ? request_clock_.elapsed() : 0;
+  last_render_timings_ = pending_timings_;
+  ++render_history_.requests_finished;
   InvalidateAnchorYCache();
+  rendering_ = false;
+  active_request_id_ = 0;
+  pending_parse_ = MarkdownParseResult();
+  pending_rendered_.clear();
+  pending_total_ = 0;
+  pending_completed_ = 0;
+  pending_in_flight_ = 0;
+  const bool notify_reload = pending_notify_reload_;
+  const bool notify_viewport = pending_notify_viewport_;
+  pending_notify_reload_ = false;
+  pending_notify_viewport_ = false;
+  pending_scroll_.reset();
+
+  const QPointer<MarkdownView> guard(this);
   emit outlineChanged();
+  if (guard.isNull()) {
+    return;
+  }
   emit renderStatusChanged();
+  if (guard.isNull()) {
+    return;
+  }
+  emit renderFinished(request_id);
+  if (guard.isNull()) {
+    return;
+  }
+  if (notify_reload) {
+    emit documentReloaded();
+    if (guard.isNull()) {
+      return;
+    }
+  }
+  if (notify_viewport) {
+    emit viewportScrolled(scroll);
+  }
+}
+
+void MarkdownView::CancelPendingRender() {
+  if (active_request_id_ != 0) {
+    ++render_history_.requests_cancelled;
+    if (render_service_ != nullptr) {
+      render_service_->Cancel(view_id_, active_request_id_);
+    }
+  }
+  ++render_request_id_;
+  active_request_id_ = 0;
+  rendering_ = false;
+  pending_notify_reload_ = false;
+  pending_notify_viewport_ = false;
+  pending_scroll_.reset();
+  pending_parse_ = MarkdownParseResult();
+  pending_rendered_.clear();
+  pending_total_ = 0;
+  pending_completed_ = 0;
+  pending_in_flight_ = 0;
+  // 回滚到屏幕上仍显示的已提交代，避免下一次 Reapply/热重载把取消的
+  // 待提交文档又拉回来
+  markdown_ = committed_markdown_;
+  current_file_ = committed_file_;
+  base_dir_ = committed_base_dir_;
+  WatchCurrentFile();
+  // 占位页盖住了已提交文档：取消时把屏幕也一起回滚
+  if (placeholder_visible_) {
+    placeholder_visible_ = false;
+    zoom_timer_->stop();
+    html_->setZoomFactorWithoutRender(zoom_);
+    html_->setUrl(BaseUrlForDir(committed_base_dir_));
+    html_->setHtml(committed_html_);
+    html_->verticalScrollBar()->setValue(placeholder_scroll_);
+    placeholder_scroll_ = 0;
+  }
 }
 
 QString MarkdownView::RegisterImageTag(const QString& token,
-                                       const QString& renderer_tag) {
+                                       const QString& renderer_tag,
+                                       QHash<QString, QPixmap>* pixmaps) {
   if (renderer_tag.isEmpty()) {
     return QString();  // 渲染失败，调用方按原文兜底
   }
@@ -757,7 +1177,7 @@ QString MarkdownView::RegisterImageTag(const QString& token,
       MarkdownRenderContextAccess::State(*context_);
   if (const PixmapCacheEntry* cached = state.pixmap_cache.object(token)) {
     ++state.image_stats.image_cache_hits;
-    document_pixmaps_.insert(token, cached->pixmap);
+    pixmaps->insert(token, cached->pixmap);
     return cached->img_tag;
   }
   ++state.image_stats.image_cache_misses;
@@ -774,34 +1194,44 @@ QString MarkdownView::RegisterImageTag(const QString& token,
   // insert 失败时 QCache 已删除 entry，之后不能再碰它；pin 层仍保证当前文档可用
   state.pixmap_cache.insert(token, entry,
                             static_cast<int>(qMin(cost, kMaxCost)));
-  document_pixmaps_.insert(token, pixmap);
+  pixmaps->insert(token, pixmap);
   return token_tag;
 }
 
 void MarkdownView::ShowMessage(const QString& text) {
+  // 错误页是新的已提交状态：旧文档的 copy/锚点/大纲不能继续指向看不见的页
+  const bool had_outline = !outline_.isEmpty();
+  committed_markdown_.clear();
+  committed_file_.clear();
+  committed_base_dir_.clear();
+  committed_html_.clear();
+  has_committed_ = false;
+  placeholder_visible_ = false;
+  placeholder_scroll_ = 0;
+  code_blocks_.clear();
+  heading_ids_.clear();
+  outline_.clear();
+  document_pixmaps_.clear();
+  InvalidateAnchorYCache();
   // 错误页同样走 setHtml：先落地挂起缩放，避免先按旧缩放排一次
   zoom_timer_->stop();
   html_->setZoomFactorWithoutRender(zoom_);
   html_->setHtml(WrapDocument(
       QStringLiteral("<p class=\"error\">%1</p>").arg(text.toHtmlEscaped()),
       LoadDefaultCss(theme_)));
+  if (had_outline) {
+    emit outlineChanged();
+  }
+  emit renderStatusChanged();
 }
 
 void MarkdownView::ClearDocument() {
+  CancelPendingRender();
   markdown_.clear();
   base_dir_.clear();
   current_file_.clear();
-  // 文档级表也要清：错误页现在没有 copy:/锚点，但"清空文档"不能留上一份
-  // 文档的代码块与锚点，否则将来错误页加链接会复制到旧代码
-  code_blocks_.clear();
-  heading_ids_.clear();
-  // 没有大纲时不用发信号：SetContent 会先 ClearDocument 再 ApplyDocument，
-  // 第一次载入不该出现两次 outlineChanged
-  if (!outline_.isEmpty()) {
-    outline_.clear();
-    InvalidateAnchorYCache();
-    emit outlineChanged();
-  }
+  // 已提交的 code_blocks_/heading_ids_/outline_/pixmap 保持到下一代替换：
+  // 旧 HTML 还在屏幕上，copy:/锚点/图片必须继续可用
   reload_attempts_ = 0;
   if (reload_timer_ != nullptr) {
     reload_timer_->stop();
@@ -850,10 +1280,7 @@ void MarkdownView::OnFileChanged() {
     return;
   }
   markdown_ = text;
-  const int scroll = html_->verticalScrollBar()->value();
-  ApplyDocument();
-  html_->verticalScrollBar()->setValue(scroll);
-  emit documentReloaded();
+  ApplyDocument(true, true);
 }
 
 void MarkdownView::OnReloadTick() {
@@ -863,8 +1290,9 @@ void MarkdownView::OnReloadTick() {
   }
   if (QFile::exists(current_file_)) {
     reload_timer_->stop();
-    if (LoadFile(current_file_)) {
-      emit documentReloaded();
+    reload_notify_on_load_ = true;
+    if (!LoadFile(current_file_)) {
+      reload_notify_on_load_ = false;
     }
     return;
   }

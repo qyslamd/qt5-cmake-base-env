@@ -11,6 +11,8 @@ TEST(RenderContextTest, DefaultOptionsDriveCacheLimits) {
   MarkdownRenderContext context;
   MarkdownRenderContextState& state =
       MarkdownRenderContextAccess::State(context);
+  EXPECT_EQ(state.highlight_cache.max_entries,
+            context.options().highlight_cache_entries);
   EXPECT_EQ(state.formula_cache.max_entries,
             context.options().formula_cache_entries);
   EXPECT_EQ(state.mermaid_cache.max_entries,
@@ -20,12 +22,14 @@ TEST(RenderContextTest, DefaultOptionsDriveCacheLimits) {
 TEST(RenderContextTest, SetOptionsUpdatesCacheLimits) {
   MarkdownRenderContext context;
   MarkdownRenderContextOptions options;
+  options.highlight_cache_entries = 11;
   options.formula_cache_entries = 7;
   options.mermaid_cache_entries = 3;
   context.SetOptions(options);
 
   MarkdownRenderContextState& state =
       MarkdownRenderContextAccess::State(context);
+  EXPECT_EQ(state.highlight_cache.max_entries, 11);
   EXPECT_EQ(state.formula_cache.max_entries, 7);
   EXPECT_EQ(state.mermaid_cache.max_entries, 3);
 }
@@ -33,17 +37,22 @@ TEST(RenderContextTest, SetOptionsUpdatesCacheLimits) {
 TEST(RenderContextTest, SetOptionsTrimsExistingEntriesImmediately) {
   MarkdownRenderContext context;
   MarkdownRenderContextOptions options;
+  options.highlight_cache_entries = 4;
   options.formula_cache_entries = 4;
   context.SetOptions(options);
   MarkdownRenderContextState& state =
       MarkdownRenderContextAccess::State(context);
   for (int i = 0; i < 4; ++i) {
+    state.highlight_cache.Insert(QString::number(i), QStringLiteral("v"));
     state.formula_cache.Insert(QString::number(i), QStringLiteral("v"));
   }
+  EXPECT_EQ(state.highlight_cache.entries.size(), 4);
   EXPECT_EQ(state.formula_cache.entries.size(), 4);
 
+  options.highlight_cache_entries = 2;
   options.formula_cache_entries = 2;
   context.SetOptions(options);
+  EXPECT_EQ(state.highlight_cache.entries.size(), 2);
   EXPECT_EQ(state.formula_cache.entries.size(), 2);
 }
 
@@ -51,14 +60,17 @@ TEST(RenderContextTest, SetOptionsTrimsExistingEntriesImmediately) {
 TEST(RenderContextTest, ResetStatsKeepsOptions) {
   MarkdownRenderContext context;
   MarkdownRenderContextOptions options;
+  options.highlight_cache_entries = 6;
   options.formula_cache_entries = 9;
   options.mermaid_cache_entries = 4;
   context.SetOptions(options);
   context.ResetStats();
 
+  EXPECT_EQ(context.options().highlight_cache_entries, 6);
   EXPECT_EQ(context.options().formula_cache_entries, 9);
   MarkdownRenderContextState& state =
       MarkdownRenderContextAccess::State(context);
+  EXPECT_EQ(state.highlight_cache.max_entries, 6);
   EXPECT_EQ(state.formula_cache.max_entries, 9);
   EXPECT_EQ(state.mermaid_cache.max_entries, 4);
 }

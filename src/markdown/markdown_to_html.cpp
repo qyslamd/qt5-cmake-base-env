@@ -16,12 +16,6 @@ extern "C" {
 
 namespace {
 
-// 一段公式：tex 原文 + 是否独立成行
-struct MathSegment {
-  QString tex;
-  bool display = false;
-};
-
 // 公式在 md4c 眼里就是个普通文本占位符。抽出来在两头处理，是因为 $ 在两处
 // 意思不同：代码块/行内代码里是字面量，正文里才是公式——只有源码阶段分得清，
 // 对成品 HTML 正则会把 `awk '{ print $1 }'` 也当公式
@@ -45,7 +39,8 @@ bool IsEscapedAt(const QString& line, int index) {
 }
 
 // 处理一行：跳过行内代码与转义的 \$，剩下的 $…$ / $$…$$ 换成占位符
-QString ExtractMathInLine(const QString& line, QVector<MathSegment>* segments,
+QString ExtractMathInLine(const QString& line,
+                          QVector<MarkdownMathSegment>* segments,
                           const QString& salt) {
   // 占位符比原文短、换行不变：按原长留底，逐段 append 不会反复扩容
   QString out;
@@ -225,7 +220,8 @@ bool EndsParagraph(const QString& trimmed, bool paragraph_open) {
 }
 
 // 逐行抽取：围栏代码块整段跳过；单独成行的 $$ 会把中间的行合并成一段公式
-QString ExtractMath(const QString& markdown, QVector<MathSegment>* segments,
+QString ExtractMath(const QString& markdown,
+                    QVector<MarkdownMathSegment>* segments,
                     const QString& salt) {
   const QStringList lines = markdown.split(QLatin1Char('\n'));
   QStringList result;
@@ -336,7 +332,8 @@ QString ExtractMath(const QString& markdown, QVector<MathSegment>* segments,
 
 // 占位符换回渲染结果。渲染不出来（或调用方没给回调）就显示原文——一条坏公式
 // 不该吞掉整页
-QString RestoreMath(const QString& html, const QVector<MathSegment>& segments,
+QString RestoreMath(const QString& html,
+                    const QVector<MarkdownMathSegment>& segments,
                     const FormulaSink& formula, const QString& salt) {
   // 盐是十六进制串，对正则安全
   const QRegularExpression kSlot(QStringLiteral("@@mj-%1-(\\d+)@@").arg(salt));
@@ -355,7 +352,7 @@ QString RestoreMath(const QString& html, const QVector<MathSegment>& segments,
     if (index < 0 || index >= segments.size()) {
       continue;
     }
-    const MathSegment& segment = segments.at(index);
+    const MarkdownMathSegment& segment = segments.at(index);
     const QString rendered =
         formula ? formula(segment.tex, segment.display) : QString();
     if (!rendered.isEmpty()) {
@@ -433,6 +430,31 @@ QString BuildCodeBlockFrame(const QString& highlighted, const QString& language,
   }
   out += QStringLiteral("</div>");
   return out;
+}
+
+// 解析阶段只收集代码块元数据，不做高亮/出图；索引按出现顺序编号
+QVector<MarkdownCodeBlock> CollectCodeBlocks(const QString& html) {
+  static const QRegularExpression kPreCode(
+      QStringLiteral("^(<pre><code([^>]*)>)([\\s\\S]*?)(</code></pre>)"),
+      QRegularExpression::MultilineOption);
+  static const QRegularExpression kLanguage(
+      QStringLiteral("class=\"language-([^\"]+)\""));
+
+  QVector<MarkdownCodeBlock> blocks;
+  int index = 0;
+  auto matches = kPreCode.globalMatch(html);
+  while (matches.hasNext()) {
+    const QRegularExpressionMatch match = matches.next();
+    MarkdownCodeBlock block;
+    block.index = index++;
+    const QRegularExpressionMatch found = kLanguage.match(match.captured(2));
+    if (found.hasMatch()) {
+      block.language = found.captured(1);
+    }
+    block.code = UnescapeHtml(match.captured(3));
+    blocks.append(block);
+  }
+  return blocks;
 }
 
 QString HighlightCodeBlocks(const QString& html, const MermaidSink& mermaid,
@@ -591,34 +613,91 @@ QString AddHeadingIds(
   return out;
 }
 
+MarkdownParseResult ParseMarkdown(const QString& markdown, bool extract_math) {
+  MarkdownParseResult parsed;
+  // 盐无条件生成：即使不抽公式，RestoreMath 也会用这个盐扫描；空盐会让
+  // 正则退化成匹配用户正文里的字面占位符
+  parsed.math_salt = QUuid::createUuid().toString(QUuid::WithoutBraces).left(8);
+  QString source = markdown;
+  if (extract_math) {
+    source = ExtractMath(markdown, &parsed.segments, parsed.math_salt);
+  }
+
+  const QByteArray utf8 = source.toUtf8();
+  // SKIP_UTF8_BOM：本模块的调用方给的是已解码的 QString（BOM 早被 Qt 吃掉），
+  // 但直接喂原始字节的调用方会因 BOM 把首个块解析成正文，一个 flag 免掉这个坑
+  const int result =
+      md_html(utf8.constData(), static_cast<MD_SIZE>(utf8.size()), AppendHtml,
+              &parsed.html, MD_DIALECT_GITHUB, MD_HTML_FLAG_SKIP_UTF8_BOM);
+  if (result != 0) {
+    parsed.html = QStringLiteral("<p class=\"error\">Markdown 解析失败</p>");
+    parsed.parse_error = true;
+    return parsed;
+  }
+  parsed.blocks = CollectCodeBlocks(parsed.html);
+  return parsed;
+}
+
+QString AssembleMarkdown(const MarkdownParseResult& parsed,
+                         const MarkdownRenderResolver& resolver,
+                         const CodeBlockSink& code_blocks,
+                         const HeadingSink& heading_ids,
+                         const MarkdownRenderOptions& options) {
+  if (parsed.parse_error) {
+    return parsed.html;
+  }
+  // 组装层只查结果，不触发渲染；空结果由 HighlightCodeBlocks/RestoreMath
+  // 按原逻辑回退到代码块或公式原文
+  MarkdownRenderOptions resolved_options = options;
+  resolved_options.highlight = [&resolver](const QString& code,
+                                           const QString& language) {
+    const QString rendered =
+        resolver(MarkdownRenderKind::Highlight, code, language, false);
+    // 取消/缺失结果不能把代码块变成空白；高亮返回空时退纯转义
+    if (rendered.isEmpty() && !code.isEmpty()) {
+      return EscapeHtml(code);
+    }
+    return rendered;
+  };
+  const MermaidSink mermaid = [&resolver](const QString& code) {
+    return resolver(MarkdownRenderKind::Mermaid, code, QString(), false);
+  };
+  const FormulaSink formula = [&resolver](const QString& tex, bool display) {
+    return resolver(MarkdownRenderKind::Formula, tex, QString(), display);
+  };
+  // 补标题锚点放在最后：前面的高亮/公式回填只会替换标签内部，不动 h1–h6
+  // 的外框，这里的 id 因此不会被谁冲掉
+  return AddHeadingIds(
+      RestoreMath(HighlightCodeBlocks(parsed.html, mermaid, code_blocks,
+                                      resolved_options),
+                  parsed.segments, formula, parsed.math_salt),
+      heading_ids, options.outline);
+}
+
 QString MarkdownToHtml(const QString& markdown, const FormulaSink& formula,
                        const MermaidSink& mermaid,
                        const CodeBlockSink& code_blocks,
                        const HeadingSink& heading_ids,
                        const MarkdownRenderOptions& options) {
-  // 公式在 md4c 之前抽出占位符、之后换回渲染结果；没给回调就整段跳过，
-  // 一个字符都不动（$…$ 于是原样显示）
-  QVector<MathSegment> segments;
-  // 占位符盐：一次渲染一个，抽与还必须同盐（见 MathPlaceholder 的注释）
-  const QString math_salt =
-      QUuid::createUuid().toString(QUuid::WithoutBraces).left(8);
-  const QString source =
-      formula ? ExtractMath(markdown, &segments, math_salt) : markdown;
-
-  const QByteArray utf8 = source.toUtf8();
-  QString html;
-  // SKIP_UTF8_BOM：本模块的调用方给的是已解码的 QString（BOM 早被 Qt 吃掉），
-  // 但直接喂原始字节的调用方会因 BOM 把首个块解析成正文，一个 flag 免掉这个坑
-  const int result =
-      md_html(utf8.constData(), static_cast<MD_SIZE>(utf8.size()), AppendHtml,
-              &html, MD_DIALECT_GITHUB, MD_HTML_FLAG_SKIP_UTF8_BOM);
-  if (result != 0) {
-    return QStringLiteral("<p class=\"error\">Markdown 解析失败</p>");
+  const MarkdownParseResult parsed =
+      ParseMarkdown(markdown, static_cast<bool>(formula));
+  if (parsed.parse_error) {
+    return parsed.html;
   }
-  // 补标题锚点放在最后：前面的高亮/公式回填只会替换标签内部，不动 h1–h6
-  // 的外框，这里的 id 因此不会被谁冲掉
-  return AddHeadingIds(
-      RestoreMath(HighlightCodeBlocks(html, mermaid, code_blocks, options),
-                  segments, formula, math_salt),
-      heading_ids, options.outline);
+  const MarkdownRenderResolver resolver =
+      [&formula, &mermaid, &options](MarkdownRenderKind kind,
+                                     const QString& payload,
+                                     const QString& language, bool display) {
+        switch (kind) {
+          case MarkdownRenderKind::Formula:
+            return formula ? formula(payload, display) : QString();
+          case MarkdownRenderKind::Mermaid:
+            return mermaid ? mermaid(payload) : QString();
+          case MarkdownRenderKind::Highlight:
+            return options.highlight ? options.highlight(payload, language)
+                                     : HighlightCode(payload, language);
+        }
+        return QString();
+      };
+  return AssembleMarkdown(parsed, resolver, code_blocks, heading_ids, options);
 }

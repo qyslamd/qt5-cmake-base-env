@@ -16,6 +16,7 @@
 #include <QString>
 #include <QTemporaryDir>
 
+#include "markdown_test_wait.h"
 #include "markdown_view.h"
 
 int main(int argc, char** argv) {
@@ -51,9 +52,16 @@ QString SampleMarkdown() {
       "## 第二节\n\n再来一段撑开版面，打印时至少能看出一页。\n");
 }
 
+bool SetContentAndWait(MarkdownView& view, const QString& markdown,
+                       const QString& base_dir) {
+  RenderWaiter waiter(&view);
+  view.SetContent(markdown, base_dir);
+  return waiter.Wait();
+}
+
 TEST(MarkdownViewActionsTest, FindHits) {
   MarkdownView view;
-  view.SetContent(SampleMarkdown(), QString());
+  ASSERT_TRUE(SetContentAndWait(view, SampleMarkdown(), QString()));
   bool wrapped = true;  // 先置反，确认实现真的写了它
   EXPECT_TRUE(view.FindText(QStringLiteral("needle"), MarkdownView::FindFlags(),
                             &wrapped));
@@ -62,7 +70,7 @@ TEST(MarkdownViewActionsTest, FindHits) {
 
 TEST(MarkdownViewActionsTest, FindMissesWithoutTouchingSelection) {
   MarkdownView view;
-  view.SetContent(SampleMarkdown(), QString());
+  ASSERT_TRUE(SetContentAndWait(view, SampleMarkdown(), QString()));
   EXPECT_FALSE(
       view.FindText(QStringLiteral("完全没有的词"), MarkdownView::FindFlags()));
 }
@@ -70,13 +78,13 @@ TEST(MarkdownViewActionsTest, FindMissesWithoutTouchingSelection) {
 // 空串是误用，不是"找全部"：必须原样返回 false，不滚不选
 TEST(MarkdownViewActionsTest, EmptyNeedleIsRejected) {
   MarkdownView view;
-  view.SetContent(SampleMarkdown(), QString());
+  ASSERT_TRUE(SetContentAndWait(view, SampleMarkdown(), QString()));
   EXPECT_FALSE(view.FindText(QString(), MarkdownView::FindFlags()));
 }
 
 TEST(MarkdownViewActionsTest, PrintWritesPdf) {
   MarkdownView view;
-  view.SetContent(SampleMarkdown(), QString());
+  ASSERT_TRUE(SetContentAndWait(view, SampleMarkdown(), QString()));
 
   QTemporaryDir dir;
   ASSERT_TRUE(dir.isValid());
@@ -101,7 +109,7 @@ TEST(MarkdownViewActionsTest, PrintWritesPdf) {
 // 全部空白；PDF 里必须真的出现图片对象
 TEST(MarkdownViewActionsTest, PrintIncludesFormulaImage) {
   MarkdownView view;
-  view.SetContent(QStringLiteral("$x^2$\n"), QString());
+  ASSERT_TRUE(SetContentAndWait(view, QStringLiteral("$x^2$\n"), QString()));
 
   QTemporaryDir dir;
   ASSERT_TRUE(dir.isValid());
@@ -152,7 +160,7 @@ TEST(MarkdownViewActionsTest, PrintHighResolutionPaginatesLongDocument) {
                     .arg(i);
   }
   MarkdownView view;
-  view.SetContent(markdown, QString());
+  ASSERT_TRUE(SetContentAndWait(view, markdown, QString()));
 
   QTemporaryDir dir;
   ASSERT_TRUE(dir.isValid());
@@ -175,8 +183,80 @@ TEST(MarkdownViewActionsTest, PrintHighResolutionPaginatesLongDocument) {
 // 空指针不崩：宿主忘了判空时也别炸
 TEST(MarkdownViewActionsTest, PrintNullPrinterIsNoop) {
   MarkdownView view;
-  view.SetContent(SampleMarkdown(), QString());
+  ASSERT_TRUE(SetContentAndWait(view, SampleMarkdown(), QString()));
   view.Print(nullptr);
+}
+
+// 取消待提交的新文档后，后续 Reapply 必须回到屏幕上那份已提交文档
+TEST(MarkdownViewActionsTest, CancelPendingRenderRollsBackCommittedDoc) {
+  MarkdownView view;
+  ASSERT_TRUE(
+      SetContentAndWait(view, QStringLiteral("# A\n\n旧文档\n"), QString()));
+  QSignalSpy progress(&view, &MarkdownView::renderProgress);
+  view.SetContent(QStringLiteral("$b$\n\n# B\n\n新文档\n"), QString());
+  QTRY_VERIFY_WITH_TIMEOUT(progress.count() > 0, 60000);
+  view.CancelPendingRender();
+
+  RenderWaiter waiter(&view);
+  view.SetTheme(MarkdownTheme::Dark);
+  ASSERT_TRUE(waiter.Wait());
+  EXPECT_TRUE(
+      view.FindText(QStringLiteral("旧文档"), MarkdownView::FindFlags()));
+  EXPECT_FALSE(
+      view.FindText(QStringLiteral("新文档"), MarkdownView::FindFlags()));
+}
+
+// 占位页只是临时的：提交会覆盖它，取消则回到屏幕上那份已提交文档
+TEST(MarkdownViewActionsTest, PlaceholderIsReplacedOrRolledBack) {
+  MarkdownView view;
+  ASSERT_TRUE(
+      SetContentAndWait(view, QStringLiteral("# A\n\n旧文档\n"), QString()));
+  view.ShowPlaceholder(QStringLiteral("正在渲染…"));
+  EXPECT_TRUE(
+      view.FindText(QStringLiteral("正在渲染"), MarkdownView::FindFlags()));
+
+  view.CancelPendingRender();
+  EXPECT_TRUE(
+      view.FindText(QStringLiteral("旧文档"), MarkdownView::FindFlags()));
+  EXPECT_FALSE(
+      view.FindText(QStringLiteral("正在渲染"), MarkdownView::FindFlags()));
+
+  view.ShowPlaceholder(QStringLiteral("正在渲染…"));
+  ASSERT_TRUE(
+      SetContentAndWait(view, QStringLiteral("# B\n\n新文档\n"), QString()));
+  EXPECT_TRUE(
+      view.FindText(QStringLiteral("新文档"), MarkdownView::FindFlags()));
+  EXPECT_FALSE(
+      view.FindText(QStringLiteral("正在渲染"), MarkdownView::FindFlags()));
+}
+
+// 前一代还没渲染完就换文档：只允许后一代提交
+TEST(MarkdownViewActionsTest, StaleRequestDoesNotCommit) {
+  MarkdownView view;
+  QSignalSpy progress(&view, &MarkdownView::renderProgress);
+  view.SetContent(QStringLiteral("$a+b$\n\n# 旧\n"), QString());
+  QTRY_VERIFY_WITH_TIMEOUT(progress.count() > 0, 60000);
+
+  QSignalSpy finished(&view, &MarkdownView::renderFinished);
+  view.SetContent(QStringLiteral("# 新\n\nneedle\n"), QString());
+  ASSERT_TRUE(finished.wait(60000));
+  EXPECT_TRUE(
+      view.FindText(QStringLiteral("needle"), MarkdownView::FindFlags()));
+  EXPECT_FALSE(view.FindText(QStringLiteral("旧"), MarkdownView::FindFlags()));
+}
+
+// 进度与收尾都带同一个 request_id；有公式时 total 应为 1
+TEST(MarkdownViewActionsTest, EmitsProgressThenFinished) {
+  MarkdownView view;
+  QSignalSpy finished(&view, &MarkdownView::renderFinished);
+  QSignalSpy progress(&view, &MarkdownView::renderProgress);
+  view.SetContent(QStringLiteral("$x$\n"), QString());
+
+  ASSERT_TRUE(finished.wait(60000));
+  ASSERT_GT(progress.count(), 0);
+  EXPECT_EQ(progress.last().at(0).toULongLong(),
+            finished.last().at(0).toULongLong());
+  EXPECT_GE(progress.last().at(2).toInt(), 1);
 }
 
 // 文本直载也算"有文档"：SetContent 只落 markdown_、不动 current_file_，
@@ -184,7 +264,7 @@ TEST(MarkdownViewActionsTest, PrintNullPrinterIsNoop) {
 TEST(MarkdownViewActionsTest, SetContentMarksDocumentAsPresent) {
   MarkdownView view;
   EXPECT_FALSE(view.has_document());
-  view.SetContent(SampleMarkdown(), QString());
+  ASSERT_TRUE(SetContentAndWait(view, SampleMarkdown(), QString()));
   EXPECT_TRUE(view.has_document());
   EXPECT_TRUE(view.current_file().isEmpty());  // 依旧没有文件归属
 }

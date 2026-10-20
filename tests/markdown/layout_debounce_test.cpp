@@ -7,6 +7,7 @@
 #include <QStandardPaths>
 #include <QWidget>
 
+#include "markdown_test_wait.h"
 #include "markdown_view.h"
 
 // 重排去抖的判据：整篇 litehtml 布局的次数，而不是 documentHeight（同宽
@@ -71,8 +72,10 @@ void PumpMs(int ms) {
 
 // 每次用新文档重建布局，返回重建后的计数
 int SetDocument(MarkdownView& view, const QString& markdown) {
+  RenderWaiter waiter(&view);
   view.SetContent(markdown, QString());
-  PumpMs(50);
+  waiter.Wait();
+  PumpMs(20);
   return LayoutCount(view);
 }
 
@@ -209,7 +212,9 @@ TEST(LayoutDebounceTest, PendingZoomCostsNoExtraLayoutOnDocumentSwap) {
   const int base = SetDocument(view, LongDoc());
 
   view.SetZoomFactor(1.4);
+  RenderWaiter waiter(&view);
   view.SetContent(LongDoc() + QStringLiteral("\n\n追加段落。\n"), QString());
+  waiter.Wait();
   PumpMs(400);
 
   EXPECT_EQ(LayoutCount(view), base + 1) << "换文档只该有 setHtml 那一次布局";

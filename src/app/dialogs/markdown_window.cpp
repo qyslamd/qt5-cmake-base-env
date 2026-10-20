@@ -80,6 +80,14 @@ void MarkdownWindow::initSignals() {
           [this](const QString& path, const QString& reason) {
             path_label_->setText(QStringLiteral("%1（%2）").arg(path, reason));
           });
+  connect(view_, &MarkdownView::renderFinished, this, [this](quint64) {
+    if (pending_fragment_.isEmpty()) {
+      return;
+    }
+    const QString fragment = pending_fragment_;
+    pending_fragment_.clear();
+    view_->ScrollToAnchor(fragment);
+  });
 }
 
 void MarkdownWindow::OpenFile(const QString& path) {
@@ -89,7 +97,9 @@ void MarkdownWindow::OpenFile(const QString& path) {
   activateWindow();
 }
 
-void MarkdownWindow::ShowDocument(const QString& path) {
+void MarkdownWindow::ShowDocument(const QString& path,
+                                  const QString& fragment) {
+  pending_fragment_ = fragment;
   path_label_->setToolTip(path);
   if (view_->LoadFile(path)) {
     path_label_->setText(path);
@@ -98,6 +108,7 @@ void MarkdownWindow::ShowDocument(const QString& path) {
     return;
   }
   // 没打开就别挂着它的文件名：视图里已经是错误页，标题跟着说实话
+  pending_fragment_.clear();
   path_label_->setText(QStringLiteral("打开失败：%1").arg(path));
   setWindowTitle(QStringLiteral("Markdown"));
 }
@@ -129,6 +140,10 @@ void MarkdownWindow::OnLinkClicked(const QUrl& url) {
                   QLatin1Char('/'))
             : QUrl();
     if (no_frag.isEmpty() || no_frag == here) {
+      if (view_->is_rendering()) {
+        view_->CancelPendingRender();
+        pending_fragment_.clear();
+      }
       view_->ScrollToAnchor(fragment);
       return;
     }
@@ -136,8 +151,8 @@ void MarkdownWindow::OnLinkClicked(const QUrl& url) {
 
   const QString path = url.isLocalFile() ? url.toLocalFile() : QString();
   if (!path.isEmpty() && IsMarkdownFile(path)) {
-    ShowDocument(path);
-    view_->ScrollToAnchor(fragment);  // 跨文件带锚点：载入后滚过去
+    // 跨文件带锚点：渲染完成后滚过去
+    ShowDocument(path, fragment);
     return;
   }
 

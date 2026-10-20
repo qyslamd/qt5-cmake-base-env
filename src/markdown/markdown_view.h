@@ -4,6 +4,7 @@
 #include <memory>
 #include <optional>
 
+#include <QElapsedTimer>
 #include <QHash>
 #include <QPixmap>
 #include <QString>
@@ -11,9 +12,13 @@
 #include <QVector>
 #include <QWidget>
 
+#include "markdown_render_tasks.h"
+#include "markdown_to_html.h"
 #include "markdown_types.h"
 
 class MarkdownRenderContext;
+class MarkdownRenderService;
+struct MarkdownRenderResult;
 class QFileSystemWatcher;
 class QLiteHtmlWidget;
 class QPrinter;
@@ -75,12 +80,23 @@ class MarkdownView : public QWidget {
   // 直接给文本。基准 URL 就是 base_dir（空 = 没有基准），不给上一份文档的目录
   // 留后门——否则相对图片会悄悄按上次那个目录解析
   void SetContent(const QString& markdown, const QString& base_dir);
-  QString current_file() const { return current_file_; }
+  // 立即换成一段占位页，不改已提交文档的状态；下一次提交整体覆盖。
+  // 换文档/换主题耗时时先给用户明确反馈，避免旧页面看起来像没响应
+  void ShowPlaceholder(const QString& text);
+  // 最后已提交的文件；派发中的新文件在 renderFinished 后才可见
+  QString current_file() const { return committed_file_; }
   // 两种载入都算"有文档"：LoadFile 落 current_file_，SetContent 只落
   // markdown_——只查后者的话文本直载后这里恒为 false
-  bool has_document() const {
-    return !current_file_.isEmpty() || !markdown_.isEmpty();
+  // 只反映最后已提交代；渲染中的新文档要等 renderFinished
+  bool has_document() const { return has_committed_; }
+  // 是否有一代正在解析/渲染；宿主据此避免在旧文档上做即时滚动
+  bool is_rendering() const { return rendering_; }
+  // 正在渲染的目标文件（SetContent 无文件时为空）
+  QString pending_file() const {
+    return rendering_ ? current_file_ : QString();
   }
+  // 取消当前派发；旧结果会被 request_id 过滤，worker 本身仍会跑完
+  void CancelPendingRender();
 
   // 滚到页内锚点：用户写的是 slug（`#标题`），这里经内部的 slug→id 表换成
   // 元素再滚；查不到就原样透传（手写的 <a name="x"> 那类归 litehtml 自己找）
@@ -132,6 +148,14 @@ class MarkdownView : public QWidget {
   // 本视图的渲染状态（不触发加载）与计数清零
   MarkdownRendererStatus renderer_status() const;
   void ResetRendererStats();
+  // 共享池实时状态（worker/队列/处理中/JS 堆）；未派发过渲染时为零
+  MarkdownServiceStatus render_service_status() const;
+  // 最近一次已提交文档的统计、阶段耗时与整个视图的请求历史
+  MarkdownDocumentStats document_stats() const { return document_stats_; }
+  MarkdownRenderTimings last_render_timings() const {
+    return last_render_timings_;
+  }
+  MarkdownRenderHistory render_history() const { return render_history_; }
   // 诊断：trace 打 qt.markdown.render；dump_directory 落中间产物。
   // 只影响观测，不改变 HTML，因此不触发重渲染
   void SetDiagnostics(const MarkdownDiagnostics& diagnostics);
@@ -172,6 +196,11 @@ class MarkdownView : public QWidget {
   void zoomChanged(qreal factor);
   // 文档渲染完成，renderer_status() 里的引擎状态与计数已更新
   void renderStatusChanged();
+  // 异步渲染进度：completed/total 可用于百分比；total == 0 表示无任务
+  void renderProgress(quint64 request_id, int completed, int total,
+                      int in_flight);
+  // 一次派发完成并已提交；宿主按 request_id 过滤旧代
+  void renderFinished(quint64 request_id);
   // 文件内容变化后成功重载（watchdog 路径）
   void documentReloaded();
   // 本地资源（图片）读取失败；data: URI 与 mj: token 不计入
@@ -185,7 +214,13 @@ class MarkdownView : public QWidget {
  private:
   void initUi();
   void initSignals();
-  void ApplyDocument();
+  void ApplyDocument(bool preserve_scroll = false,
+                     bool notify_document_reloaded = false);
+  // 解析、收集、缓存命中与派发；在事件循环里执行
+  void StartRender(quint64 request_id);
+  void OnTaskFinished(quint64 request_id, const MarkdownRenderResult& result);
+  void OnAllFinished(const QString& view_id, quint64 request_id);
+  void CommitRender(quint64 request_id);
   // 重渲染并保留垂直滚动位置（开关切换用）
   void ReapplyDocument();
   void ShowMessage(const QString& text);
@@ -196,7 +231,8 @@ class MarkdownView : public QWidget {
   void SetZoom(qreal factor);
   // 注册 renderer tag：命中跨文档缓存就直接用，否则解码一次再 token 化。
   // 当前文档的 token 一律 pin 进 document_pixmaps_，provider 只读这一层
-  QString RegisterImageTag(const QString& token, const QString& renderer_tag);
+  QString RegisterImageTag(const QString& token, const QString& renderer_tag,
+                           QHash<QString, QPixmap>* pixmaps);
   // 定时器到点：应用最后一档缩放
   void ApplyPendingZoom();
   // 立刻应用挂起的缩放（查找/锚点跳转前调用）
@@ -204,8 +240,12 @@ class MarkdownView : public QWidget {
   // 锚点 y 的缓存失效：换文档时显式调用；布局变化靠 layoutCount 自动发现
   void InvalidateAnchorYCache();
 
-  // 每视图一份渲染状态（缓存/计数/配置）；引擎是进程级共享的
+  // 每视图一份渲染状态（缓存/计数/配置）；引擎由同步入口的线程局部
+  // 默认实例提供，异步 worker 各自持有
   std::unique_ptr<MarkdownRenderContext> context_;
+  // 进程级共享服务；首次派发时才取实例
+  MarkdownRenderService* render_service_ = nullptr;
+  QString view_id_;
   QLiteHtmlWidget* html_ = nullptr;
   QFileSystemWatcher* watcher_ = nullptr;
   // "先删后建"保存时用来等文件回来，见 OnFileChanged
@@ -215,7 +255,16 @@ class MarkdownView : public QWidget {
   int reload_attempts_ = 0;
   QString markdown_;
   QString current_file_;
+  QString committed_file_;
   QString base_dir_;
+  // 资源回调按最后已提交文档的目录校验；派发期间不能提前换掉
+  QString committed_base_dir_;
+  QString committed_markdown_;
+  QString committed_html_;
+  bool has_committed_ = false;
+  // 占位页只是屏幕上的临时内容；取消派发时用它回滚到已提交页
+  bool placeholder_visible_ = false;
+  int placeholder_scroll_ = 0;
   // 代码块 id → 原始代码文本，供"复制"链接取用；每次 ApplyDocument 重建
   QHash<QString, QString> code_blocks_;
   // 标题 slug → 元素 id，供页内锚点反查；同样每次 ApplyDocument 重建
@@ -237,6 +286,28 @@ class MarkdownView : public QWidget {
   MarkdownTheme theme_ = MarkdownTheme::Light;
   // 转储时给每次 ApplyDocument 的源/最终 HTML 编号（仅诊断用）
   int dump_apply_index_ = 0;
+
+  // 异步渲染状态。pending_* 只在 GUI 线程读写，提交前不碰已提交表
+  quint64 render_request_id_ = 0;
+  quint64 active_request_id_ = 0;
+  bool rendering_ = false;
+  bool pending_notify_reload_ = false;
+  bool pending_notify_viewport_ = false;
+  bool reload_notify_on_load_ = false;
+  std::optional<int> pending_scroll_;
+  MarkdownParseResult pending_parse_;
+  QHash<QString, QString> pending_rendered_;  // identity -> tag/html
+  int pending_total_ = 0;
+  int pending_completed_ = 0;
+  int pending_in_flight_ = 0;
+  MarkdownEngineStatus highlight_engine_status_;
+  MarkdownEngineStatus formula_engine_status_;
+  MarkdownEngineStatus mermaid_engine_status_;
+  QElapsedTimer request_clock_;
+  MarkdownRenderTimings pending_timings_;
+  MarkdownRenderTimings last_render_timings_;
+  MarkdownDocumentStats document_stats_;
+  MarkdownRenderHistory render_history_;
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(MarkdownView::FindFlags)
