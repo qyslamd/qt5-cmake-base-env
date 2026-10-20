@@ -21,6 +21,39 @@
       的查看场景。
 - [x] ~~md_viewer 缩放控件~~（2026-10-19 已交付：工具栏提供缩小/100%/放大，
       状态栏显示百分比；`MarkdownView` 补 `ZoomIn/ZoomOut/ResetZoom`）
+- [ ] **评估用 JKQTMathText 替换 MathJax——可行性未知（2026-10-19）**：目标是
+      去掉 1.6MB 的 MathJax 载荷、QuickJS 运行时与 32MB 线程栈约束。
+      JKQTMathText 是 JKQtPlotter 里的纯 C++/Qt 手写 LaTeX 渲染器（LGPL 2.1+，
+      支持 Qt5，QPainter 直接出图），但只覆盖 LaTeX 子集。动手前先验四件事：
+      1) 用现有文档与公式语料比对覆盖率，重点看 `\begin{align}`、矩阵、AMS
+         符号、宏定义与 `\text`；不支持时退回 MathJax 还是直接显示原文；
+      2) 输出仍是 `<img>` data URI（qlitehtml 排不动 vlist），要定死 2x 栅格化、
+         基线/行高与主题色，缓存 key 加字号、颜色、DPR；
+      3) 构建与许可：MSVC2019 x86 + 本仓 CMake 静态链接，LGPL 2.1 对静态链接
+         的重链接义务要单独确认，必要时改为动态链接；
+      4) 保持 `FormulaToImgTag()` 接口不变，`FormulaRendererReady()` 与计数沿用，
+         引擎做成可切换，不做一次性替换。先出原型，对比覆盖率、冷启动与体积
+         增量再决定。
+      参考：<https://jkriege2.github.io/JKQtPlotter/group__jkqtmathtext__render.html>
+- [ ] **评估图表渲染从 mermaid.js 换到原生 QPainter（2026-10-19）**：目标是去掉
+      3.5MB 的 mermaid 载荷、QuickJS Promise 泵与 dom_shim。现在的链路是
+      `mermaid.render()` → SVG 三层后处理 → QSvgRenderer 2x 栅格化；换掉后由
+      QPainter 直接出位图，主题、字体指纹与缓存仍沿用 `MermaidToImgTag()` 这层。
+      可参考 Notepatra v0.1.103 的 native-Qt diagram renderer（WebEngine +
+      dagre.js 换成 C++ 布局 + QPainter，含命中测试与多格式导出），但它用的是
+      自有 .npd DSL，**不含 Mermaid 解析器**，只能借鉴结构：parse → layout →
+      paint。动手前先验四点：
+      1) 解析与布局才是大头。先只做 flowchart（覆盖大多数用例），分层 + 交叉
+         缩减相当于自研 dagre 子集；sequence/class/state/ER/gantt/pie 等先保留
+         JS 兜底，按图类型开关切换，不追求一次替换；
+      2) 输出仍是 `<img>` PNG data URI（qlitehtml 排不动 SVG 内联布局），对齐
+         现有 2x 超采样、4096² 像素上限与透明底；
+      3) 主题色板与 CJK 字体度量要进缓存 key；悬停/链接等交互先不做，静态
+         预览不需要；
+      4) 收益核算：省 3.5MB 载荷与冷启动，但 QuickJS 仍被 MathJax 占用；两边
+         都换掉才可能整体移除 QuickJS。先出 flowchart 原型，用现有图库比对
+         覆盖率、输出质量、体积与耗时再决定。
+      参考：<https://github.com/singhpratech/notepatra/blob/main/release_notes/v0.1.103.md>
 
 ## 渲染性能（设计与硬约束见 `docs/plan/mermaid图表渲染设计.md` §7.2）
 
