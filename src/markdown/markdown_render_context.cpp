@@ -19,6 +19,7 @@ void MarkdownRenderContext::SetOptions(
   // 调小上限立即生效，不让旧条目继续占着
   impl_->state.formula_cache.Trim();
   impl_->state.mermaid_cache.Trim();
+  impl_->state.UpdatePixmapCacheLimit();
 }
 
 const MarkdownRenderContextOptions& MarkdownRenderContext::options() const {
@@ -49,6 +50,7 @@ MarkdownRendererStatus MarkdownRenderContext::status() const {
 void MarkdownRenderContext::ClearMemoryCaches() {
   impl_->state.formula_cache.Clear();
   impl_->state.mermaid_cache.Clear();
+  impl_->state.pixmap_cache.clear();
 }
 
 void MarkdownRenderContext::ResetStats() {

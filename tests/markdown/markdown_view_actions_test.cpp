@@ -97,6 +97,32 @@ TEST(MarkdownViewActionsTest, PrintWritesPdf) {
   EXPECT_GT(pdf.size(), 1000);  // 空文档也会有个骨架，太小说明什么都没画
 }
 
+// 打印容器是新建的 DocumentContainer，只复制了 dataCallback 时 token 图会
+// 全部空白；PDF 里必须真的出现图片对象
+TEST(MarkdownViewActionsTest, PrintIncludesFormulaImage) {
+  MarkdownView view;
+  view.SetContent(QStringLiteral("$x^2$\n"), QString());
+
+  QTemporaryDir dir;
+  ASSERT_TRUE(dir.isValid());
+  const QString path = dir.filePath(QStringLiteral("formula.pdf"));
+
+  QPrinter printer(QPrinter::HighResolution);
+  printer.setOutputFormat(QPrinter::PdfFormat);
+  printer.setOutputFileName(path);
+  if (!printer.isValid()) {
+    GTEST_SKIP() << "本平台没有打印后端（如 offscreen），跳过 PDF 用例";
+  }
+  view.Print(&printer);
+
+  QFile pdf(path);
+  ASSERT_TRUE(pdf.open(QIODevice::ReadOnly));
+  const QByteArray data = pdf.readAll();
+  EXPECT_TRUE(data.contains("/Subtype /Image") ||
+              data.contains("/Subtype/Image"))
+      << data.left(2000).toStdString();
+}
+
 namespace {
 
 int PdfPageCount(const QByteArray& pdf) {

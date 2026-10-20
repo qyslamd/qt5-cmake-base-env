@@ -2,6 +2,8 @@
 
 #include <quickjs.h>
 
+#include <cmath>
+
 #include <QBuffer>
 #include <QDebug>
 #include <QElapsedTimer>
@@ -109,12 +111,19 @@ QString SvgToImgTag(const QString& svg, bool display, const QColor& color,
     return {};
   }
 
-  // 2 倍超采样、按 1 倍尺寸摆放：公式里的分数线与根号才有锐边
-  QImage image(qRound(width * 2.0), qRound(height * 2.0),
+  // 2 倍超采样、按 1 倍尺寸摆放：公式里的分数线与根号才有锐边。
+  // 像素总量与 mermaid 同口径封顶，防止超大公式把内存打爆
+  qreal scale = 2.0;
+  constexpr qreal kMaxRasterPixels = 4096.0 * 4096.0;
+  const qreal area = width * height;
+  if (area * scale * scale > kMaxRasterPixels) {
+    scale = std::sqrt(kMaxRasterPixels / area);
+  }
+  QImage image(qRound(width * scale), qRound(height * scale),
                QImage::Format_ARGB32_Premultiplied);
   image.fill(Qt::transparent);
   QPainter painter(&image);
-  renderer.render(&painter, QRectF(0.0, 0.0, width * 2.0, height * 2.0));
+  renderer.render(&painter, QRectF(0.0, 0.0, width * scale, height * scale));
   painter.end();
 
   QBuffer buffer;
@@ -153,7 +162,7 @@ void ClearFormulaCache() {
 }
 
 QString FormulaToImgTag(MarkdownRenderContext& context, const QString& tex,
-                        bool display, const QColor& color) {
+                        bool display, const QColor& color, QString* cache_key) {
   MarkdownRenderContextState& state =
       MarkdownRenderContextAccess::State(context);
   // MathJax 在数学模式下对首尾空白不敏感：key 与渲染输入统一用 trim 后的
@@ -163,6 +172,9 @@ QString FormulaToImgTag(MarkdownRenderContext& context, const QString& tex,
       color.isValid() ? color.name() : QStringLiteral("legacy");
   const QString key = (display ? QStringLiteral("D") : QStringLiteral("I")) +
                       variant + QLatin1Char('|') + normalized;
+  if (cache_key != nullptr) {
+    *cache_key = key;
+  }
   const MarkdownDiagnostics& diagnostics = state.options.diagnostics;
   if (const QString* cached = state.formula_cache.Find(key)) {
     ++state.formula_stats.memory_cache_hits;

@@ -22,8 +22,11 @@ class MarkdownRenderContext;
 // currentColor，并参与缓存 key。两参 ctx 重载保持旧输出（不换色）
 QString FormulaToImgTag(MarkdownRenderContext& context, const QString& tex,
                         bool display);
+// cache_key 非空时写入本次结果的缓存 key（内容稳定，供宿主生成图片 token）；
+// 内存命中、磁盘命中、渲染失败也会写。调用方不要拿它做展示。
 QString FormulaToImgTag(MarkdownRenderContext& context, const QString& tex,
-                        bool display, const QColor& color);
+                        bool display, const QColor& color,
+                        QString* cache_key = nullptr);
 // 便捷重载：进程默认上下文，旧行为
 QString FormulaToImgTag(const QString& tex, bool display);
 

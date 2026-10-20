@@ -1,11 +1,15 @@
 #include <gtest/gtest.h>
 
 #include <QApplication>
+#include <QBuffer>
 #include <QDateTime>
 #include <QDir>
+#include <QImage>
 #include <QMetaObject>
+#include <QPixmap>
 #include <QStandardPaths>
 #include <QTemporaryDir>
+#include <QUrl>
 #include <QWidget>
 
 #include "markdown_render_context.h"
@@ -62,6 +66,7 @@ TEST(RenderTogglesTest, DisabledRenderersDoNotLoadOrRender) {
   EXPECT_TRUE(html.contains(QStringLiteral("$x^2$"))) << html.toStdString();
   EXPECT_FALSE(html.contains(QStringLiteral("data:image/png;base64")))
       << html.toStdString();
+  EXPECT_FALSE(html.contains(QStringLiteral("mj:f/"))) << html.toStdString();
   // mermaid 围栏退回普通代码块
   EXPECT_TRUE(html.contains(QStringLiteral("<pre><code")))
       << html.toStdString();
@@ -79,9 +84,82 @@ TEST(RenderTogglesTest, EnablingFormulaRendersOnReapply) {
 
   view.SetFormulaRenderingEnabled(true);
   const QString html = HtmlOf(view);
-  EXPECT_TRUE(html.contains(QStringLiteral("data:image/png;base64")))
+  EXPECT_TRUE(html.contains(QStringLiteral("mj:f/"))) << html.toStdString();
+  EXPECT_FALSE(html.contains(QStringLiteral("data:image/png;base64")))
       << html.toStdString();
-  EXPECT_TRUE(view.renderer_status().formula.loaded);
+  ASSERT_TRUE(view.renderer_status().formula.loaded);
+
+  // 再 ApplyDocument 一次：公式命中内容缓存、图片命中 token 缓存，
+  // 不能重新渲染，也不能出现 token 悬空
+  const MarkdownRendererStatus before = view.renderer_status();
+  view.SetCodeLineNumbers(true);
+  const QString reapply_html = HtmlOf(view);
+  EXPECT_TRUE(reapply_html.contains(QStringLiteral("mj:f/")))
+      << reapply_html.toStdString();
+  const MarkdownRendererStatus after = view.renderer_status();
+  EXPECT_EQ(after.formula_context.renders, before.formula_context.renders);
+  EXPECT_GT(after.image_context.image_cache_hits,
+            before.image_context.image_cache_hits);
+}
+
+TEST(ImageTokenTest, TokenIsStableAndUrlSafe) {
+  const QString token =
+      MakeImageToken(QStringLiteral("f/"), QStringLiteral("D#ff0000|x^2"));
+  EXPECT_TRUE(token.startsWith(QStringLiteral("mj:f/")));
+  EXPECT_EQ(token.size(), QStringLiteral("mj:f/").size() + 64);
+  const QUrl url(token);
+  EXPECT_EQ(url.scheme(), QStringLiteral("mj"));
+  EXPECT_TRUE(url.host().isEmpty());
+  EXPECT_EQ(QString::fromLatin1(url.toEncoded()), token);
+  EXPECT_EQ(QUrl::fromEncoded(token.toUtf8()), url);
+  EXPECT_EQ(token, MakeImageToken(QStringLiteral("f/"),
+                                  QStringLiteral("D#ff0000|x^2")));
+  EXPECT_NE(token,
+            MakeImageToken(QStringLiteral("f/"), QStringLiteral("D#ff0000|y")));
+}
+
+TEST(ImageTokenTest, TokenizesPngAndPreservesAttributes) {
+  QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
+  image.fill(Qt::red);
+  QByteArray png;
+  QBuffer buffer(&png);
+  ASSERT_TRUE(buffer.open(QIODevice::WriteOnly));
+  ASSERT_TRUE(image.save(&buffer, "PNG"));
+  const QString tag =
+      QStringLiteral(
+          "<img class=\"mermaid\" src=\"data:image/png;base64,%1\" "
+          "width=\"2\" height=\"2\">")
+          .arg(QString::fromLatin1(png.toBase64()));
+
+  QPixmap pixmap;
+  const QString token = QStringLiteral("mj:m/abc");
+  const QString out = TokenizeImageTag(tag, token, &pixmap);
+  EXPECT_FALSE(pixmap.isNull());
+  EXPECT_FALSE(out.contains(QStringLiteral("data:image/png")));
+  EXPECT_TRUE(out.contains(QStringLiteral("src=\"mj:m/abc\"")));
+  EXPECT_TRUE(out.contains(QStringLiteral("class=\"mermaid\"")));
+  EXPECT_TRUE(out.contains(QStringLiteral("width=\"2\"")));
+  EXPECT_TRUE(out.contains(QStringLiteral("height=\"2\"")));
+}
+
+TEST(ImageTokenTest, InvalidTagsFallBackUnchanged) {
+  QPixmap pixmap;
+  EXPECT_TRUE(
+      TokenizeImageTag(QString(), QStringLiteral("mj:f/x"), &pixmap).isEmpty());
+  EXPECT_TRUE(pixmap.isNull());
+
+  const QString corrupt = QStringLiteral(
+      "<img src=\"data:image/png;base64,AAAA\" "
+      "width=\"2\" height=\"2\">");
+  EXPECT_EQ(TokenizeImageTag(corrupt, QStringLiteral("mj:f/x"), &pixmap),
+            corrupt);
+  EXPECT_TRUE(pixmap.isNull());
+
+  const QString not_png = QStringLiteral(
+      "<img src=\"file:///tmp/a.png\" width=\"2\" height=\"2\">");
+  EXPECT_EQ(TokenizeImageTag(not_png, QStringLiteral("mj:f/x"), &pixmap),
+            not_png);
+  EXPECT_TRUE(pixmap.isNull());
 }
 
 TEST(RenderTogglesTest, LineNumbersToggleChangesStructure) {

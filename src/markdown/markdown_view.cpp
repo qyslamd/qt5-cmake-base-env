@@ -1,12 +1,17 @@
 #include "markdown_view.h"
 
+#include <limits>
+
+#include <QBuffer>
 #include <QClipboard>
+#include <QCryptographicHash>
 #include <QDateTime>
 #include <QDebug>
 #include <QFile>
 #include <QFileInfo>
 #include <QFileSystemWatcher>
 #include <QGuiApplication>
+#include <QImageReader>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QScrollBar>
@@ -18,6 +23,7 @@
 #include "code_highlighter.h"
 #include "formula_renderer.h"
 #include "markdown_render_context.h"
+#include "markdown_render_context_internal.h"
 #include "markdown_resources.h"
 #include "markdown_theme.h"
 #include "markdown_to_html.h"
@@ -144,6 +150,73 @@ bool ReadMarkdownFile(const QString& path, QString* text) {
 
 }  // namespace
 
+QString MakeImageToken(const QString& prefix, const QString& cache_key) {
+  const QByteArray digest =
+      QCryptographicHash::hash(cache_key.toUtf8(), QCryptographicHash::Sha256)
+          .toHex();
+  return QStringLiteral("mj:") + prefix + QString::fromLatin1(digest);
+}
+
+QString TokenizeImageTag(const QString& renderer_tag, const QString& token,
+                         QPixmap* pixmap_out) {
+  if (pixmap_out != nullptr) {
+    *pixmap_out = QPixmap();
+  }
+  // 只认渲染器自己产出的双引号 src，避免误改正文里的其他属性
+  const int src_pos = renderer_tag.indexOf(QLatin1String("src=\""));
+  if (src_pos < 0) {
+    return renderer_tag;
+  }
+  const int value_start = src_pos + 5;
+  const int value_end = renderer_tag.indexOf(QLatin1Char('"'), value_start);
+  if (value_end < 0) {
+    return renderer_tag;
+  }
+  static const QString kPngPrefix = QStringLiteral("data:image/png;base64,");
+  const QString src = renderer_tag.mid(value_start, value_end - value_start);
+  if (!src.startsWith(kPngPrefix)) {
+    return renderer_tag;
+  }
+
+  constexpr qint64 kMaxImageBytes = 64LL * 1024 * 1024;
+  const qint64 encoded_len = src.size() - kPngPrefix.size();
+  // base64 4 字符对应 3 字节；解码前先按编码长度拒绝，避免内存先吃进去
+  const qint64 max_encoded = (kMaxImageBytes / 3 + 1) * 4;
+  if (encoded_len > max_encoded) {
+    qWarning() << "markdown: image data URI exceeds the 64MB decode limit";
+    return renderer_tag;
+  }
+  const QByteArray png =
+      QByteArray::fromBase64(src.mid(kPngPrefix.size()).toLatin1());
+  if (png.isEmpty() || png.size() > kMaxImageBytes) {
+    return renderer_tag;
+  }
+
+  QBuffer buffer;
+  buffer.setData(png);
+  if (!buffer.open(QIODevice::ReadOnly)) {
+    return renderer_tag;
+  }
+  QImageReader reader(&buffer, "PNG");
+  const QSize size = reader.size();
+  constexpr int kMaxSide = 32767;
+  if (!size.isValid() || size.width() > kMaxSide || size.height() > kMaxSide ||
+      qint64(size.width()) * size.height() * 4 > kMaxImageBytes) {
+    qWarning() << "markdown: image dimensions exceed the render limit:" << size;
+    return renderer_tag;
+  }
+  const QImage image = reader.read();
+  if (image.isNull()) {
+    return renderer_tag;
+  }
+  if (pixmap_out != nullptr) {
+    *pixmap_out = QPixmap::fromImage(image);
+  }
+  QString token_tag = renderer_tag;
+  token_tag.replace(value_start, value_end - value_start, token);
+  return token_tag;
+}
+
 // 实现见头文件注释（两道闸）。留在自由函数里是为了可测：资源回调是
 // qlitehtml 的私有路径，单测从这层进去就够了
 QByteArray ReadResourceForUrl(const QUrl& url, const QString& base_dir) {
@@ -216,6 +289,10 @@ void MarkdownView::initUi() {
   html_ = new QLiteHtmlWidget(this);
   html_->setObjectName(QStringLiteral("markdownHtml"));
   html_->setResourceHandler([this](const QUrl& url) {
+    // provider 未接住的 token 不当作资源加载失败，避免误报
+    if (url.scheme() == QLatin1String("mj")) {
+      return QByteArray();
+    }
     const QByteArray data = ReadResourceForUrl(url, base_dir_);
     if (data.isEmpty() && url.scheme() != QLatin1String("data")) {
       emit resourceLoadFailed(url);
@@ -231,6 +308,19 @@ void MarkdownView::initUi() {
           QStringLiteral("resource %1: %2 bytes").arg(label).arg(data.size()));
     }
     return data;
+  });
+  // 公式/图表图片直供：只处理本模块注册过的 mj: token，其余走 DataCallback
+  html_->setPixmapCallBack([this](const QUrl& url) {
+    if (url.scheme() != QLatin1String("mj")) {
+      return QPixmap();
+    }
+    const QString token = QString::fromLatin1(url.toEncoded());
+    const auto it = document_pixmaps_.constFind(token);
+    if (it == document_pixmaps_.constEnd()) {
+      qWarning() << "markdown: pixmap provider miss for" << url;
+      return QPixmap();
+    }
+    return *it;
   });
   // 缩放快捷键与 Ctrl+C 要做成控件的内置能力：Wheel 发到 viewport、
   // KeyPress 发到 widget 本身，两处都装（见 eventFilter）
@@ -592,6 +682,8 @@ void MarkdownView::ApplyDocument() {
   code_blocks_.clear();
   heading_ids_.clear();
   outline_.clear();
+  // 当前文档的 token 重新 pin；跨文档缓存不在这里清
+  document_pixmaps_.clear();
   MarkdownRenderOptions options;
   options.code_line_numbers = code_line_numbers_;
   options.outline = [this](const MarkdownHeading& heading) {
@@ -605,14 +697,18 @@ void MarkdownView::ApplyDocument() {
   FormulaSink formula_sink;
   if (formula_rendering_enabled_) {
     formula_sink = [this](const QString& tex, bool display) {
-      return FormulaToImgTag(*context_, tex, display,
-                             ThemeFormulaColor(theme_));
+      QString key;
+      const QString tag = FormulaToImgTag(*context_, tex, display,
+                                          ThemeFormulaColor(theme_), &key);
+      return RegisterImageTag(MakeImageToken(QStringLiteral("f/"), key), tag);
     };
   }
   MermaidSink mermaid_sink;
   if (mermaid_rendering_enabled_) {
     mermaid_sink = [this](const QString& code) {
-      return MermaidToImgTag(*context_, code, theme_);
+      QString key;
+      const QString tag = MermaidToImgTag(*context_, code, theme_, &key);
+      return RegisterImageTag(MakeImageToken(QStringLiteral("m/"), key), tag);
     };
   }
   const QString final_html =
@@ -652,6 +748,36 @@ void MarkdownView::ApplyDocument() {
   InvalidateAnchorYCache();
   emit outlineChanged();
   emit renderStatusChanged();
+}
+
+QString MarkdownView::RegisterImageTag(const QString& token,
+                                       const QString& renderer_tag) {
+  if (renderer_tag.isEmpty()) {
+    return QString();  // 渲染失败，调用方按原文兜底
+  }
+  MarkdownRenderContextState& state =
+      MarkdownRenderContextAccess::State(*context_);
+  if (const PixmapCacheEntry* cached = state.pixmap_cache.object(token)) {
+    ++state.image_stats.image_cache_hits;
+    document_pixmaps_.insert(token, cached->pixmap);
+    return cached->img_tag;
+  }
+  ++state.image_stats.image_cache_misses;
+
+  QPixmap pixmap;
+  const QString token_tag = TokenizeImageTag(renderer_tag, token, &pixmap);
+  if (pixmap.isNull()) {
+    return token_tag;  // 原样返回 data URI，交给 DataCallback
+  }
+  constexpr qint64 kMaxCost = std::numeric_limits<int>::max();
+  const qint64 cost = qint64(pixmap.width()) * pixmap.height() * 4 +
+                      qint64(token_tag.size()) * 2;
+  auto* entry = new PixmapCacheEntry{pixmap, token_tag};
+  // insert 失败时 QCache 已删除 entry，之后不能再碰它；pin 层仍保证当前文档可用
+  state.pixmap_cache.insert(token, entry,
+                            static_cast<int>(qMin(cost, kMaxCost)));
+  document_pixmaps_.insert(token, pixmap);
+  return token_tag;
 }
 
 void MarkdownView::ShowMessage(const QString& text) {

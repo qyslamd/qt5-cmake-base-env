@@ -176,5 +176,10 @@ apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
 apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
     "${PATCHES_DIR}/qlitehtml/0006-fix-base-url-encoding.patch")
 
+# qlitehtml：宿主已有解码好的 QPixmap 时直供，避免每次 setDocument 都走
+# base64 + PNG 解码；print() 的临时容器同步复制该回调
+apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
+    "${PATCHES_DIR}/qlitehtml/0008-pixmap-callback.patch")
+
 message(STATUS "Patches applied.")
 message(STATUS "")

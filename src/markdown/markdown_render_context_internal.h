@@ -1,8 +1,12 @@
 #ifndef FILE_MARKDOWN_MARKDOWN_RENDER_CONTEXT_INTERNAL_H_
 #define FILE_MARKDOWN_MARKDOWN_RENDER_CONTEXT_INTERNAL_H_
 
+#include <limits>
+
+#include <QCache>
 #include <QHash>
 #include <QList>
+#include <QPixmap>
 #include <QString>
 
 #include "markdown_render_context.h"
@@ -40,6 +44,12 @@ struct RenderStringCache {
   }
 };
 
+// token → 已解码的 pixmap 与 token 化后的 img tag。宿主只按 token 查。
+struct PixmapCacheEntry {
+  QPixmap pixmap;
+  QString img_tag;
+};
+
 // 渲染器能看到的上下文状态。引擎状态单独由各渲染器通过
 // renderer_status_internal.h 的查询函数提供
 struct MarkdownRenderContextState {
@@ -47,6 +57,8 @@ struct MarkdownRenderContextState {
   MarkdownRenderContextOptions options;
   RenderStringCache formula_cache;
   RenderStringCache mermaid_cache;
+  // 公式/图表图片，跨 ApplyDocument 复用；当前文档的 pin 在 MarkdownView
+  QCache<QString, PixmapCacheEntry> pixmap_cache;
   MarkdownContextStatus highlight_stats;
   MarkdownContextStatus formula_stats;
   MarkdownContextStatus mermaid_stats;
@@ -57,6 +69,15 @@ struct MarkdownRenderContextState {
   MarkdownRenderContextState() {
     formula_cache.max_entries = options.formula_cache_entries;
     mermaid_cache.max_entries = options.mermaid_cache_entries;
+    UpdatePixmapCacheLimit();
+  }
+
+  // QCache 的 cost 是 int；0/负值沿用模块惯例表示无上限
+  void UpdatePixmapCacheLimit() {
+    const qint64 bytes = options.image_cache_bytes;
+    constexpr qint64 kMaxCost = std::numeric_limits<int>::max();
+    pixmap_cache.setMaxCost(bytes > 0 ? static_cast<int>(qMin(bytes, kMaxCost))
+                                      : INT_MAX);
   }
 };
 

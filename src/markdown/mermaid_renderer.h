@@ -23,8 +23,10 @@ enum class MarkdownTheme;
 // ctx 版本：缓存与计数记在该上下文；theme 参与缓存 key，并通过每张图的
 // %%{init}%% 指令生效（initialize 只做一次，多视图主题互不污染）。便捷重载
 // 固定按 Light 渲染，不依赖引擎里残留的主题状态
+// cache_key 非空时写入本次结果的缓存 key（内容稳定，供宿主生成图片 token）；
+// 内存命中、磁盘命中、渲染失败也会写。调用方不要拿它做展示。
 QString MermaidToImgTag(MarkdownRenderContext& context, const QString& code,
-                        MarkdownTheme theme);
+                        MarkdownTheme theme, QString* cache_key = nullptr);
 QString MermaidToImgTag(const QString& code);
 
 // 载荷是否可用（加载失败即永久不可用，不会反复重试）

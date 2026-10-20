@@ -632,13 +632,16 @@ QString MermaidFontFamily() {
 }
 
 QString MermaidToImgTag(MarkdownRenderContext& context, const QString& code,
-                        MarkdownTheme theme) {
+                        MarkdownTheme theme, QString* cache_key) {
   MarkdownRenderContextState& state =
       MarkdownRenderContextAccess::State(context);
   // 主题名进 key；字体指纹让字体更新后的旧图自然失效
   const QString variant = QString::fromLatin1(ThemeName(theme)) +
                           QLatin1Char('|') + FontFingerprint();
   const QString key = variant + QLatin1Char('|') + code;
+  if (cache_key != nullptr) {
+    *cache_key = key;
+  }
   const MarkdownDiagnostics& diagnostics = state.options.diagnostics;
   if (const QString* cached = state.mermaid_cache.Find(key)) {
     ++state.mermaid_stats.memory_cache_hits;

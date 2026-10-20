@@ -5,6 +5,7 @@
 #include <optional>
 
 #include <QHash>
+#include <QPixmap>
 #include <QString>
 #include <QUrl>
 #include <QVector>
@@ -31,6 +32,17 @@ QString CopyTextForLink(const QUrl& url, const QHash<QString, QString>& blocks);
 //    file:///…/.ssh/id_rsa 不该被读出来）。比对 canonical 路径，符号链接
 //    按解析后的位置算；base 为空时本地文件一律拒绝
 QByteArray ReadResourceForUrl(const QUrl& url, const QString& base_dir);
+
+// 由渲染器缓存 key 生成稳定的图片 token（mj:f/<sha256> / mj:m/<sha256>）。
+// 抽成自由函数是为了可测：token 形态与 qlitehtml 解析出的 QUrl 必须对得上
+QString MakeImageToken(const QString& prefix, const QString& cache_key);
+
+// 把渲染器产出的 <img src="data:image/png;base64,..."> 的 src 换成 token。
+// 成功返回替换后的 tag 并写 pixmap_out；失败原样返回 renderer_tag，
+// pixmap_out 为空。只改 src 属性值，class/width/height 与属性顺序不动。
+// 上限：PNG 字节与像素字节均 64MiB，单边 32767
+QString TokenizeImageTag(const QString& renderer_tag, const QString& token,
+                         QPixmap* pixmap_out);
 
 // Markdown 预览控件：加载 .md、套内置样式渲染、跟随文件变化重载。
 // 只做"渲染"这一件事——链接点击原样抛出（copy: 的代码块复制链接除外，那
@@ -136,8 +148,9 @@ class MarkdownView : public QWidget {
   // renderer_status() 时用；生命周期跟随 MarkdownView
   MarkdownRenderContext& render_context();
   const MarkdownRenderContext& render_context() const;
-  // 清本视图的公式/Mermaid 内存缓存；全局 ClearFormulaCache() 清的是
-  // 进程默认上下文，对视图无效
+  // 清本视图的公式/Mermaid 内存缓存与跨 ApplyDocument 图片缓存；
+  // 当前文档已生成的 token 仍保留，PDF 导出不会缺图。
+  // 全局 ClearFormulaCache() 清的是进程默认上下文，对视图无效
   void ClearRenderCaches();
   // 持久化渲染缓存（默认开）：公式/Mermaid 的最终 <img> 落在
   // QStandardPaths::CacheLocation/markdown-render；SetRenderCacheDirectory
@@ -161,7 +174,7 @@ class MarkdownView : public QWidget {
   void renderStatusChanged();
   // 文件内容变化后成功重载（watchdog 路径）
   void documentReloaded();
-  // 本地资源（图片）读取失败；data: URI 不计入
+  // 本地资源（图片）读取失败；data: URI 与 mj: token 不计入
   void resourceLoadFailed(const QUrl& url);
   // 代码块的“复制”链接已把源码写进剪贴板
   void codeCopied();
@@ -181,6 +194,9 @@ class MarkdownView : public QWidget {
   void OnFileChanged();
   void OnReloadTick();
   void SetZoom(qreal factor);
+  // 注册 renderer tag：命中跨文档缓存就直接用，否则解码一次再 token 化。
+  // 当前文档的 token 一律 pin 进 document_pixmaps_，provider 只读这一层
+  QString RegisterImageTag(const QString& token, const QString& renderer_tag);
   // 定时器到点：应用最后一档缩放
   void ApplyPendingZoom();
   // 立刻应用挂起的缩放（查找/锚点跳转前调用）
@@ -204,6 +220,8 @@ class MarkdownView : public QWidget {
   QHash<QString, QString> code_blocks_;
   // 标题 slug → 元素 id，供页内锚点反查；同样每次 ApplyDocument 重建
   QHash<QString, QString> heading_ids_;
+  // 当前文档的图片 token → pixmap；ApplyDocument 开头清空，provider 只读它
+  QHash<QString, QPixmap> document_pixmaps_;
   // 本次文档的标题大纲；与 heading_ids_ 同源
   QVector<MarkdownHeading> outline_;
   // 锚点 → 文档 y。litehtml 的 anchorY 是 DOM 树搜索，滚动处理器按大纲
