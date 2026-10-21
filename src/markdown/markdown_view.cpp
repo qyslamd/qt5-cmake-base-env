@@ -592,8 +592,16 @@ void MarkdownView::ShowPlaceholder(const QString& text) {
   zoom_timer_->stop();
   html_->setZoomFactorWithoutRender(zoom_);
   html_->setUrl(BaseUrlForDir(base_dir_));
+  // qlitehtml 的 vh 在 padding/height 里会退化成裸数值，这里按视口高度
+  // 算像素。行盒撑满内容区，单行文字自然垂直居中；高度也把主题背景铺满
+  constexpr int kPagePadding = 24;
+  const int viewport_height = html_->viewport()->height();
+  const int content_height = qMax(0, viewport_height - 2 * kPagePadding);
   html_->setHtml(
-      WrapDocument(QStringLiteral("<p class=\"render-placeholder\">%1</p>")
+      WrapDocument(QStringLiteral("<div style=\"height:%1px; line-height:%2px;"
+                                  " text-align:center;\">%3</div>")
+                       .arg(content_height)
+                       .arg(content_height)
                        .arg(text.toHtmlEscaped()),
                    LoadDefaultCss(theme_)));
 }
