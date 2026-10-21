@@ -694,12 +694,11 @@ void MdViewerWindow::NavigateTo(const QString& path, const QString& fragment,
 QString MdViewerWindow::OpenPathCore(const QString& path) {
   const QFileInfo info(path);
   if (info.isDir()) {
-    RefreshDirectoryListing(info.absoluteFilePath());
-    if (file_list_->count() > 0) {
-      const QString first = file_list_->item(0)->data(Qt::UserRole).toString();
-      return ShowFile(first) ? first : QString();
+    if (!RefreshDirectoryListing(info.absoluteFilePath())) {
+      return {};
     }
-    return {};
+    const QString first = file_list_->item(0)->data(Qt::UserRole).toString();
+    return ShowFile(first) ? first : QString();
   }
   const QString absolute = info.absoluteFilePath();
   return ShowFile(absolute) ? absolute : QString();
@@ -837,10 +836,15 @@ void MdViewerWindow::SetWindowBlur(bool enabled) {
 #endif
 }
 
-void MdViewerWindow::RefreshDirectoryListing(const QString& dir) {
-  file_list_->clear();
+bool MdViewerWindow::RefreshDirectoryListing(const QString& dir) {
   const QFileInfoList files = QDir(dir).entryInfoList(
       MarkdownFilters(), QDir::Files, QDir::Name | QDir::IgnoreCase);
+  if (files.isEmpty()) {
+    statusBar()->showMessage(
+        QStringLiteral("目录中没有 Markdown 文件：%1").arg(dir), 5000);
+    return false;
+  }
+  file_list_->clear();
   for (const QFileInfo& info : files) {
     auto* item = new QListWidgetItem(info.fileName(), file_list_);
     item->setData(Qt::UserRole, info.absoluteFilePath());
@@ -849,6 +853,7 @@ void MdViewerWindow::RefreshDirectoryListing(const QString& dir) {
   listed_dir_ = dir;
   statusBar()->showMessage(
       QStringLiteral("%1：%2 篇 Markdown").arg(dir).arg(files.size()), 5000);
+  return true;
 }
 
 bool MdViewerWindow::ShowFile(const QString& path) {

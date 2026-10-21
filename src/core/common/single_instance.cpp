@@ -10,6 +10,8 @@
 
 #include <QByteArray>
 #include <QCoreApplication>
+#include <QElapsedTimer>
+#include <QThread>
 
 #include "logger/logger.h"
 
@@ -80,10 +82,21 @@ bool SingleInstance::isAppAlreadyRunning() {
 
 bool SingleInstance::connectToExistingInstance(const QStringList& arguments) {
   QLocalSocket socket;
-  socket.connectToServer(app_key_, QIODevice::WriteOnly);
-  if (!socket.waitForConnected(CONNECTION_TIMEOUT)) {
-    LOG_WARN("SingleInstance", "连接到已有实例失败");
-    return false;
+  QElapsedTimer deadline;
+  deadline.start();
+  // 首实例可能刚建好互斥体、还没开始监听；双击多个文件时第二个进程正好
+  // 撞进这个窗口。短间隔重试到原有超时，避免参数静默丢失
+  while (true) {
+    socket.abort();
+    socket.connectToServer(app_key_, QIODevice::WriteOnly);
+    if (socket.waitForConnected(100)) {
+      break;
+    }
+    if (deadline.elapsed() >= CONNECTION_TIMEOUT) {
+      LOG_WARN("SingleInstance", "连接到已有实例失败");
+      return false;
+    }
+    QThread::msleep(20);
   }
 
   LOG_INFO("SingleInstance", "转发参数到已有实例, 参数数: {}",

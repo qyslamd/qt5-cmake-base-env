@@ -1,4 +1,26 @@
 set(TARGET_NAME ${APP_TARGET_PREFIX}_core)
+set(SINGLE_INSTANCE_TARGET ${APP_TARGET_PREFIX}_single_instance)
+
+# 单实例是独立能力：md_viewer 只链它，不必把 core 的认证/配置/崩溃捕获
+# 整套依赖带进来。core 继续链它，demo_app 的用法不变
+add_library(${SINGLE_INSTANCE_TARGET} STATIC
+    common/single_instance.cpp
+    common/single_instance.h
+)
+set_target_properties(${SINGLE_INSTANCE_TARGET} PROPERTIES
+    AUTOMOC ON
+)
+target_include_directories(${SINGLE_INSTANCE_TARGET} PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+target_link_libraries(${SINGLE_INSTANCE_TARGET} PUBLIC
+    Qt5::Core
+    Qt5::Network
+    ${APP_TARGET_PREFIX}_log
+)
+if(WIN32)
+    target_link_libraries(${SINGLE_INSTANCE_TARGET} PRIVATE user32)
+endif()
 
 set(ALL_HEADERS_SOURCES
     config/config_manager.cpp
@@ -12,8 +34,6 @@ set(ALL_HEADERS_SOURCES
     logger/logger.h
     logger/log_history_buffer.h
     logger/qt_console_sink.h
-    common/single_instance.cpp
-    common/single_instance.h
     auth/auth_service.cpp
     auth/auth_service.h
     auth/auth_types.h
@@ -70,6 +90,7 @@ target_link_libraries(${TARGET_NAME} PUBLIC
     Qt5::Core
     Qt5::Network
     ${APP_TARGET_PREFIX}_log
+    ${SINGLE_INSTANCE_TARGET}
 )
 
 # 崩溃捕获的链接依赖：三个后端常编，库也全部链上

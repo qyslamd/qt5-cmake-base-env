@@ -18,7 +18,10 @@ set(ALL_SRCS
 
 add_executable(${TARGET_NAME} WIN32 ${ALL_SRCS})
 
-target_link_libraries(${TARGET_NAME} PRIVATE ${APP_TARGET_PREFIX}_markdown)
+target_link_libraries(${TARGET_NAME} PRIVATE
+    ${APP_TARGET_PREFIX}_markdown
+    ${APP_TARGET_PREFIX}_single_instance
+)
 
 # 这个示例**固定走 fluent**：FluentUI3Style + Frameless（QWK 无边框壳），
 # 不加载任何 QSS，也不跟 APP_UI_ROUTE 走——它就是这个路线的试验场

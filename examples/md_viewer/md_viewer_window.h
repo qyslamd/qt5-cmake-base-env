@@ -98,8 +98,9 @@ class MdViewerWindow : public QMainWindow {
   void SaveImageAs(const QUrl& url);
   void ShowImagePreview(const QUrl& url);
   void ShowImageSource(const QUrl& url);
-  // 只填列表，不加载——加载由 ShowFile 负责，免得两边互相触发
-  void RefreshDirectoryListing(const QString& dir);
+  // 只填列表，不加载——加载由 ShowFile 负责，免得两边互相触发。
+  // 目录里没有 Markdown 时返回 false，保留原列表与当前文档
+  bool RefreshDirectoryListing(const QString& dir);
   void SelectInList(const QString& path);
   void RefreshRecentMenu();
   // 关闭/退出时把窗口与渲染状态写回 md_viewer.ini
