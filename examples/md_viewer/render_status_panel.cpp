@@ -139,19 +139,17 @@ void MakeSmall(QLabel* label, int pixel_size) {
   label->setFont(font);
 }
 
-QWidget* NewCard(QWidget* parent, const QString& title, QVBoxLayout** content,
-                 QLabel** hint = nullptr) {
-  auto* card = new QWidget(parent);
-  card->setProperty("isCard", true);
-  card->setAttribute(Qt::WA_StyledBackground, true);
-  auto* layout = new QVBoxLayout(card);
-  layout->setContentsMargins(10, 9, 10, 9);
-  layout->setSpacing(6);
+// 每个分组做成可折叠的抽屉；标题和右侧摘要始终可见，内容按需展开
+QWidget* NewGroup(QWidget* parent, const QString& title, QVBoxLayout** content,
+                  QLabel** hint = nullptr, bool expanded = false) {
+  auto* group = new ExExpander(parent);
+  group->setAccessibleName(title);
 
-  auto* head = new QHBoxLayout;
+  auto* header = new QWidget(group);
+  auto* head = new QHBoxLayout(header);
   head->setContentsMargins(0, 0, 0, 0);
   head->setSpacing(6);
-  auto* title_label = new QLabel(title, card);
+  auto* title_label = new QLabel(title, header);
   QFont title_font = title_label->font();
   title_font.setBold(true);
   title_font.setPixelSize(13);
@@ -159,15 +157,22 @@ QWidget* NewCard(QWidget* parent, const QString& title, QVBoxLayout** content,
   head->addWidget(title_label);
   head->addStretch(1);
   if (hint != nullptr) {
-    *hint = new QLabel(card);
+    *hint = new QLabel(header);
     MakeMuted(*hint);
     MakeSmall(*hint, 10);
     head->addWidget(*hint);
   }
-  layout->addLayout(head);
+  group->setHeaderWidget(header);
+
+  auto* body = new QWidget;
+  auto* layout = new QVBoxLayout(body);
+  layout->setContentsMargins(0, 0, 0, 0);
+  layout->setSpacing(6);
+  group->addContentWidget(body);
+  group->setExpanded(expanded);
 
   *content = layout;
-  return card;
+  return group;
 }
 
 void AddDivider(QVBoxLayout* layout) {
@@ -416,8 +421,9 @@ void RenderStatusPanel::initUi() {
   layout->setSpacing(8);
 
   QVBoxLayout* overview_layout = nullptr;
-  QWidget* overview_card =
-      NewCard(body, QStringLiteral("当前文档"), &overview_layout);
+  QWidget* overview_card = NewGroup(body, QStringLiteral("当前文档"),
+                                    &overview_layout, nullptr, true);
+  overview_card->setObjectName(QStringLiteral("statusOverviewGroup"));
   overview_ = new QLabel(overview_card);
   overview_->setTextFormat(Qt::PlainText);
   overview_->setWordWrap(true);
@@ -437,8 +443,9 @@ void RenderStatusPanel::initUi() {
   layout->addWidget(overview_card);
 
   QVBoxLayout* progress_layout = nullptr;
-  QWidget* progress_card = NewCard(body, QStringLiteral("任务进度"),
-                                   &progress_layout, &progress_hint_);
+  QWidget* progress_card = NewGroup(body, QStringLiteral("任务进度"),
+                                    &progress_layout, &progress_hint_, true);
+  progress_card->setObjectName(QStringLiteral("statusProgressGroup"));
   auto* progress_row = new QWidget(progress_card);
   auto* progress_row_layout = new QHBoxLayout(progress_row);
   progress_row_layout->setContentsMargins(0, 0, 0, 0);
@@ -482,7 +489,8 @@ void RenderStatusPanel::initUi() {
 
   QVBoxLayout* timing_layout = nullptr;
   QWidget* timing_card =
-      NewCard(body, QStringLiteral("耗时构成"), &timing_layout, &timing_hint_);
+      NewGroup(body, QStringLiteral("耗时构成"), &timing_layout, &timing_hint_);
+  timing_card->setObjectName(QStringLiteral("statusTimingGroup"));
   const QStringList stage_names{
       QStringLiteral("解析"), QStringLiteral("收集"), QStringLiteral("worker"),
       QStringLiteral("组装"), QStringLiteral("布局"), QStringLiteral("其它")};
@@ -516,7 +524,8 @@ void RenderStatusPanel::initUi() {
 
   QVBoxLayout* pools_layout = nullptr;
   QWidget* pools_card =
-      NewCard(body, QStringLiteral("worker 池"), &pools_layout, &pools_hint_);
+      NewGroup(body, QStringLiteral("worker 池"), &pools_layout, &pools_hint_);
+  pools_card->setObjectName(QStringLiteral("statusPoolsGroup"));
   const QStringList pool_names{QStringLiteral("高亮"), QStringLiteral("公式"),
                                QStringLiteral("Mermaid")};
   for (int i = 0; i < 3; ++i) {
@@ -571,8 +580,9 @@ void RenderStatusPanel::initUi() {
   layout->addWidget(pools_card);
 
   QVBoxLayout* engines_layout = nullptr;
-  QWidget* engines_card = NewCard(body, QStringLiteral("引擎命中"),
-                                  &engines_layout, &engines_hint_);
+  QWidget* engines_card = NewGroup(body, QStringLiteral("引擎命中"),
+                                   &engines_layout, &engines_hint_);
+  engines_card->setObjectName(QStringLiteral("statusEnginesGroup"));
   const QStringList engine_names{QStringLiteral("高亮"), QStringLiteral("公式"),
                                  QStringLiteral("Mermaid")};
   const QStringList engine_object_names{QStringLiteral("statusHighlight"),
@@ -626,7 +636,8 @@ void RenderStatusPanel::initUi() {
 
   QVBoxLayout* cache_layout = nullptr;
   QWidget* cache_card =
-      NewCard(body, QStringLiteral("缓存"), &cache_layout, &cache_hint_);
+      NewGroup(body, QStringLiteral("缓存"), &cache_layout, &cache_hint_);
+  cache_card->setObjectName(QStringLiteral("statusCacheGroup"));
   auto* cache_grid = new QGridLayout;
   cache_grid->setContentsMargins(0, 0, 0, 0);
   cache_grid->setSpacing(5);
@@ -685,6 +696,7 @@ void RenderStatusPanel::initUi() {
   cache_layout->addWidget(image_cap_bar_);
 
   auto* details = new ExExpander(cache_card);
+  details->setObjectName(QStringLiteral("statusCacheDetails"));
   details->setHeader(QStringLiteral("持久缓存和诊断"));
   auto* detail_content = new QWidget;
   auto* detail_layout = new QGridLayout(detail_content);
@@ -700,7 +712,8 @@ void RenderStatusPanel::initUi() {
 
   QVBoxLayout* doc_layout = nullptr;
   QWidget* doc_card =
-      NewCard(body, QStringLiteral("文档"), &doc_layout, &doc_hint_);
+      NewGroup(body, QStringLiteral("文档"), &doc_layout, &doc_hint_);
+  doc_card->setObjectName(QStringLiteral("statusDocumentGroup"));
   auto* doc_grid = new QGridLayout;
   doc_grid->setContentsMargins(0, 0, 0, 0);
   doc_grid->setSpacing(5);
@@ -757,8 +770,9 @@ void RenderStatusPanel::initUi() {
   layout->addWidget(doc_card);
 
   QVBoxLayout* history_layout = nullptr;
-  QWidget* history_card = NewCard(body, QStringLiteral("请求历史"),
-                                  &history_layout, &history_hint_);
+  QWidget* history_card = NewGroup(body, QStringLiteral("请求历史"),
+                                   &history_layout, &history_hint_);
+  history_card->setObjectName(QStringLiteral("statusHistoryGroup"));
   auto* history_grid = new QGridLayout;
   history_grid->setContentsMargins(0, 0, 0, 0);
   history_grid->setSpacing(3);

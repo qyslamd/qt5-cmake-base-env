@@ -78,8 +78,6 @@ class MdViewerWindow : public QMainWindow {
 
   void OpenFileDialog();
   void OpenDirectoryDialog();
-  // 清空左侧目录列表；当前文档保留，之后打开单篇也不再自动铺同目录
-  void CloseDirectory();
   // Fluent 壳与文档主题一起切
   void ApplyTheme(MarkdownTheme theme);
   // 标题栏主题按钮：浅色/暗色之间翻转
@@ -111,7 +109,6 @@ class MdViewerWindow : public QMainWindow {
   // 菜单里挂着；菜单栏在 fluent 壳下会被搬进标题栏
   QAction* open_file_action_ = nullptr;
   QAction* open_dir_action_ = nullptr;
-  QAction* close_dir_action_ = nullptr;
   QAction* quit_action_ = nullptr;
   QAction* about_action_ = nullptr;
   QAction* export_html_action_ = nullptr;
@@ -145,8 +142,6 @@ class MdViewerWindow : public QMainWindow {
   MarkdownRendererStatus last_render_status_;
   // 列表当前列的是哪个目录（ShowFile 据此决定要不要重扫）
   QString listed_dir_;
-  // 用户显式关闭目录后，单篇打开不再自动把同目录铺回来
-  bool directory_listing_closed_ = false;
   // 文件跳转与锚点跳转共用的历史栈
   QVector<HistoryEntry> history_;
   int history_index_ = -1;

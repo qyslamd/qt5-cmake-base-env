@@ -249,8 +249,6 @@ void MdViewerWindow::createActions() {
   open_file_action_ = new QAction(QStringLiteral("打开文件…"), this);
   open_file_action_->setShortcut(QKeySequence::Open);
   open_dir_action_ = new QAction(QStringLiteral("打开目录…"), this);
-  close_dir_action_ = new QAction(QStringLiteral("关闭目录"), this);
-  close_dir_action_->setEnabled(false);
   quit_action_ = new QAction(QStringLiteral("退出"), this);
   quit_action_->setShortcut(QKeySequence::Quit);
   about_action_ = new QAction(QStringLiteral("关于"), this);
@@ -325,7 +323,6 @@ void MdViewerWindow::initUi() {
   QMenu* file_menu = menuBar()->addMenu(QStringLiteral("文件(&F)"));
   file_menu->addAction(open_file_action_);
   file_menu->addAction(open_dir_action_);
-  file_menu->addAction(close_dir_action_);
   recent_menu_ = file_menu->addMenu(QStringLiteral("最近打开"));
   file_menu->addSeparator();
   file_menu->addAction(export_html_action_);
@@ -452,8 +449,6 @@ void MdViewerWindow::initSignals() {
           &MdViewerWindow::OpenFileDialog);
   connect(open_dir_action_, &QAction::triggered, this,
           &MdViewerWindow::OpenDirectoryDialog);
-  connect(close_dir_action_, &QAction::triggered, this,
-          &MdViewerWindow::CloseDirectory);
   connect(quit_action_, &QAction::triggered, this, &QWidget::close);
   connect(about_action_, &QAction::triggered, this, [this] {
     QMessageBox::about(this, QStringLiteral("关于"),
@@ -788,17 +783,6 @@ void MdViewerWindow::OpenDirectoryDialog() {
   }
 }
 
-void MdViewerWindow::CloseDirectory() {
-  if (listed_dir_.isEmpty()) {
-    return;
-  }
-  file_list_->clear();
-  listed_dir_.clear();
-  directory_listing_closed_ = true;
-  close_dir_action_->setEnabled(false);
-  statusBar()->showMessage(QStringLiteral("目录已关闭"), 3000);
-}
-
 void MdViewerWindow::ApplyTheme(MarkdownTheme theme) {
   const bool dark = theme == MarkdownTheme::Dark;
   qApp->setProperty("_q_colorscheme", dark ? 1 : 0);
@@ -855,17 +839,14 @@ void MdViewerWindow::RefreshDirectoryListing(const QString& dir) {
     item->setToolTip(info.absoluteFilePath());
   }
   listed_dir_ = dir;
-  directory_listing_closed_ = false;
-  close_dir_action_->setEnabled(true);
   statusBar()->showMessage(
       QStringLiteral("%1：%2 篇 Markdown").arg(dir).arg(files.size()), 5000);
 }
 
 bool MdViewerWindow::ShowFile(const QString& path) {
   const QFileInfo info(path);
-  // 单篇打开时顺手把同目录的兄弟列出来——侧栏不该只对"打开目录"生效；
-  // 用户显式关掉目录后不再自动铺回来
-  if (!directory_listing_closed_ && info.absolutePath() != listed_dir_) {
+  // 单篇打开时顺手把同目录的兄弟列出来——侧栏不该只对"打开目录"生效
+  if (info.absolutePath() != listed_dir_) {
     RefreshDirectoryListing(info.absolutePath());
   }
   if (!view_->LoadFile(info.absoluteFilePath())) {
