@@ -15,7 +15,6 @@
 #include <algorithm>
 #include <limits>
 
-#include <QFileInfo>
 #include <QFont>
 #include <QFontMetrics>
 #include <QFrame>
@@ -42,11 +41,6 @@
 namespace {
 
 constexpr int kStageCount = 6;
-
-QString ThemeText(MarkdownTheme theme) {
-  return theme == MarkdownTheme::Dark ? QStringLiteral("深色")
-                                      : QStringLiteral("浅色");
-}
 
 QString OnOff(bool enabled) {
   return enabled ? QStringLiteral("开") : QStringLiteral("关");
@@ -137,6 +131,20 @@ void MakeSmall(QLabel* label, int pixel_size) {
   QFont font = label->font();
   font.setPixelSize(pixel_size);
   label->setFont(font);
+}
+
+// 圆环中心宽度固定；任务数变长时按实际字宽缩字号，避免文字被省略
+int FitRingFontPixelSize(const QFont& base, const QString& text,
+                         int max_width) {
+  QFont font = base;
+  font.setBold(true);
+  for (int pixel_size = 14; pixel_size >= 8; --pixel_size) {
+    font.setPixelSize(pixel_size);
+    if (QFontMetrics(font).horizontalAdvance(text) <= max_width) {
+      return pixel_size;
+    }
+  }
+  return 8;
 }
 
 // 每个分组做成可折叠的抽屉；标题和右侧摘要始终可见，内容按需展开
@@ -420,17 +428,8 @@ void RenderStatusPanel::initUi() {
   layout->setContentsMargins(8, 8, 8, 8);
   layout->setSpacing(8);
 
-  QVBoxLayout* overview_layout = nullptr;
-  QWidget* overview_card = NewGroup(body, QStringLiteral("当前文档"),
-                                    &overview_layout, nullptr, true);
-  overview_card->setObjectName(QStringLiteral("statusOverviewGroup"));
-  overview_ = new QLabel(overview_card);
-  overview_->setTextFormat(Qt::PlainText);
-  overview_->setWordWrap(true);
-  overview_->setTextInteractionFlags(Qt::TextSelectableByMouse);
-  MakeSmall(overview_, 11);
-  overview_layout->addWidget(overview_);
-  auto* actions = new QWidget(overview_card);
+  auto* actions = new QWidget(body);
+  actions->setObjectName(QStringLiteral("statusActions"));
   auto* actions_layout = new QHBoxLayout(actions);
   actions_layout->setContentsMargins(0, 0, 0, 0);
   actions_layout->setSpacing(6);
@@ -439,8 +438,7 @@ void RenderStatusPanel::initUi() {
   actions_layout->addWidget(refresh_button_);
   actions_layout->addWidget(reset_button_);
   actions_layout->addStretch(1);
-  overview_layout->addWidget(actions);
-  layout->addWidget(overview_card);
+  layout->addWidget(actions);
 
   QVBoxLayout* progress_layout = nullptr;
   QWidget* progress_card = NewGroup(body, QStringLiteral("任务进度"),
@@ -451,7 +449,7 @@ void RenderStatusPanel::initUi() {
   progress_row_layout->setContentsMargins(0, 0, 0, 0);
   progress_row_layout->setSpacing(10);
   progress_ring_ = new ExProgressRing(progress_row);
-  progress_ring_->setFixedSize(64, 64);
+  progress_ring_->setFixedSize(72, 72);
   progress_ring_->setRange(0, 1);
   progress_ring_->setValue(0);
   progress_ring_->setTextVisible(true);
@@ -848,43 +846,20 @@ void RenderStatusPanel::RefreshStatus() {
   const MarkdownDiagnostics diagnostics = view_->diagnostics();
   const MarkdownServiceStatus service = view_->render_service_status();
 
-  const QString current_file =
-      view_->current_file().isEmpty()
-          ? QStringLiteral("（未命名）")
-          : QFileInfo(view_->current_file()).fileName();
-  const QString pending_file =
-      view_->pending_file().isEmpty()
-          ? QStringLiteral("—")
-          : QFileInfo(view_->pending_file()).fileName();
-  const QString state =
-      view_->is_rendering()
-          ? QStringLiteral("渲染中")
-          : (view_->has_document() ? QStringLiteral("已提交")
-                                   : QStringLiteral("无文档"));
-  overview_->setText(
-      QStringLiteral("文档：%1\n状态：%2 · 待提交：%3\n"
-                     "主题：%4 · 行号：%5 · 公式：%6 · Mermaid：%7\n"
-                     "大纲 %8 · 布局 %9 · 缩放 %10 · 滚动 %11")
-          .arg(current_file, state, pending_file, ThemeText(view_->theme()),
-               OnOff(view_->code_line_numbers()),
-               OnOff(view_->formula_rendering_enabled()),
-               OnOff(view_->mermaid_rendering_enabled()))
-          .arg(view_->outline().size())
-          .arg(view_->layout_count())
-          .arg(QString::number(view_->zoom(), 'f', 2))
-          .arg(view_->ScrollPosition()));
-
   progress_hint_->setText(
       progress_request_ != 0
           ? QStringLiteral("请求 #%1").arg(progress_request_)
           : (finished_request_ != 0
                  ? QStringLiteral("最近 #%1").arg(finished_request_)
                  : QStringLiteral("—")));
+  QString ring_text = QStringLiteral("—");
   if (progress_total_ > 0) {
     progress_ring_->setRange(0, progress_total_);
     progress_ring_->setValue(progress_completed_);
     progress_ring_->setFormat(QStringLiteral("%v/%m"));
     progress_ring_->setTextVisible(true);
+    ring_text =
+        QStringLiteral("%1/%2").arg(progress_completed_).arg(progress_total_);
     progress_percent_->setText(QStringLiteral("%1%").arg(
         qRound(100.0 * progress_completed_ / progress_total_)));
   } else if (view_->is_rendering()) {
@@ -899,6 +874,13 @@ void RenderStatusPanel::RefreshStatus() {
     progress_ring_->setTextVisible(true);
     progress_percent_->setText(QStringLiteral("—"));
   }
+  // 圆环内圈宽度固定，按任务数字宽收缩字号，避免 "1234/1234" 被省略
+  QFont ring_font = progress_ring_->font();
+  const int ring_width =
+      progress_ring_->width() > 0 ? progress_ring_->width() : 72;
+  ring_font.setPixelSize(
+      FitRingFontPixelSize(ring_font, ring_text, qMax(16, ring_width - 24)));
+  progress_ring_->setValueFont(ring_font);
   const int queued = service.highlight.queued + service.formula.queued +
                      service.mermaid.queued;
   progress_meta_->setText(

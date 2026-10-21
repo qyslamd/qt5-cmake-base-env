@@ -1,9 +1,10 @@
 #include "md_viewer_settings.h"
 
-#include <QCoreApplication>
 #include <QDebug>
+#include <QDir>
 #include <QFileInfo>
 #include <QSettings>
+#include <QStandardPaths>
 
 namespace {
 
@@ -19,7 +20,14 @@ constexpr char kKeyMermaid[] = "render/mermaid";
 constexpr char kKeyPersistentCache[] = "render/persistent_cache";
 constexpr char kKeyRecentFiles[] = "recent/files";
 
-// exe 目录不可写时只提示一次，不要每次开文件都刷屏
+// QSettings 负责建文件，不负责建父目录；写之前先把标准配置目录补出来
+QString WritableSettingsPath() {
+  const QString path = MdViewerSettings::DefaultPath();
+  QDir().mkpath(QFileInfo(path).absolutePath());
+  return path;
+}
+
+// 配置目录不可写时只提示一次，不要每次开文件都刷屏
 void WarnWriteFailed(const QSettings& settings) {
   if (settings.status() == QSettings::NoError) {
     return;
@@ -34,7 +42,7 @@ void WarnWriteFailed(const QSettings& settings) {
 }  // namespace
 
 QString MdViewerSettings::DefaultPath() {
-  return QCoreApplication::applicationDirPath() +
+  return QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation) +
          QStringLiteral("/md_viewer.ini");
 }
 
@@ -56,7 +64,7 @@ void MdViewerSettings::Load() {
 }
 
 void MdViewerSettings::Save() const {
-  QSettings settings(DefaultPath(), QSettings::IniFormat);
+  QSettings settings(WritableSettingsPath(), QSettings::IniFormat);
   settings.setIniCodec("UTF-8");
   if (!window_geometry.isEmpty()) {
     settings.setValue(kKeyGeometry, window_geometry);
@@ -76,7 +84,7 @@ void MdViewerSettings::Save() const {
 }
 
 void MdViewerSettings::SaveRecent() const {
-  QSettings settings(DefaultPath(), QSettings::IniFormat);
+  QSettings settings(WritableSettingsPath(), QSettings::IniFormat);
   settings.setIniCodec("UTF-8");
   settings.setValue(kKeyRecentFiles, recent_files);
   settings.sync();

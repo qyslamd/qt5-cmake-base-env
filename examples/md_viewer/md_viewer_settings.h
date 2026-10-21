@@ -5,10 +5,10 @@
 #include <QString>
 #include <QStringList>
 
-// md_viewer 的最小设置：exe 同级目录下的 md_viewer.ini。
+// md_viewer 的最小设置：标准配置目录下的 md_viewer.ini。
 // 只存这个示例自己需要的项，不引入 src/core/config 的全局配置体系。
 struct MdViewerSettings {
-  // exe 所在目录 + /md_viewer.ini
+  // QStandardPaths::AppConfigLocation + /md_viewer.ini
   static QString DefaultPath();
 
   void Load();

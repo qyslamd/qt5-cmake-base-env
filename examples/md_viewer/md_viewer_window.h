@@ -154,7 +154,7 @@ class MdViewerWindow : public QMainWindow {
   // 无边框窗口壳（QWK + Fluent 标题栏）
   FluentWindowFrame* fluent_frame_ = nullptr;
 
-  // exe 同级的 md_viewer.ini，归 main 持有，生命周期长于本窗口
+  // 标准配置目录下的 md_viewer.ini，归 main 持有，生命周期长于本窗口
   MdViewerSettings* settings_ = nullptr;
   QMenu* recent_menu_ = nullptr;
 };

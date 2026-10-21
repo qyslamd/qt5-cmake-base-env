@@ -43,7 +43,6 @@ class RenderStatusPanel : public QWidget {
   void RefreshStatus();
 
   MarkdownView* view_ = nullptr;
-  QLabel* overview_ = nullptr;
   QPushButton* refresh_button_ = nullptr;
   QPushButton* reset_button_ = nullptr;
 

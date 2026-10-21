@@ -75,11 +75,6 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\@TARGET_NAME@.exe"; Tasks: 
 Filename: "{app}\{#MyVcRedist}"; Parameters: "/install /quiet /norestart"; StatusMsg: "正在安装 VC++ 运行库..."; Flags: runascurrentuser waituntilterminated; Check: VcRedistExists
 Filename: "{app}\@TARGET_NAME@.exe"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
-[UninstallDelete]
-; md_viewer.ini lives next to the exe and is created at runtime, so the
-; uninstaller has to remove it explicitly.
-Type: files; Name: "{app}\md_viewer.ini"
-
 [Code]
 function VcRedistExists: Boolean;
 begin
