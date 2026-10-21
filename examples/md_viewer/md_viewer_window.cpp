@@ -1,5 +1,6 @@
 #include "md_viewer_window.h"
 
+#include <exfonticon.h>
 #include <fluenttitlebar.h>
 #include <fluentui3style.h>
 #include <fluentwindowframe.h>
@@ -10,6 +11,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QCloseEvent>
+#include <QColor>
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDir>
@@ -36,12 +38,14 @@
 #include <QMessageBox>
 #include <QMimeData>
 #include <QPainter>
+#include <QPalette>
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPrinter>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QShortcut>
+#include <QSize>
 #include <QStatusBar>
 #include <QTimer>
 #include <QToolBar>
@@ -292,14 +296,15 @@ void MdViewerWindow::initUi() {
   auto* toolbar = addToolBar(QStringLiteral("导航"));
   toolbar->setObjectName(QStringLiteral("viewerToolBar"));
   toolbar->setMovable(false);
-  toolbar->setToolButtonStyle(Qt::ToolButtonTextOnly);
+  toolbar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+  toolbar->setIconSize(QSize(16, 16));
 
-  back_action_ = toolbar->addAction(QStringLiteral("← 后退"));
+  back_action_ = toolbar->addAction(QStringLiteral("后退"));
   back_action_->setObjectName(QStringLiteral("navBack"));
   back_action_->setShortcut(QKeySequence(QStringLiteral("Ctrl+Alt+Left")));
   back_action_->setToolTip(QStringLiteral("后退（Ctrl+Alt+←）"));
 
-  forward_action_ = toolbar->addAction(QStringLiteral("前进 →"));
+  forward_action_ = toolbar->addAction(QStringLiteral("前进"));
   forward_action_->setObjectName(QStringLiteral("navForward"));
   forward_action_->setShortcut(QKeySequence(QStringLiteral("Ctrl+Alt+Right")));
   forward_action_->setToolTip(QStringLiteral("前进（Ctrl+Alt+→）"));
@@ -318,6 +323,7 @@ void MdViewerWindow::initUi() {
   zoom_in_action_ = toolbar->addAction(QStringLiteral("放大"));
   zoom_in_action_->setObjectName(QStringLiteral("zoomIn"));
   zoom_in_action_->setToolTip(QStringLiteral("放大（Ctrl+=）"));
+  UpdateToolbarIcons();
   UpdateHistoryActions();
 
   QMenu* file_menu = menuBar()->addMenu(QStringLiteral("文件(&F)"));
@@ -789,8 +795,9 @@ void MdViewerWindow::ApplyTheme(MarkdownTheme theme) {
   // 重建样式，让 FluentUI3Style 按新的配色方案重算调色板（Gallery 同款）
   qApp->setStyle(new FluentUI3Style);
   fluent_frame_->titleBar()->setThemeDark(dark);
-  // 搜索框里的 A/T/箭头是运行时按调色板画的，换肤后要重画
+  // 搜索框里的 A/T/箭头和工具栏图标都是运行时按调色板画的，换肤后要重画
   UpdateSearchActionIcons();
+  UpdateToolbarIcons();
   const bool theme_changed = view_->theme() != theme;
   view_->SetTheme(theme);
   if (theme_changed && (view_->has_document() || view_->is_rendering())) {
@@ -816,6 +823,7 @@ void MdViewerWindow::SetWindowBlur(bool enabled) {
   // _q_widget_mode 与样式要一起切
   qApp->setProperty("_q_widget_mode", enabled ? 2 : 0);
   qApp->setStyle(new FluentUI3Style);
+  UpdateToolbarIcons();
   if (enabled) {
     fluent_frame_->setWindowBackdrop(QStringLiteral("dwm-blur"));
   } else {
@@ -1035,6 +1043,18 @@ void MdViewerWindow::UpdateSearchActionIcons() {
       TextActionIcon(QStringLiteral("T"), word_action_->isChecked()));
   find_prev_action_->setIcon(TextActionIcon(QStringLiteral("↑"), false));
   find_next_action_->setIcon(TextActionIcon(QStringLiteral("↓"), false));
+}
+
+void MdViewerWindow::UpdateToolbarIcons() {
+  const QColor color = palette().color(QPalette::ButtonText);
+  auto icon = [&color](SegoeIcon::Type type) {
+    return ExFontIcon::instance()->getIcon(type, 16, color);
+  };
+  back_action_->setIcon(icon(SegoeIcon::Back));
+  forward_action_->setIcon(icon(SegoeIcon::Forward));
+  zoom_out_action_->setIcon(icon(SegoeIcon::ZoomOut));
+  zoom_reset_action_->setIcon(icon(SegoeIcon::Zoom));
+  zoom_in_action_->setIcon(icon(SegoeIcon::ZoomIn));
 }
 
 void MdViewerWindow::FindNext(bool backward, bool incremental) {

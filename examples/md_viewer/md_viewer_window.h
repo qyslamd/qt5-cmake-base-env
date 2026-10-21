@@ -88,6 +88,8 @@ class MdViewerWindow : public QMainWindow {
   // incremental=true 是"边打字边找"：从当前命中处继续匹配，不清空重来
   void FindNext(bool backward, bool incremental = false);
   void UpdateSearchActionIcons();
+  // 工具栏图标来自 Segoe Fluent Icons；换肤后按新调色板重画
+  void UpdateToolbarIcons();
   void ExportHtml();
   void ExportPdf();
   // 图片左键：公式/Mermaid 看源码，普通图片预览

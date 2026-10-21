@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/">
         <file>resources/svg/icon.svg</file>
+        <file alias="resource/Segoe Fluent Icons.ttf">../../3rdparty/FluentUIStyle-4.0/Examples/Gallery/font-icon/resource/Segoe Fluent Icons.ttf</file>
     </qresource>
 </RCC>
