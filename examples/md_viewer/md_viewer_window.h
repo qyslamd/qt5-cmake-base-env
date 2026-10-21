@@ -2,7 +2,9 @@
 #define FILE_EXAMPLES_MD_VIEWER_MD_VIEWER_WINDOW_H_
 
 #include <QMainWindow>
+#include <QPoint>
 #include <QString>
+#include <QUrl>
 #include <QVector>
 
 #include "markdown_types.h"
@@ -88,7 +90,14 @@ class MdViewerWindow : public QMainWindow {
   // incremental=true 是"边打字边找"：从当前命中处继续匹配，不清空重来
   void FindNext(bool backward, bool incremental = false);
   void UpdateSearchActionIcons();
+  void ExportHtml();
   void ExportPdf();
+  // 图片左键：公式/Mermaid 看源码，普通图片预览
+  void OpenImage(const QUrl& url);
+  void ShowImageContextMenu(const QPoint& global_pos, const QUrl& url);
+  void SaveImageAs(const QUrl& url);
+  void ShowImagePreview(const QUrl& url);
+  void ShowImageSource(const QUrl& url);
   // 只填列表，不加载——加载由 ShowFile 负责，免得两边互相触发
   void RefreshDirectoryListing(const QString& dir);
   void SelectInList(const QString& path);
@@ -105,6 +114,7 @@ class MdViewerWindow : public QMainWindow {
   QAction* close_dir_action_ = nullptr;
   QAction* quit_action_ = nullptr;
   QAction* about_action_ = nullptr;
+  QAction* export_html_action_ = nullptr;
   QAction* export_pdf_action_ = nullptr;
   QAction* find_action_ = nullptr;
   QAction* find_next_action_ = nullptr;

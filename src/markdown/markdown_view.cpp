@@ -7,14 +7,18 @@
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDebug>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QFileSystemWatcher>
 #include <QGuiApplication>
+#include <QImage>
 #include <QImageReader>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QPointer>
+#include <QRegularExpression>
+#include <QSaveFile>
 #include <QScrollBar>
 #include <QShortcut>
 #include <QTimer>
@@ -24,6 +28,7 @@
 
 #include "code_highlighter.h"
 #include "formula_renderer.h"
+#include "html_escape.h"
 #include "markdown_render_context.h"
 #include "markdown_render_context_internal.h"
 #include "markdown_theme.h"
@@ -91,6 +96,68 @@ QUrl BaseUrlForDir(const QString& base_dir) {
   QUrl base = QUrl::fromLocalFile(base_dir);
   base.setPath(base.path() + QLatin1Char('/'));
   return base;
+}
+
+QUrl ResolveImageUrl(const QString& src, const QString& base_dir) {
+  const QString unescaped = UnescapeHtml(src);
+  const QUrl url = QUrl::fromEncoded(unescaped.toUtf8(), QUrl::TolerantMode);
+  if (url.scheme().isEmpty() || url.isRelative()) {
+    return BaseUrlForDir(base_dir).resolved(url);
+  }
+  return url;
+}
+
+QByteArray PixmapToPng(const QPixmap& pixmap) {
+  if (pixmap.isNull()) {
+    return {};
+  }
+  QByteArray bytes;
+  QBuffer buffer(&bytes);
+  if (!buffer.open(QIODevice::WriteOnly) || !pixmap.save(&buffer, "PNG")) {
+    return {};
+  }
+  return bytes;
+}
+
+QByteArray DecodeDataUriImage(const QUrl& url) {
+  const QString text = url.toString();
+  if (!text.startsWith(QLatin1String("data:"), Qt::CaseInsensitive)) {
+    return {};
+  }
+  const int comma = text.indexOf(QLatin1Char(','));
+  if (comma < 0) {
+    return {};
+  }
+  const QString meta = text.mid(5, comma - 5);
+  const QString payload = text.mid(comma + 1);
+  QByteArray raw;
+  if (meta.contains(QLatin1String(";base64"), Qt::CaseInsensitive)) {
+    raw = QByteArray::fromBase64(payload.toLatin1());
+  } else {
+    raw = QUrl::fromPercentEncoding(payload.toUtf8()).toUtf8();
+  }
+  if (raw.isEmpty()) {
+    return {};
+  }
+  QImage image;
+  if (!image.loadFromData(raw)) {
+    return {};
+  }
+  QByteArray png;
+  QBuffer buffer(&png);
+  if (!buffer.open(QIODevice::WriteOnly) || !image.save(&buffer, "PNG")) {
+    return {};
+  }
+  return png;
+}
+
+QString ExportImageExtension(const QUrl& url) {
+  QString suffix = QFileInfo(url.toLocalFile()).suffix().toLower();
+  static const QRegularExpression kSafeSuffix(QStringLiteral("^[a-z0-9]+$"));
+  if (!kSafeSuffix.match(suffix).hasMatch()) {
+    suffix = QStringLiteral("png");
+  }
+  return suffix;
 }
 
 QString CssOverridePath() {
@@ -367,6 +434,10 @@ void MarkdownView::initSignals() {
     }
     emit linkClicked(url);
   });
+  connect(html_, &QLiteHtmlWidget::imageClicked, this,
+          &MarkdownView::imageClicked);
+  connect(html_, &QLiteHtmlWidget::imageContextMenuRequested, this,
+          &MarkdownView::imageContextMenuRequested);
 
   // 滚动联动只报位置，不在这里反查章节：策略归宿主（见 outline()）
   connect(html_->verticalScrollBar(), &QScrollBar::valueChanged, this,
@@ -599,6 +670,185 @@ bool MarkdownView::FindText(const QString& text, FindFlags flags, bool* wrapped,
     qt_flags |= QTextDocument::FindWholeWords;
   }
   return html_->findText(text, qt_flags, incremental, wrapped);
+}
+
+void MarkdownView::ClearSelection() { html_->clearSelection(); }
+
+bool MarkdownView::has_selection() const {
+  return !html_->selectedText().isEmpty();
+}
+
+bool MarkdownView::ExportHtml(const QString& html_path, QString* error) const {
+  auto fail = [error](const QString& message) {
+    if (error != nullptr) {
+      *error = message;
+    }
+    return false;
+  };
+  if (rendering_) {
+    return fail(QStringLiteral("文档还在渲染"));
+  }
+  if (!has_committed_ || committed_html_.isEmpty()) {
+    return fail(QStringLiteral("没有可导出的文档"));
+  }
+  if (html_path.isEmpty()) {
+    return fail(QStringLiteral("导出路径为空"));
+  }
+
+  const QFileInfo html_info(html_path);
+  const QDir target_dir = html_info.absoluteDir();
+  const QString base_name = html_info.completeBaseName().isEmpty()
+                                ? QStringLiteral("document")
+                                : html_info.completeBaseName();
+  const QString asset_dir_name = base_name + QStringLiteral("_files");
+  const QString asset_dir_path = target_dir.filePath(asset_dir_name);
+  const bool asset_dir_existed = QDir(asset_dir_path).exists();
+  bool asset_dir_created = false;
+  bool fatal_asset = false;
+  QHash<QByteArray, QString> written;
+  QHash<QString, QString> resolved;
+
+  auto fail_cleaning = [&](const QString& message) {
+    if (asset_dir_created && !asset_dir_existed) {
+      QDir(asset_dir_path).removeRecursively();
+    }
+    return fail(message);
+  };
+
+  auto write_asset = [&](const QByteArray& bytes, const QString& prefix,
+                         const QString& extension) -> QString {
+    if (bytes.isEmpty()) {
+      return QString();
+    }
+    const QByteArray digest =
+        QCryptographicHash::hash(bytes, QCryptographicHash::Sha256)
+            .toHex()
+            .left(16);
+    if (const auto it = written.constFind(digest); it != written.constEnd()) {
+      return it.value();
+    }
+    const QString file_name =
+        prefix + QString::fromLatin1(digest) + QLatin1Char('.') + extension;
+    if (!asset_dir_created) {
+      if (!QDir().mkpath(asset_dir_path)) {
+        return QString();
+      }
+      asset_dir_created = true;
+    }
+    QFile file(QDir(asset_dir_path).filePath(file_name));
+    if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size()) {
+      return QString();
+    }
+    const QString relative =
+        QString::fromLatin1(QUrl::toPercentEncoding(asset_dir_name)) +
+        QLatin1Char('/') + file_name;
+    written.insert(digest, relative);
+    return relative;
+  };
+
+  const auto relative_for_src = [&](const QString& src) -> QString {
+    const auto cached = resolved.constFind(src);
+    if (cached != resolved.constEnd()) {
+      return cached.value();
+    }
+    QString relative;
+    const QUrl url = ResolveImageUrl(src, committed_base_dir_);
+    if (url.scheme() == QLatin1String("mj")) {
+      const QString token = QString::fromLatin1(url.toEncoded());
+      const QByteArray png = PixmapToPng(document_pixmaps_.value(token));
+      if (png.isEmpty()) {
+        fatal_asset = true;
+        return QString();
+      }
+      const bool formula = token.startsWith(QLatin1String("mj:f/"));
+      relative = write_asset(
+          png,
+          formula ? QStringLiteral("formula-") : QStringLiteral("mermaid-"),
+          QStringLiteral("png"));
+      if (relative.isEmpty()) {
+        fatal_asset = true;
+        return QString();
+      }
+    } else if (url.scheme() == QLatin1String("data")) {
+      const QByteArray png = DecodeDataUriImage(url);
+      if (!png.isEmpty()) {
+        relative =
+            write_asset(png, QStringLiteral("image-"), QStringLiteral("png"));
+      }
+    } else if (url.isLocalFile()) {
+      const QByteArray bytes = ReadResourceForUrl(url, committed_base_dir_);
+      if (!bytes.isEmpty()) {
+        relative = write_asset(bytes, QStringLiteral("image-"),
+                               ExportImageExtension(url));
+      }
+    }
+    resolved.insert(src, relative);
+    return relative;
+  };
+
+  static const QRegularExpression kImgSrc(
+      QStringLiteral("(<img\\b[^>]*?\\bsrc\\s*=\\s*)([\"'])(.*?)(\\2)"),
+      QRegularExpression::CaseInsensitiveOption |
+          QRegularExpression::DotMatchesEverythingOption);
+  QString output;
+  output.reserve(committed_html_.size());
+  int last = 0;
+  QRegularExpressionMatchIterator matches =
+      kImgSrc.globalMatch(committed_html_);
+  while (matches.hasNext()) {
+    const QRegularExpressionMatch match = matches.next();
+    output += committed_html_.mid(last, match.capturedStart() - last);
+    const QString src = match.captured(3);
+    const QString relative = relative_for_src(src);
+    if (fatal_asset) {
+      return fail_cleaning(QStringLiteral("公式/Mermaid 图片写入失败"));
+    }
+    if (relative.isEmpty()) {
+      output += match.captured(0);
+    } else {
+      output += match.captured(1) + match.captured(2) +
+                relative.toHtmlEscaped() + match.captured(4);
+    }
+    last = match.capturedEnd();
+  }
+  output += committed_html_.mid(last);
+
+  QSaveFile file(html_path);
+  const QByteArray utf8 = output.toUtf8();
+  if (!file.open(QIODevice::WriteOnly) || file.write(utf8) != utf8.size() ||
+      !file.commit()) {
+    return fail_cleaning(QStringLiteral("写入 HTML 失败"));
+  }
+  return true;
+}
+
+QPixmap MarkdownView::ImagePixmap(const QUrl& url) const {
+  if (url.scheme() == QLatin1String("mj")) {
+    return document_pixmaps_.value(QString::fromLatin1(url.toEncoded()));
+  }
+  QByteArray bytes;
+  if (url.scheme() == QLatin1String("data")) {
+    bytes = DecodeDataUriImage(url);
+  } else if (url.isLocalFile()) {
+    bytes = ReadResourceForUrl(url, committed_base_dir_);
+  }
+  if (bytes.isEmpty()) {
+    return QPixmap();
+  }
+  QPixmap pixmap;
+  return pixmap.loadFromData(bytes) ? pixmap : QPixmap();
+}
+
+std::optional<MarkdownImageInfo> MarkdownView::ImageInfo(
+    const QUrl& url) const {
+  if (url.scheme() != QLatin1String("mj")) {
+    return std::nullopt;
+  }
+  const auto it = image_info_.constFind(QString::fromLatin1(url.toEncoded()));
+  if (it == image_info_.constEnd()) {
+    return std::nullopt;
+  }
+  return it.value();
 }
 
 void MarkdownView::Print(QPrinter* printer) {
@@ -987,14 +1237,16 @@ void MarkdownView::CommitRender(quint64 request_id) {
   QHash<QString, QString> heading_ids;
   QVector<MarkdownHeading> outline;
   QHash<QString, QPixmap> pixmaps;
+  QHash<QString, MarkdownImageInfo> image_info;
   MarkdownRenderOptions options;
   options.code_line_numbers = code_line_numbers_;
   options.outline = [&outline](const MarkdownHeading& heading) {
     outline.append(heading);
   };
   const MarkdownRenderResolver resolver =
-      [this, &pixmaps](MarkdownRenderKind kind, const QString& payload,
-                       const QString& language, bool display) {
+      [this, &pixmaps, &image_info](MarkdownRenderKind kind,
+                                    const QString& payload,
+                                    const QString& language, bool display) {
         QString key;
         switch (kind) {
           case MarkdownRenderKind::Highlight:
@@ -1012,12 +1264,27 @@ void MarkdownView::CommitRender(quint64 request_id) {
           return QString();
         }
         if (kind == MarkdownRenderKind::Formula) {
-          return RegisterImageTag(MakeImageToken(QStringLiteral("f/"), key),
-                                  it.value(), &pixmaps);
+          const QString token = MakeImageToken(QStringLiteral("f/"), key);
+          const QString tag = RegisterImageTag(token, it.value(), &pixmaps);
+          if (tag.contains(token)) {
+            MarkdownImageInfo info;
+            info.kind = MarkdownImageKind::kFormula;
+            info.source = payload.trimmed();
+            info.display = display;
+            image_info.insert(token, info);
+          }
+          return tag;
         }
         if (kind == MarkdownRenderKind::Mermaid) {
-          return RegisterImageTag(MakeImageToken(QStringLiteral("m/"), key),
-                                  it.value(), &pixmaps);
+          const QString token = MakeImageToken(QStringLiteral("m/"), key);
+          const QString tag = RegisterImageTag(token, it.value(), &pixmaps);
+          if (tag.contains(token)) {
+            MarkdownImageInfo info;
+            info.kind = MarkdownImageKind::kMermaid;
+            info.source = payload;
+            image_info.insert(token, info);
+          }
+          return tag;
         }
         return it.value();
       };
@@ -1072,6 +1339,7 @@ void MarkdownView::CommitRender(quint64 request_id) {
   heading_ids_ = std::move(heading_ids);
   outline_ = std::move(outline);
   document_pixmaps_ = std::move(pixmaps);
+  image_info_ = std::move(image_info);
   committed_file_ = current_file_;
   committed_base_dir_ = base_dir_;
   committed_markdown_ = markdown_;
@@ -1212,6 +1480,7 @@ void MarkdownView::ShowMessage(const QString& text) {
   heading_ids_.clear();
   outline_.clear();
   document_pixmaps_.clear();
+  image_info_.clear();
   InvalidateAnchorYCache();
   // 错误页同样走 setHtml：先落地挂起缩放，避免先按旧缩放排一次
   zoom_timer_->stop();

@@ -11,12 +11,16 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QImage>
 #include <QPrinter>
 #include <QStandardPaths>
 #include <QString>
 #include <QTemporaryDir>
 
+#include "formula_renderer.h"
 #include "markdown_test_wait.h"
+#include "markdown_theme.h"
 #include "markdown_view.h"
 
 int main(int argc, char** argv) {
@@ -185,6 +189,60 @@ TEST(MarkdownViewActionsTest, PrintNullPrinterIsNoop) {
   MarkdownView view;
   ASSERT_TRUE(SetContentAndWait(view, SampleMarkdown(), QString()));
   view.Print(nullptr);
+}
+
+TEST(MarkdownViewActionsTest, ClearSelectionClearsFindHighlight) {
+  MarkdownView view;
+  ASSERT_TRUE(SetContentAndWait(view, SampleMarkdown(), QString()));
+  ASSERT_TRUE(
+      view.FindText(QStringLiteral("needle"), MarkdownView::FindFlags()));
+  EXPECT_TRUE(view.has_selection());
+  view.ClearSelection();
+  EXPECT_FALSE(view.has_selection());
+  EXPECT_TRUE(
+      view.FindText(QStringLiteral("needle"), MarkdownView::FindFlags()));
+}
+
+TEST(MarkdownViewActionsTest, ImageInfoMapsFormulaToken) {
+  MarkdownView view;
+  ASSERT_TRUE(SetContentAndWait(view, QStringLiteral("$x^2$\n"), QString()));
+  const QString key = FormulaRenderKey(QStringLiteral("x^2"), false,
+                                       ThemeFormulaColor(view.theme()));
+  const QUrl token(MakeImageToken(QStringLiteral("f/"), key));
+  const std::optional<MarkdownImageInfo> info = view.ImageInfo(token);
+  ASSERT_TRUE(info.has_value());
+  EXPECT_EQ(info->kind, MarkdownImageKind::kFormula);
+  EXPECT_EQ(info->source, QStringLiteral("x^2"));
+  EXPECT_FALSE(info->display);
+  EXPECT_FALSE(view.ImagePixmap(token).isNull());
+}
+
+TEST(MarkdownViewActionsTest, ExportHtmlCopiesImagesAndRewritesTokens) {
+  QTemporaryDir dir;
+  ASSERT_TRUE(dir.isValid());
+  const QString doc_dir = dir.filePath(QStringLiteral("中文 空格&amp"));
+  ASSERT_TRUE(QDir().mkpath(doc_dir));
+  QImage image(2, 2, QImage::Format_ARGB32);
+  image.fill(Qt::red);
+  ASSERT_TRUE(image.save(doc_dir + QStringLiteral("/图 1.png")));
+
+  MarkdownView view;
+  ASSERT_TRUE(SetContentAndWait(
+      view, QStringLiteral("$x$\n\n![alt](<图 1.png>)\n"), doc_dir));
+  const QString html_path = dir.filePath(QStringLiteral("out & 文件.html"));
+  QString error;
+  ASSERT_TRUE(view.ExportHtml(html_path, &error)) << error.toStdString();
+
+  QFile html_file(html_path);
+  ASSERT_TRUE(html_file.open(QIODevice::ReadOnly));
+  const QString html = QString::fromUtf8(html_file.readAll());
+  EXPECT_TRUE(
+      html.contains(QStringLiteral("out%20%26%20%E6%96%87%E4%BB%B6_files/")));
+  EXPECT_FALSE(html.contains(QStringLiteral("mj:")));
+
+  const QDir assets(dir.filePath(QStringLiteral("out & 文件_files")));
+  ASSERT_TRUE(assets.exists());
+  EXPECT_GE(assets.entryList(QDir::Files).size(), 2);
 }
 
 // 取消待提交的新文档后，后续 Reapply 必须回到屏幕上那份已提交文档

@@ -4,10 +4,14 @@
 #include <fluentui3style.h>
 #include <fluentwindowframe.h>
 
+#include <optional>
+
 #include <QAction>
 #include <QApplication>
+#include <QClipboard>
 #include <QCloseEvent>
 #include <QDesktopServices>
+#include <QDialog>
 #include <QDir>
 #include <QDockWidget>
 #include <QDragEnterEvent>
@@ -17,6 +21,11 @@
 #include <QFileInfo>
 #include <QFileInfoList>
 #include <QFont>
+#include <QFontDatabase>
+#include <QGraphicsPixmapItem>
+#include <QGraphicsScene>
+#include <QGraphicsView>
+#include <QHBoxLayout>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
@@ -28,13 +37,17 @@
 #include <QMimeData>
 #include <QPainter>
 #include <QPixmap>
+#include <QPlainTextEdit>
 #include <QPrinter>
 #include <QProgressBar>
+#include <QPushButton>
 #include <QShortcut>
 #include <QStatusBar>
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
+#include <QVBoxLayout>
+#include <QWheelEvent>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -107,6 +120,111 @@ QIcon TextActionIcon(const QString& text, bool active) {
   return QIcon(pixmap);
 }
 
+class ImageView final : public QGraphicsView {
+ public:
+  explicit ImageView(QWidget* parent = nullptr) : QGraphicsView(parent) {
+    setDragMode(QGraphicsView::ScrollHandDrag);
+    setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
+    setResizeAnchor(QGraphicsView::AnchorViewCenter);
+    setRenderHints(QPainter::Antialiasing | QPainter::SmoothPixmapTransform);
+  }
+
+ protected:
+  void wheelEvent(QWheelEvent* event) override {
+    const qreal factor = event->angleDelta().y() >= 0 ? 1.15 : (1.0 / 1.15);
+    scale(factor, factor);
+    event->accept();
+  }
+};
+
+class ImagePreviewDialog final : public QDialog {
+ public:
+  explicit ImagePreviewDialog(const QPixmap& pixmap, QWidget* parent = nullptr)
+      : QDialog(parent) {
+    setObjectName(QStringLiteral("imagePreviewDialog"));
+    setWindowTitle(QStringLiteral("图片预览"));
+    resize(900, 700);
+
+    auto* layout = new QVBoxLayout(this);
+    view_ = new ImageView(this);
+    view_->setObjectName(QStringLiteral("imagePreviewView"));
+    scene_ = new QGraphicsScene(this);
+    item_ = scene_->addPixmap(pixmap);
+    view_->setScene(scene_);
+    layout->addWidget(view_, 1);
+
+    auto* buttons = new QHBoxLayout;
+    auto* fit = new QPushButton(QStringLiteral("适应窗口"), this);
+    fit->setObjectName(QStringLiteral("imagePreviewFit"));
+    auto* actual = new QPushButton(QStringLiteral("100%"), this);
+    actual->setObjectName(QStringLiteral("imagePreviewActual"));
+    auto* close = new QPushButton(QStringLiteral("关闭"), this);
+    close->setObjectName(QStringLiteral("imagePreviewClose"));
+    buttons->addWidget(fit);
+    buttons->addWidget(actual);
+    buttons->addStretch(1);
+    buttons->addWidget(close);
+    layout->addLayout(buttons);
+
+    connect(fit, &QPushButton::clicked, this, [this] { FitImage(); });
+    connect(actual, &QPushButton::clicked, this, [this] { ActualSize(); });
+    connect(close, &QPushButton::clicked, this, &QDialog::accept);
+    QTimer::singleShot(0, this, [this] { FitImage(); });
+  }
+
+ private:
+  void FitImage() {
+    if (item_ != nullptr) {
+      view_->fitInView(item_, Qt::KeepAspectRatio);
+    }
+  }
+
+  void ActualSize() {
+    view_->resetTransform();
+    if (item_ != nullptr) {
+      view_->centerOn(item_);
+    }
+  }
+
+  ImageView* view_ = nullptr;
+  QGraphicsScene* scene_ = nullptr;
+  QGraphicsPixmapItem* item_ = nullptr;
+};
+
+class SourceDialog final : public QDialog {
+ public:
+  SourceDialog(const QString& title, const QString& source,
+               QWidget* parent = nullptr)
+      : QDialog(parent) {
+    setObjectName(QStringLiteral("imageSourceDialog"));
+    setWindowTitle(title);
+    resize(680, 500);
+
+    auto* layout = new QVBoxLayout(this);
+    auto* text = new QPlainTextEdit(this);
+    text->setObjectName(QStringLiteral("imageSourceText"));
+    text->setReadOnly(true);
+    text->setPlainText(source);
+    text->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+    layout->addWidget(text, 1);
+
+    auto* buttons = new QHBoxLayout;
+    auto* copy = new QPushButton(QStringLiteral("复制"), this);
+    copy->setObjectName(QStringLiteral("imageSourceCopy"));
+    auto* close = new QPushButton(QStringLiteral("关闭"), this);
+    close->setObjectName(QStringLiteral("imageSourceClose"));
+    buttons->addStretch(1);
+    buttons->addWidget(copy);
+    buttons->addWidget(close);
+    layout->addLayout(buttons);
+
+    connect(copy, &QPushButton::clicked, this, [text] {
+      QApplication::clipboard()->setText(text->toPlainText());
+    });
+    connect(close, &QPushButton::clicked, this, &QDialog::accept);
+  }
+};
+
 }  // namespace
 
 MdViewerWindow::MdViewerWindow(MdViewerSettings* settings, QWidget* parent)
@@ -136,6 +254,8 @@ void MdViewerWindow::createActions() {
   quit_action_ = new QAction(QStringLiteral("退出"), this);
   quit_action_->setShortcut(QKeySequence::Quit);
   about_action_ = new QAction(QStringLiteral("关于"), this);
+  export_html_action_ = new QAction(QStringLiteral("导出 HTML…"), this);
+  export_html_action_->setObjectName(QStringLiteral("exportHtmlAction"));
   export_pdf_action_ = new QAction(QStringLiteral("导出 PDF…"), this);
 
   // 查找动作不建菜单：快捷键挂在窗口上，按钮内嵌进标题栏搜索框
@@ -208,6 +328,7 @@ void MdViewerWindow::initUi() {
   file_menu->addAction(close_dir_action_);
   recent_menu_ = file_menu->addMenu(QStringLiteral("最近打开"));
   file_menu->addSeparator();
+  file_menu->addAction(export_html_action_);
   file_menu->addAction(export_pdf_action_);
   file_menu->addSeparator();
   file_menu->addAction(quit_action_);
@@ -382,6 +503,9 @@ void MdViewerWindow::initSignals() {
   connect(view_, &MarkdownView::codeCopied, this, [this] {
     statusBar()->showMessage(QStringLiteral("已复制代码块"), 2000);
   });
+  connect(view_, &MarkdownView::imageClicked, this, &MdViewerWindow::OpenImage);
+  connect(view_, &MarkdownView::imageContextMenuRequested, this,
+          &MdViewerWindow::ShowImageContextMenu);
   connect(view_, &MarkdownView::resourceLoadFailed, this,
           [this](const QUrl& url) {
             const QString label = url.isLocalFile()
@@ -429,6 +553,8 @@ void MdViewerWindow::initSignals() {
                 5000);
           });
 
+  connect(export_html_action_, &QAction::triggered, this,
+          &MdViewerWindow::ExportHtml);
   connect(export_pdf_action_, &QAction::triggered, this,
           &MdViewerWindow::ExportPdf);
   // 链接策略（与 demo_app 的 MarkdownWindow 同一套，宿主各自持有）：
@@ -498,6 +624,7 @@ void MdViewerWindow::initSignals() {
           [this](const QString& text) {
             if (text.isEmpty()) {
               search_timer_->stop();
+              view_->ClearSelection();
               return;
             }
             search_timer_->start();
@@ -953,6 +1080,139 @@ void MdViewerWindow::FindNext(bool backward, bool incremental) {
         backward ? QStringLiteral("已绕回末尾") : QStringLiteral("已绕回开头"),
         3000);
   }
+}
+
+void MdViewerWindow::ExportHtml() {
+  if (view_->is_rendering()) {
+    statusBar()->showMessage(QStringLiteral("文档还在渲染，稍后再导出"), 3000);
+    return;
+  }
+  if (!view_->has_document()) {
+    statusBar()->showMessage(QStringLiteral("先打开一篇 Markdown 再导出"),
+                             3000);
+    return;
+  }
+  QString default_path;
+  if (!view_->current_file().isEmpty()) {
+    const QFileInfo info(view_->current_file());
+    default_path = info.absolutePath() + QLatin1Char('/') +
+                   info.completeBaseName() + QStringLiteral(".html");
+  } else {
+    default_path = QDir::homePath() + QStringLiteral("/untitled.html");
+  }
+
+  QString path = QFileDialog::getSaveFileName(
+      this, QStringLiteral("导出 HTML"), default_path,
+      QStringLiteral("HTML 文件 (*.html *.htm)"));
+  if (path.isEmpty()) {
+    return;
+  }
+  if (!path.endsWith(QStringLiteral(".html"), Qt::CaseInsensitive) &&
+      !path.endsWith(QStringLiteral(".htm"), Qt::CaseInsensitive)) {
+    path += QStringLiteral(".html");
+  }
+
+  QString error;
+  if (!view_->ExportHtml(path, &error)) {
+    statusBar()->showMessage(
+        error.isEmpty() ? QStringLiteral("导出 HTML 失败") : error, 5000);
+    return;
+  }
+  statusBar()->showMessage(
+      QStringLiteral("已导出：%1").arg(QFileInfo(path).fileName()), 5000);
+}
+
+void MdViewerWindow::OpenImage(const QUrl& url) {
+  if (view_->ImageInfo(url).has_value()) {
+    ShowImageSource(url);
+    return;
+  }
+  ShowImagePreview(url);
+}
+
+void MdViewerWindow::ShowImageContextMenu(const QPoint& global_pos,
+                                          const QUrl& url) {
+  const QPixmap pixmap = view_->ImagePixmap(url);
+  const std::optional<MarkdownImageInfo> info = view_->ImageInfo(url);
+
+  QMenu menu(this);
+  QAction* preview = menu.addAction(QStringLiteral("放大查看"));
+  preview->setObjectName(QStringLiteral("imagePreviewAction"));
+  preview->setEnabled(!pixmap.isNull());
+  QAction* save = menu.addAction(QStringLiteral("图片另存为…"));
+  save->setObjectName(QStringLiteral("imageSaveAsAction"));
+  save->setEnabled(!pixmap.isNull());
+  QAction* source = nullptr;
+  if (info.has_value()) {
+    menu.addSeparator();
+    source = menu.addAction(QStringLiteral("查看源码"));
+    source->setObjectName(QStringLiteral("imageSourceAction"));
+  }
+
+  QAction* chosen = menu.exec(global_pos);
+  if (chosen == preview) {
+    ShowImagePreview(url);
+  } else if (chosen == save) {
+    SaveImageAs(url);
+  } else if (source != nullptr && chosen == source) {
+    ShowImageSource(url);
+  }
+}
+
+void MdViewerWindow::SaveImageAs(const QUrl& url) {
+  const QPixmap pixmap = view_->ImagePixmap(url);
+  if (pixmap.isNull()) {
+    statusBar()->showMessage(QStringLiteral("这张图片无法保存"), 3000);
+    return;
+  }
+  QString start_dir = QDir::homePath();
+  if (!view_->current_file().isEmpty()) {
+    start_dir = QFileInfo(view_->current_file()).absolutePath();
+  }
+  QString path = QFileDialog::getSaveFileName(
+      this, QStringLiteral("图片另存为"),
+      start_dir + QStringLiteral("/image.png"),
+      QStringLiteral("PNG 图片 (*.png);;JPEG 图片 (*.jpg *.jpeg);;"
+                     "所有文件 (*)"));
+  if (path.isEmpty()) {
+    return;
+  }
+  if (QFileInfo(path).suffix().isEmpty()) {
+    path += QStringLiteral(".png");
+  }
+  if (!pixmap.save(path)) {
+    statusBar()->showMessage(QStringLiteral("图片保存失败"), 5000);
+    return;
+  }
+  statusBar()->showMessage(
+      QStringLiteral("已保存图片：%1").arg(QFileInfo(path).fileName()), 5000);
+}
+
+void MdViewerWindow::ShowImagePreview(const QUrl& url) {
+  const QPixmap pixmap = view_->ImagePixmap(url);
+  if (pixmap.isNull()) {
+    statusBar()->showMessage(QStringLiteral("这张图片无法预览"), 3000);
+    return;
+  }
+  ImagePreviewDialog dialog(pixmap, this);
+  dialog.exec();
+}
+
+void MdViewerWindow::ShowImageSource(const QUrl& url) {
+  const std::optional<MarkdownImageInfo> info = view_->ImageInfo(url);
+  if (!info.has_value()) {
+    return;
+  }
+  QString source = info->source;
+  QString title = QStringLiteral("Mermaid 源码");
+  if (info->kind == MarkdownImageKind::kFormula) {
+    title = QStringLiteral("公式源码");
+    const QString delimiter =
+        info->display ? QStringLiteral("$$") : QStringLiteral("$");
+    source = delimiter + source + delimiter;
+  }
+  SourceDialog dialog(title, source, this);
+  dialog.exec();
 }
 
 void MdViewerWindow::ExportPdf() {

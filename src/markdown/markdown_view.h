@@ -42,6 +42,18 @@ QByteArray ReadResourceForUrl(const QUrl& url, const QString& base_dir);
 // 抽成自由函数是为了可测：token 形态与 qlitehtml 解析出的 QUrl 必须对得上
 QString MakeImageToken(const QString& prefix, const QString& cache_key);
 
+enum class MarkdownImageKind {
+  kFormula,
+  kMermaid,
+};
+
+// 公式/Mermaid 图片对应的源码。普通图片没有这个信息
+struct MarkdownImageInfo {
+  MarkdownImageKind kind = MarkdownImageKind::kFormula;
+  QString source;
+  bool display = false;
+};
+
 // 把渲染器产出的 <img src="data:image/png;base64,..."> 的 src 换成 token。
 // 成功返回替换后的 tag 并写 pixmap_out；失败原样返回 renderer_tag，
 // pixmap_out 为空。只改 src 属性值，class/width/height 与属性顺序不动。
@@ -109,6 +121,17 @@ class MarkdownView : public QWidget {
   // 选区末尾找下一个，适合 F3/回车
   bool FindText(const QString& text, FindFlags flags, bool* wrapped = nullptr,
                 bool incremental = false);
+  // 清掉查找/鼠标选区；搜索框清空时由宿主调用
+  void ClearSelection();
+  bool has_selection() const;
+  // 导出 HTML + 同名资源目录。图片复制/嵌入规则见实现与设计文档；
+  // 渲染中或没有已提交文档时返回 false
+  bool ExportHtml(const QString& html_path, QString* error = nullptr) const;
+  // 图片 URL 的像素。支持 mj: token、data: PNG 和文档目录内的本地图片；
+  // 远程图片返回空 QPixmap
+  QPixmap ImagePixmap(const QUrl& url) const;
+  // mj: 图片对应的源码；普通图片返回 nullopt
+  std::optional<MarkdownImageInfo> ImageInfo(const QUrl& url) const;
   // 打印/导出 PDF：QPrinter 由宿主自备（本控件不碰文件系统与输出格式）。
   // 控件按 print 媒体重排一遍再逐页绘制——分页是按页高切片的，跨页的长
   // 元素会被切在页缝上
@@ -187,6 +210,10 @@ class MarkdownView : public QWidget {
 
  signals:
   void linkClicked(const QUrl& url);
+  // 左键点击图片（press/release 同图、非链接）与图片右键菜单请求。
+  // 宿主用 ImageInfo()/ImagePixmap() 决定预览、另存为或查看源码
+  void imageClicked(const QUrl& url);
+  void imageContextMenuRequested(const QPoint& global_pos, const QUrl& url);
   void loadFailed(const QString& path, const QString& reason);
   // 文档重建后大纲变化（含清空文档）
   void outlineChanged();
@@ -271,6 +298,8 @@ class MarkdownView : public QWidget {
   QHash<QString, QString> heading_ids_;
   // 当前文档的图片 token → pixmap；ApplyDocument 开头清空，provider 只读它
   QHash<QString, QPixmap> document_pixmaps_;
+  // 当前文档的 mj: token → 公式/Mermaid 源码
+  QHash<QString, MarkdownImageInfo> image_info_;
   // 本次文档的标题大纲；与 heading_ids_ 同源
   QVector<MarkdownHeading> outline_;
   // 锚点 → 文档 y。litehtml 的 anchorY 是 DOM 树搜索，滚动处理器按大纲

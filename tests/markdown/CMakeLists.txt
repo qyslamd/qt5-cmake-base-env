@@ -161,6 +161,19 @@ add_unit_test(
 )
 set_tests_properties(test_layout_debounce PROPERTIES TIMEOUT 120)
 
+# qlitehtml 图片命中与选区：imageAt()/clearSelection() 是 MarkdownView 图片
+# 菜单和搜索清空的底座，直接测控件本身，避免物理点击 funq 的盲区
+add_unit_test(
+    NAME test_qlitehtml_image
+    SOURCES qlitehtml_image_test.cpp
+    LIBS qlitehtml
+    INCLUDES ${CMAKE_SOURCE_DIR}/3rdparty/qlitehtml-180e3eb/src
+    QT_MODULES Widgets Test
+    LABELS MARKDOWN
+    NO_GTEST_MAIN
+)
+set_tests_properties(test_qlitehtml_image PROPERTIES TIMEOUT 30)
+
 # 示例里的渲染状态面板：验证 outlineChanged -> RefreshStatus 这条刷新链路。
 # 面板用了 ExWidgets 的进度环与折叠容器，Fluent 路线关闭时不编这个测试
 if(TARGET ExWidgets::ExWidgets)
@@ -208,3 +221,4 @@ add_unit_test(
     LABELS MARKDOWN
     NO_GTEST_MAIN
 )
+set_tests_properties(test_markdown_view_actions PROPERTIES TIMEOUT 120)

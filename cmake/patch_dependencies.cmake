@@ -181,5 +181,10 @@ apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
 apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
     "${PATCHES_DIR}/qlitehtml/0008-pixmap-callback.patch")
 
+# qlitehtml：公开清空选区、图片命中与图片点击/右键信号。MarkdownView 的
+# 搜索清空、图片另存为/预览/源码查看都依赖这两个入口
+apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
+    "${PATCHES_DIR}/qlitehtml/0009-image-hit-and-selection.patch")
+
 message(STATUS "Patches applied.")
 message(STATUS "")
