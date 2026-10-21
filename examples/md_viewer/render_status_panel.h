@@ -5,12 +5,14 @@
 
 #include <QWidget>
 
+class ExExpander;
 class ExProgressRing;
 class HitBar;
 class MarkdownView;
 class QLabel;
 class QProgressBar;
 class QPushButton;
+class QVBoxLayout;
 class StatusPill;
 class WorkerPips;
 
@@ -41,8 +43,13 @@ class RenderStatusPanel : public QWidget {
   void initUi();
   void initSignals();
   void RefreshStatus();
+  // 抽屉展开/收起后把内容高度同步给滚动区
+  void UpdateScrollContentHeight();
+  void TrackGroup(ExExpander* group);
 
   MarkdownView* view_ = nullptr;
+  QWidget* scroll_body_ = nullptr;
+  QVBoxLayout* scroll_body_layout_ = nullptr;
   QPushButton* refresh_button_ = nullptr;
   QPushButton* reset_button_ = nullptr;
 

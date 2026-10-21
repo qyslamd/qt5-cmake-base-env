@@ -30,6 +30,7 @@
 #include <QScrollArea>
 #include <QSizePolicy>
 #include <QStringList>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
 #include <QtMath>
@@ -148,8 +149,9 @@ int FitRingFontPixelSize(const QFont& base, const QString& text,
 }
 
 // 每个分组做成可折叠的抽屉；标题和右侧摘要始终可见，内容按需展开
-QWidget* NewGroup(QWidget* parent, const QString& title, QVBoxLayout** content,
-                  QLabel** hint = nullptr, bool expanded = false) {
+ExExpander* NewGroup(QWidget* parent, const QString& title,
+                     QVBoxLayout** content, QLabel** hint = nullptr,
+                     bool expanded = false) {
   auto* group = new ExExpander(parent);
   group->setAccessibleName(title);
 
@@ -424,7 +426,9 @@ void RenderStatusPanel::initUi() {
   auto* body = new QWidget;
   body->setAutoFillBackground(false);
   body->setBackgroundRole(QPalette::NoRole);
+  scroll_body_ = body;
   auto* layout = new QVBoxLayout(body);
+  scroll_body_layout_ = layout;
   layout->setContentsMargins(8, 8, 8, 8);
   layout->setSpacing(8);
 
@@ -441,9 +445,10 @@ void RenderStatusPanel::initUi() {
   layout->addWidget(actions);
 
   QVBoxLayout* progress_layout = nullptr;
-  QWidget* progress_card = NewGroup(body, QStringLiteral("任务进度"),
-                                    &progress_layout, &progress_hint_, true);
+  auto* progress_card = NewGroup(body, QStringLiteral("任务进度"),
+                                 &progress_layout, &progress_hint_, true);
   progress_card->setObjectName(QStringLiteral("statusProgressGroup"));
+  TrackGroup(progress_card);
   auto* progress_row = new QWidget(progress_card);
   auto* progress_row_layout = new QHBoxLayout(progress_row);
   progress_row_layout->setContentsMargins(0, 0, 0, 0);
@@ -486,9 +491,10 @@ void RenderStatusPanel::initUi() {
   layout->addWidget(progress_card);
 
   QVBoxLayout* timing_layout = nullptr;
-  QWidget* timing_card =
+  auto* timing_card =
       NewGroup(body, QStringLiteral("耗时构成"), &timing_layout, &timing_hint_);
   timing_card->setObjectName(QStringLiteral("statusTimingGroup"));
+  TrackGroup(timing_card);
   const QStringList stage_names{
       QStringLiteral("解析"), QStringLiteral("收集"), QStringLiteral("worker"),
       QStringLiteral("组装"), QStringLiteral("布局"), QStringLiteral("其它")};
@@ -521,9 +527,10 @@ void RenderStatusPanel::initUi() {
   layout->addWidget(timing_card);
 
   QVBoxLayout* pools_layout = nullptr;
-  QWidget* pools_card =
+  auto* pools_card =
       NewGroup(body, QStringLiteral("worker 池"), &pools_layout, &pools_hint_);
   pools_card->setObjectName(QStringLiteral("statusPoolsGroup"));
+  TrackGroup(pools_card);
   const QStringList pool_names{QStringLiteral("高亮"), QStringLiteral("公式"),
                                QStringLiteral("Mermaid")};
   for (int i = 0; i < 3; ++i) {
@@ -578,9 +585,10 @@ void RenderStatusPanel::initUi() {
   layout->addWidget(pools_card);
 
   QVBoxLayout* engines_layout = nullptr;
-  QWidget* engines_card = NewGroup(body, QStringLiteral("引擎命中"),
-                                   &engines_layout, &engines_hint_);
+  auto* engines_card = NewGroup(body, QStringLiteral("引擎命中"),
+                                &engines_layout, &engines_hint_);
   engines_card->setObjectName(QStringLiteral("statusEnginesGroup"));
+  TrackGroup(engines_card);
   const QStringList engine_names{QStringLiteral("高亮"), QStringLiteral("公式"),
                                  QStringLiteral("Mermaid")};
   const QStringList engine_object_names{QStringLiteral("statusHighlight"),
@@ -633,9 +641,10 @@ void RenderStatusPanel::initUi() {
   layout->addWidget(engines_card);
 
   QVBoxLayout* cache_layout = nullptr;
-  QWidget* cache_card =
+  auto* cache_card =
       NewGroup(body, QStringLiteral("缓存"), &cache_layout, &cache_hint_);
   cache_card->setObjectName(QStringLiteral("statusCacheGroup"));
+  TrackGroup(cache_card);
   auto* cache_grid = new QGridLayout;
   cache_grid->setContentsMargins(0, 0, 0, 0);
   cache_grid->setSpacing(5);
@@ -696,6 +705,7 @@ void RenderStatusPanel::initUi() {
   auto* details = new ExExpander(cache_card);
   details->setObjectName(QStringLiteral("statusCacheDetails"));
   details->setHeader(QStringLiteral("持久缓存和诊断"));
+  TrackGroup(details);
   auto* detail_content = new QWidget;
   auto* detail_layout = new QGridLayout(detail_content);
   detail_layout->setContentsMargins(0, 0, 0, 0);
@@ -709,9 +719,10 @@ void RenderStatusPanel::initUi() {
   layout->addWidget(cache_card);
 
   QVBoxLayout* doc_layout = nullptr;
-  QWidget* doc_card =
+  auto* doc_card =
       NewGroup(body, QStringLiteral("文档"), &doc_layout, &doc_hint_);
   doc_card->setObjectName(QStringLiteral("statusDocumentGroup"));
+  TrackGroup(doc_card);
   auto* doc_grid = new QGridLayout;
   doc_grid->setContentsMargins(0, 0, 0, 0);
   doc_grid->setSpacing(5);
@@ -768,9 +779,10 @@ void RenderStatusPanel::initUi() {
   layout->addWidget(doc_card);
 
   QVBoxLayout* history_layout = nullptr;
-  QWidget* history_card = NewGroup(body, QStringLiteral("请求历史"),
-                                   &history_layout, &history_hint_);
+  auto* history_card = NewGroup(body, QStringLiteral("请求历史"),
+                                &history_layout, &history_hint_);
   history_card->setObjectName(QStringLiteral("statusHistoryGroup"));
+  TrackGroup(history_card);
   auto* history_grid = new QGridLayout;
   history_grid->setContentsMargins(0, 0, 0, 0);
   history_grid->setSpacing(3);
@@ -801,9 +813,25 @@ void RenderStatusPanel::initUi() {
   }
   history_layout->addLayout(history_grid);
   layout->addWidget(history_card);
+  layout->addStretch();
 
   scroll->setWidget(body);
   panel_layout->addWidget(scroll);
+  // 初始展开的抽屉在首次布局后才知道完整高度
+  QTimer::singleShot(0, this, [this] { UpdateScrollContentHeight(); });
+}
+
+void RenderStatusPanel::UpdateScrollContentHeight() {
+  if (scroll_body_ == nullptr || scroll_body_layout_ == nullptr) {
+    return;
+  }
+  scroll_body_layout_->activate();
+  scroll_body_->setMinimumHeight(scroll_body_layout_->sizeHint().height());
+}
+
+void RenderStatusPanel::TrackGroup(ExExpander* group) {
+  connect(group, &ExExpander::expansionFinished, this,
+          [this](bool) { UpdateScrollContentHeight(); });
 }
 
 void RenderStatusPanel::initSignals() {
