@@ -33,8 +33,6 @@ set(TARGET_SRCS
     dialogs/crash_report_dialog.h
     dialogs/log_window.cpp
     dialogs/log_window.h
-    dialogs/markdown_window.cpp
-    dialogs/markdown_window.h
     dialogs/settings_dialog.cpp
     dialogs/settings_dialog.h
     dialogs/add_edit_user_dialog.cpp
@@ -127,7 +125,6 @@ target_link_libraries(${TARGET_NAME} PRIVATE
     ${APP_TARGET_PREFIX}_tour
     ${APP_TARGET_PREFIX}_core
     ${APP_TARGET_PREFIX}_controls
-    ${APP_TARGET_PREFIX}_markdown
     qcustomplot
     Qt5::Widgets
     Qt5::Core

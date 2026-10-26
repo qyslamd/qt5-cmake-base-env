@@ -79,10 +79,6 @@ option(BUILD_QT_TESTING "启用 QtTesting UI 录制/回放" ON)
 option(BUILD_FUNQ "构建 funq GUI 测试库（注入式，产物供测试运行时使用）" ON)
 option(BUILD_RIBBON "启用 SARibbon Ribbon 界面（主窗口的功能区菜单）" ON)
 option(BUILD_FLUENT_UI "构建 FluentUI3Style 界面库（第二条界面路线）" ON)
-# 内置 Markdown 文档预览没有开关，是基座的固定能力。它引入的 qlitehtml 是本仓
-# 首个 GPL 类依赖（GPL-3.0-only WITH Qt-GPL-exception-1.0 / 商业双授权），
-# 详见 docs/plan/plan总结.md 与 docs/guide/第三方依赖补丁.md
-
 # 主界面二选一，同进程互斥：qss（样式表 + SARibbon）/ fluent（FluentUI3Style）。
 # 普通变量（非缓存）：子目录可覆盖（如 src/app 自己走 fluent），local.cmake
 # 可覆盖（不入库的本地切换）。缓存里若还留着下沉前的 -DAPP_UI_ROUTE=fluent，
@@ -435,64 +431,6 @@ else()
 endif()
 
 #-------------------------------------------------------------------------------
-# Markdown 文档预览：qlitehtml（渲染 HTML 的 QWidget）+ litehtml（排版引擎，
-# 自带 gumbo）+ md4c（Markdown → HTML）。三个目标由 src/markdown 链接
-#
-# 位置有硬约束：必须在上面 set(QT_VERSION_MAJOR 5) 与 find_package(Qt5) 之后
-# ——qlitehtml 的目标名写作 Qt${QT_VERSION_MAJOR}::Widgets，而这个变量是本仓
-# 自己钉的（Qt 5.15 自带的 Qt5Config.cmake 并不定义它），提前加会解析成不存在
-# 的 Qt::Widgets
-#-------------------------------------------------------------------------------
-# litehtml 必须先于 qlitehtml 建出：qlitehtml 的 src/CMakeLists 用
-# `if(NOT TARGET litehtml AND EXISTS ...)` 决定要不要建它自带的子模块副本，
-# 而官方仓库那份 src/3rdparty/litehtml 是空的（git submodule），本仓单独供
-# 0.10 版（已逐文件比对，与子模块快照逐字节相同）
-#
-# LITEHTML_BUILD_TESTING 默认就是 OFF，不去 set 它：litehtml 的 CMakeLists
-# 没设 CMP0077，设了反而报 "option is clearing the normal variable" 的开发期警告
-#
-# 不生成 litehtml 的 install(EXPORT) 规则：Linux 的 AppImage 走
-# cmake --install，留着会把它装进 AppDir（同 FluentUIStyle 的处理）
-set(CMAKE_SKIP_INSTALL_RULES TRUE)
-add_subdirectory(3rdparty/litehtml-0.10 "${CMAKE_BINARY_DIR}/litehtml")
-unset(CMAKE_SKIP_INSTALL_RULES)
-# litehtml 对调用方是"上游源码"，头文件标成 SYSTEM 免刷屏
-target_include_directories(litehtml SYSTEM INTERFACE
-    "${CMAKE_SOURCE_DIR}/3rdparty/litehtml-0.10/include"
-    "${CMAKE_SOURCE_DIR}/3rdparty/litehtml-0.10/src")
-
-# 静态：与基座其余第三方一致，免 DLL 部署
-set(QLITEHTML_LIBRARY_TYPE STATIC)
-# 只加它的 src/：顶层 CMakeLists 会 include(local.cmake) 并建 tests/manual/browser
-# （产物名沿用上游的 qlitehtml1.lib，那个 1 取自 project 版本主号）
-add_subdirectory(3rdparty/qlitehtml-180e3eb/src "${CMAKE_BINARY_DIR}/qlitehtml")
-# AUTOMOC 得手动给它开：上游是在顶层 CMakeLists 里 CMAKE_AUTOMOC ON 的，
-# 本仓只加它的 src/，不补这一句 QLiteHtmlWidget 就没有 moc（链接期报一堆
-# staticMetaObject / qt_metacall 找不到）
-set_target_properties(qlitehtml PROPERTIES AUTOMOC ON)
-
-# md4c 自己列源文件建库，不走它的 CMakeLists：那份会改全局编译设定（覆盖
-# CMAKE_BUILD_TYPE、把 C 旗标里的 /MD 清成 /MT）并多建一个 md2html 可执行文件
-add_library(md4c STATIC
-    "${CMAKE_SOURCE_DIR}/3rdparty/md4c-release-0.5.3/src/md4c.c"
-    "${CMAKE_SOURCE_DIR}/3rdparty/md4c-release-0.5.3/src/md4c-html.c"
-    "${CMAKE_SOURCE_DIR}/3rdparty/md4c-release-0.5.3/src/entity.c")
-target_include_directories(md4c PUBLIC
-    "${CMAKE_SOURCE_DIR}/3rdparty/md4c-release-0.5.3/src")
-set_target_properties(md4c PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
-
-#-------------------------------------------------------------------------------
-# quickjs-ng：文档预览里的公式渲染用它跑 MathJax（tex → svg）
-#
-# 解压产物不入 git，三处改动（六个命令行工具、qjs-libc 出 ALL、MSVC 下的
-# 原子操作 shim）都在 patches/quickjs/ 里，由 cmake/patch_dependencies.cmake
-# 在 configure 阶段应用；需要 qjsc/qjs CLI 时显式构建对应目标
-#-------------------------------------------------------------------------------
-# 关掉它的 install 规则，避免污染系统（同 qlitehtml 的处理）
-set(QJS_ENABLE_INSTALL OFF CACHE BOOL "不生成 quickjs-ng 的 install 规则" FORCE)
-add_subdirectory(3rdparty/quickjs-0.17.0)
-
-#-------------------------------------------------------------------------------
 # 本仓库模块
 #-------------------------------------------------------------------------------
 
@@ -504,7 +442,6 @@ add_subdirectory(examples)
 
 # 示例自己的部署目标排在 make_deploy 之前：两个 windeployqt 都会往同一个 bin/
 # 写文件，并发跑会打架（原因见 examples/fft_demo/CMakeLists.txt）。
-# md_viewer 不在这里：它有自己的打包脚本，不参与 -d / -p。
 if(TARGET make_deploy AND TARGET deploy_fft_demo)
     add_dependencies(make_deploy deploy_fft_demo)
 endif()

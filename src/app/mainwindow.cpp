@@ -27,7 +27,6 @@
 #include "config/config_manager.h"
 #include "dialogs/about_dialog.h"
 #include "dialogs/log_window.h"
-#include "dialogs/markdown_window.h"
 #include "dialogs/settings_dialog.h"
 
 namespace {
@@ -111,13 +110,6 @@ void MainWindow::createActions() {
                               QStringLiteral("关于(&A)"), this);
   about_action_->setObjectName(QStringLiteral("actionAbout"));
   connect(about_action_, &QAction::triggered, this, &MainWindow::onShowAbout);
-
-  markdown_action_ =
-      new QAction(QIcon(":/resources/icons/svg/markdown.svg"),
-                  QStringLiteral("打开 Markdown 文档(&M)…"), this);
-  markdown_action_->setObjectName(QStringLiteral("actionOpenMarkdown"));
-  connect(markdown_action_, &QAction::triggered, this,
-          &MainWindow::onOpenMarkdown);
 }
 
 #ifdef APP_ENABLE_RIBBON
@@ -148,7 +140,6 @@ void MainWindow::initRibbon() {
 
   SARibbonPanel* panel_file = home->addPanel(QStringLiteral("文件"));
   panel_file->setObjectName(QStringLiteral("ribbonPanelFile"));
-  panel_file->addLargeAction(markdown_action_);
   panel_file->addLargeAction(quit_action_);
 }
 #else
@@ -156,7 +147,6 @@ void MainWindow::initRibbon() {
 void MainWindow::initMenuBar() {
   auto* file_menu = menuBar()->addMenu(QStringLiteral("文件(&F)"));
   file_menu->setObjectName(QStringLiteral("menuFile"));
-  file_menu->addAction(markdown_action_);
   file_menu->addAction(quit_action_);
 
   auto* tool_menu = menuBar()->addMenu(QStringLiteral("工具(&T)"));
@@ -229,17 +219,6 @@ void MainWindow::onShowSettings() {
 void MainWindow::onShowAbout() {
   AboutDialog dialog(this);
   dialog.exec();
-}
-
-void MainWindow::onOpenMarkdown() {
-  // 复用同一个查看器窗口：连开几篇文档，位置与尺寸不跳
-  if (markdown_window_ == nullptr) {
-    markdown_window_ = new MarkdownWindow(this);
-  }
-  markdown_window_->show();
-  markdown_window_->raise();
-  markdown_window_->activateWindow();
-  markdown_window_->OpenFileDialog();
 }
 
 void MainWindow::onMakeCrash() {

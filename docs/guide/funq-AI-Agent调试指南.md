@@ -241,7 +241,7 @@ taskkill //F //IM your_app.exe
 |---|---|
 | `scripts/funq/funq_common.py` | 挂 sys.path、连接、按路径抓图、摊平树 |
 | `scripts/funq/run_demo_app_funq.py` | 起 demo_app + 注入，按 PE 位数挑解释器 |
-| `scripts/funq/probe_*.py` | 登录、动画、hover、Markdown 预览等现成探针 |
+| `scripts/funq/probe_*.py` | 登录、动画、hover 等现成探针 |
 | `scripts/funq/README.md` | 两终端用法与 hover 坐标坑 |
 | [funq 注入式 UI 测试](funq注入式UI测试.md) | 机制、funq.conf 用例、排错 |
 | [调试 libFunq](调试libFunq.md) | 注入库本身的调试 |

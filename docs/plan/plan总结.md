@@ -3,8 +3,8 @@
 `docs/plan/` 只保留这一份与尚未收尾的方案：已收尾的方案提炼到这里后删原文，
 原文用 `git log --diff-filter=D -- docs/plan/<文件名>` 查；未处理的问题作为
 活清单放在最后一节。新写方案时在 `docs/plan/` 下另起文件，收尾后再并进来。
-仍在进行/暂缓的方案（图片懒加载、重排去抖步 3、Mermaid 线程化等）继续以
-独立文件保留。
+已收尾后整体迁出的 Markdown 渲染能力现维护于独立仓库 qlitemd
+（D:	rae_workspace\qlitemd），本仓不再保留相关模块与方案文档。
 
 ## 单实例 + 崩溃捕获接入，与 Linux 构建支持（2026-09-11，原同名文档）
 
@@ -499,80 +499,6 @@ CharacterPanel：面板本来就有 50ms tick 与 `setInput()`/`onValidationFail
 - 验收只能抓图：策略是普通 QObject、面板不暴露动画状态；判据用"可辨认形态"
   （满卡 / 四成碎卡+撕裂 / 八成卡慢跑 / 四成卡+六成雪+滚屏），不用"与基线
   不同"。帧间距 ≥500ms；先归一化穿梭，避免持续态污染期望值。
-
-## 内置 Markdown 文档预览（2026-10-14，原同名文档）
-
-新增 `src/markdown/`（`demo_markdown`）：md4c 解析 + qlitehtml 渲染，
-控件 `MarkdownView` + 独立查看器窗口；文档从磁盘读，改完即看。
-
-**仍有效**
-
-- 边界在 `MarkdownView`：qlitehtml 类型不进公开头，链接只抛 `linkClicked`，
-  本地 .md 自开/其余交系统浏览器是窗口策略。
-- 渲染契约：md4c 必须用 `MD_DIALECT_GITHUB`（否则表格静默丢失）；
-  `setUrl` 必须早于 `setHtml`，空基准也要显式设 `QUrl()`，否则相对图片按上一份
-  文档解析。
-- 热重载用有界轮询（100ms × 50 次）而不是单次重试；"先删后建"保存时也能等到
-  文件回来；`addPath()` 失败要抛 `loadFailed`。
-- `LoadFile` 失败要 `ClearDocument()` 并回错误页，不能只改标题。
-- 页内锚点先看 `fragment()`：纯 fragment 只滚锚点，不能走
-  `QDesktopServices::openUrl`（基准 URL 是目录，会弹资源管理器）。
-- 只放行 http/https/mailto 与真实存在的本地文件。
-- 单测：`test_markdown_to_html`、`test_code_highlighter`；像素探针
-  `scripts/funq/probe_markdown_view.py`。
-
-**当时定案、后来被后续工作覆盖**
-
-- 初版"零补丁"已被 qlitehtml 0001-0006、0008 取代。
-- 初版"不做暗色主题"已被 Light/Dark 主题接入覆盖。
-- `markdown_window.{h,cpp}` 已迁到 `src/app/dialogs/`，模块边界仍是
-  `src/markdown → src/app` 单向。
-- 备查未做：把"解析自己生成的 HTML"换成 md4c `MD_PARSER` 回调，可根除
-  `<pre><code>` 正则吞正文的同源问题；改动面大，等真有需求再上。
-
-**坑**
-
-- 只 `add_subdirectory` qlitehtml 的 `src/` 会丢顶层 `CMAKE_AUTOMOC ON`，
-  链接期报一屏 `staticMetaObject` 找不到。
-- `Q_INIT_RESOURCE` 放进匿名命名空间会绑到匿名空间、链接期找不到 rcc 函数。
-- md4c 不 `add_subdirectory` 的真陷阱是它改全局编译设定（强推 `/MT`、覆盖
-  build type），不是"没有测试目标"。
-
-## 公式/图表图片 QPixmap 直供（2026-10-20，原《Markdown公式图表QPixmap直供设计》）
-
-qlitehtml 增加 `PixmapCallBack`（补丁 0008）：宿主已有解码好的 QPixmap 时
-直接提供，避免每次 `setDocument()` 走 base64 + PNG 解码；打印容器同步复制
-回调。
-
-**仍有效**
-
-- `load_image` 先查 provider，返回空再走 DataCallback；provider 图按静态图
-  处理，跳过 `loadAnimation`。
-- `setDocument` 保留 `m_pixmaps.clear()`：跨文档复用会让动画图不再注册
-  QMovie、本地图片内容变化后仍命中旧图；缓存放宿主。
-- markdown 侧 token 用 `mj:f/<sha256>` / `mj:m/<sha256>`，由渲染器内容缓存
-  key 派生；不能按 ApplyDocument 递增，缓存命中不会重新产出 QImage。
-- 两层缓存：`MarkdownRenderContextState::pixmap_cache` 跨 ApplyDocument 复用，
-  `MarkdownView::document_pixmaps_` pin 住当前文档；provider 只读 pin 层，
-  避免 QCache 淘汰当前文档条目造成 token 悬空。
-- `QCache::insert` 失败会删除对象，失败后不能再用 entry 指针；pin 层仍保证
-  当前文档可用。
-- `ClearRenderCaches()` 清跨 ApplyDocument 缓存，不清 pin；PDF 导出走
-  `print()` 的 provider 副本。
-- 解码上限：PNG 字节与像素字节均 64MiB，单边 32767；公式侧补了与 mermaid
-  相同的 4096² 面积封顶。
-- 只覆盖公式/图表；本地图片仍每次 `setHtml` 读盘解码。
-
-**坑**
-
-- provider 必须在第一次 `setHtml()` 前设置：litehtml 在 `createFromString()`
-  的 `compute_styles()` 阶段就会对每个 `<img>` 调 `load_image`。
-- 不能删 `m_pixmaps.clear()`（见上）。
-- 不能只复制 dataCallback 到打印容器，否则 PDF 缺图。
-- `mj:` 未命中不要在 qlitehtml 内统一告警：本地图片/真 data URI 返回空是正常
-  回退；告警放宿主，只对 `mj:` 打。
-- QImage → QPixmap 必须在 GUI 线程；不要给 pixmap 设 `devicePixelRatio`
-  （qlitehtml 用显式目标矩形绘制）。
 
 ## 挂起事项（原 `挂起事项.md`，活清单）
 

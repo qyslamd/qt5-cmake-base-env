@@ -188,11 +188,6 @@ scripts/build_ninja.bat -t relwithdebinfo -m demo_app -p
   的那张注册表**不能**用来断言"某能力不存在"——QAction 不在表里，但
   `client.action(path=...)` 能 trigger。
 
-### 测试
-
-- **改到 `src/markdown/` 只跑 `ctest -L MARKDOWN`**，不要全量：那一组够覆盖改动面，
-  全量只是把 funq/app/tour 陪跑一遍。
-
 ### 结论前先实测
 
 - 说"将来会冲突"之前先跑 `git merge-tree <base> <A> <B> | grep -c '^<<<<<<<'`。

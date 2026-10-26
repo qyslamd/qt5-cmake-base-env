@@ -135,56 +135,5 @@ apply_patch_to_dir("${3RDPARTY_DIR}/zlib-v1.2.11"
 apply_patch_to_dir("${3RDPARTY_DIR}/FluentUIStyle-4.0"
     "${PATCHES_DIR}/FluentUIStyle/0001-qt5-only.patch")
 
-# quickjs-ng：本仓默认只用它的库（公式渲染跑 MathJax），命令行工具与
-# qjs-libc 都标成 EXCLUDE_FROM_ALL；需要 qjsc/qjs CLI 时显式构建对应目标
-# 即可（CMake 会把 qjs-libc 作为依赖带上）。qjs-libc 在 MSVC 2019 下缺
-# C11 <stdatomic.h>，0003 把唯一的 32 位 fetch-add 换成 Interlocked intrinsic
-apply_patch_to_dir("${3RDPARTY_DIR}/quickjs-0.17.0"
-    "${PATCHES_DIR}/quickjs/0001-drop-cli-tools.patch")
-apply_patch_to_dir("${3RDPARTY_DIR}/quickjs-0.17.0"
-    "${PATCHES_DIR}/quickjs/0002-drop-qjs-libc.patch")
-apply_patch_to_dir("${3RDPARTY_DIR}/quickjs-0.17.0"
-    "${PATCHES_DIR}/quickjs/0003-msvc-c11-atomics.patch")
-
-# qlitehtml：上游按 Qt ≥ 5.14 写，Qt::SkipEmptyParts 与 QFont::setFamilies 都没加
-# 版本守卫，而 Linux 构建指南让人装的正是 Ubuntu 20.04 自带的 Qt 5.12.8——不加守卫
-# 在这套 Qt 上编译直接失败。守卫的写法与 qt-libui 那边的老版本一致
-apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
-    "${PATCHES_DIR}/qlitehtml/0001-qt-5.12-compat.patch")
-
-# qlitehtml：打印支持被上游判在 "TARGET Qt5::PrintSupport AND QT_FEATURE_printer"
-# 上，而后者只有自己 configure 出来的 Qt 才有——官方二进制包不带它，整条判据
-# 恒假，QLITEHTML_HAS_QPRINTER 永远 0，QLiteHtmlWidget::print() 静默变空操作
-apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
-    "${PATCHES_DIR}/qlitehtml/0002-print-with-binary-qt.patch")
-
-# qlitehtml：大纲滚动联动要按 slug 取文档 y 坐标；上游只提供
-# scrollToAnchor（直接滚），没有可查询的接口
-apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
-    "${PATCHES_DIR}/qlitehtml/0003-anchor-y.patch")
-
-# qlitehtml：纯高度变化不重排（布局输入是宽度 + 视口高度，守卫见设计文档）
-apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
-    "${PATCHES_DIR}/qlitehtml/0004-layout-on-width-change.patch")
-
-# qlitehtml：打印时按 96dpi 逻辑像素布局、画布按设备/逻辑比例缩放
-apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
-    "${PATCHES_DIR}/qlitehtml/0005-print-device-to-logical.patch")
-
-# qlitehtml：基准 URL 的路径已编码却被交给 QUrl::setPath（按未编码处理），
-# 含空格/中文的文档目录会被二次编码成 %2520/%25E4，相对图片全部加载失败
-apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
-    "${PATCHES_DIR}/qlitehtml/0006-fix-base-url-encoding.patch")
-
-# qlitehtml：宿主已有解码好的 QPixmap 时直供，避免每次 setDocument 都走
-# base64 + PNG 解码；print() 的临时容器同步复制该回调
-apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
-    "${PATCHES_DIR}/qlitehtml/0008-pixmap-callback.patch")
-
-# qlitehtml：公开清空选区、图片命中与图片点击/右键信号。MarkdownView 的
-# 搜索清空、图片另存为/预览/源码查看都依赖这两个入口
-apply_patch_to_dir("${3RDPARTY_DIR}/qlitehtml-180e3eb"
-    "${PATCHES_DIR}/qlitehtml/0009-image-hit-and-selection.patch")
-
 message(STATUS "Patches applied.")
 message(STATUS "")
