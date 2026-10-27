@@ -12,5 +12,7 @@
         <file>resources/styles/base/label.qss</file>
         <file>resources/icons/svg/arrow_down.svg</file>
         <file>resources/icons/svg/arrow_up.svg</file>
+        <file>resources/icons/svg/check.svg</file>
+        <file>resources/icons/svg/radio_dot.svg</file>
     </qresource>
 </RCC>
