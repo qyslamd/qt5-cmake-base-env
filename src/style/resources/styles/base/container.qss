@@ -30,12 +30,46 @@ QGroupBox:disabled {
   color: #AAAAAA;
 }
 
+/* QScrollArea：带边框与圆角的滚动容器
+ *
+ * 三个必须知道的点：
+ * 1. QScrollArea 的 viewport 是普通 QWidget（Qt 内部对象名
+ *    qt_scrollarea_viewport），默认会绘制自己的背景，把 QScrollArea 的
+ *    圆角盖成直角。必须把 viewport 设成透明，圆角边框才露得出来。
+ * 2. QSS 的 border-radius 不裁剪子控件。viewport 里的内容如果贴边，仍然会
+ *    溢出圆角。要内容也圆角，得在业务层给内容容器留 margin（推荐 1~2px
+ *    以上），QSS 本身做不到裁剪。
+ * 3. 滚动条是 QScrollArea 的直接子控件，落在边框内侧。右下角可能与圆角
+ *    重叠，可在 scrollbar.qss 里给 handle 加 1px margin 改善观感（可选）。
+ */
+
 QScrollArea {
-  border: none;
-  background: transparent;
+  background-color: #FFFFFF;
+  border: 1px solid #CCCCCC;
+  border-radius: 8px;
 }
-QScrollArea > QWidget {
+
+/* viewport 透明：让 QScrollArea 的圆角边框露出来 */
+QScrollArea QWidget#qt_scrollarea_viewport {
   background-color: transparent;
+  border: none;
+  border-radius: 7px; /* 8px 边框内缩 1px，视觉更贴合 */
+}
+
+/* viewport 的直接子控件默认透明，背景统一由 QScrollArea 提供。
+ * 如果宿主希望某个子控件自己带背景（如 QGroupBox），那类控件在其它
+ * 底座文件里已有更具体的类型规则，会覆盖这条。 */
+QScrollArea QWidget#qt_scrollarea_viewport > QWidget {
+  background-color: transparent;
+}
+
+QScrollArea QScrollBar:vertical {
+  background-color: transparent;
+  margin: 1px 1px 1px 0;
+}
+QScrollArea QScrollBar:horizontal {
+  background-color: transparent;
+  margin: 0 1px 1px 1px;
 }
 
 /* 分割器：handle 的尺寸必须按方向分别写，只写 QSplitter::handle 是无效的 */
