@@ -22,6 +22,7 @@ using MainWindowBase = QMainWindow;
 
 class QAction;
 class LogWindow;
+class MarkdownViewerDialog;
 class FluentWindowFrame;
 
 // 主窗口骨架：入口（功能区或菜单栏）+ 占位中央控件，不承载具体业务。
@@ -36,6 +37,7 @@ class MainWindow : public MainWindowBase {
 
  private slots:
   void onShowLogWindow();
+  void onShowMarkdownViewer();
   void onShowSettings();
   void onShowAbout();
   void onMakeCrash();
@@ -60,11 +62,13 @@ class MainWindow : public MainWindowBase {
   // 分开建、分开挂，谁先谁后都说得清
   QAction* quit_action_ = nullptr;
   QAction* log_action_ = nullptr;
+  QAction* markdown_action_ = nullptr;
   QAction* make_crash_action_ = nullptr;
   QAction* settings_action_ = nullptr;
   QAction* about_action_ = nullptr;
 
   LogWindow* log_window_ = nullptr;
+  MarkdownViewerDialog* markdown_viewer_ = nullptr;
 #ifdef APP_UI_FLUENT
   // 窗口壳（QWK 无边框 + Fluent 标题栏）。宿主窗口是它的 QObject 父级
   FluentWindowFrame* fluent_frame_ = nullptr;

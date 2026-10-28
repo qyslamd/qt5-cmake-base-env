@@ -27,6 +27,7 @@
 #include "config/config_manager.h"
 #include "dialogs/about_dialog.h"
 #include "dialogs/log_window.h"
+#include "dialogs/markdown_viewer_dialog.h"
 #include "dialogs/settings_dialog.h"
 
 namespace {
@@ -93,6 +94,12 @@ void MainWindow::createActions() {
   log_action_->setObjectName(QStringLiteral("actionLogWindow"));
   connect(log_action_, &QAction::triggered, this, &MainWindow::onShowLogWindow);
 
+  markdown_action_ = new QAction(QIcon(":/resources/icons/svg/markdown.svg"),
+                                 QStringLiteral("Markdown 查看器(&M)"), this);
+  markdown_action_->setObjectName(QStringLiteral("actionMarkdownViewer"));
+  connect(markdown_action_, &QAction::triggered, this,
+          &MainWindow::onShowMarkdownViewer);
+
   make_crash_action_ =
       new QAction(QIcon(":/resources/icons/svg/make_crash.svg"),
                   QStringLiteral("触发测试崩溃(&C)"), this);
@@ -134,6 +141,10 @@ void MainWindow::initRibbon() {
   panel_tool->addLargeAction(settings_action_);
   panel_tool->addLargeAction(make_crash_action_);
 
+  SARibbonPanel* panel_doc = home->addPanel(QStringLiteral("文档"));
+  panel_doc->setObjectName(QStringLiteral("ribbonPanelDocument"));
+  panel_doc->addLargeAction(markdown_action_);
+
   SARibbonPanel* panel_help = home->addPanel(QStringLiteral("帮助"));
   panel_help->setObjectName(QStringLiteral("ribbonPanelHelp"));
   panel_help->addLargeAction(about_action_);
@@ -152,6 +163,7 @@ void MainWindow::initMenuBar() {
   auto* tool_menu = menuBar()->addMenu(QStringLiteral("工具(&T)"));
   tool_menu->setObjectName(QStringLiteral("menuTool"));
   tool_menu->addAction(log_action_);
+  tool_menu->addAction(markdown_action_);
   tool_menu->addAction(settings_action_);
   tool_menu->addAction(make_crash_action_);
   tool_menu->addAction(make_crash_action_);
@@ -209,6 +221,15 @@ void MainWindow::onShowLogWindow() {
   log_window_->show();
   log_window_->raise();
   log_window_->activateWindow();
+}
+
+void MainWindow::onShowMarkdownViewer() {
+  if (!markdown_viewer_) {
+    markdown_viewer_ = new MarkdownViewerDialog(this);
+  }
+  markdown_viewer_->show();
+  markdown_viewer_->raise();
+  markdown_viewer_->activateWindow();
 }
 
 void MainWindow::onShowSettings() {

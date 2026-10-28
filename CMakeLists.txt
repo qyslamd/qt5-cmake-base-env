@@ -225,6 +225,19 @@ endif()
 # 只给 Qt5_DIR 的写法对不上，会直接配置失败（见 docs/guide/第三方依赖补丁.md）
 set(QT_VERSION_MAJOR 5)
 
+#-------------------------------------------------------------------------------
+# qlitemd MarkdownView（源码包，见 3rdparty/qlitemd-0.1.0-qt-src.zip）
+#-------------------------------------------------------------------------------
+# 这里只取 Qt 控件层：不构建 qlitemd 的示例应用和测试，也不生成安装规则。
+# Qt 版本由宿主决定；base env 固定 Qt5。
+set(QLITEMD_QT_MAJOR 5)
+set(QLITEMD_BUILD_QT_WIDGET ON CACHE BOOL "" FORCE)
+set(QLITEMD_BUILD_MD_VIEWER OFF CACHE BOOL "" FORCE)
+set(QLITEMD_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(QLITEMD_INSTALL OFF CACHE BOOL "" FORCE)
+add_subdirectory("${3RDPARTY_DIR}/qlitemd-0.1.0-qt-src"
+                 "${CMAKE_BINARY_DIR}/3rdparty/qlitemd")
+
 # Qt 的目录推导集中在这里，不要在各子目录另起一套，否则改动假设时容易漏改。
 if(Qt5_FOUND)
     get_target_property(_qt_qmake Qt5::qmake IMPORTED_LOCATION)

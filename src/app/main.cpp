@@ -277,6 +277,9 @@ int main(int argc, char* argv[]) {
   // ========================= 主窗口 =========================
   MainWindow w;
   w.show();
+  if (opts.open_markdown) {
+    QMetaObject::invokeMethod(&w, "onShowMarkdownViewer", Qt::QueuedConnection);
+  }
 
   // ========================= 窗口之后的接线 =========================
   // 桥接要活到进程结束，这里接住就是它的寿命

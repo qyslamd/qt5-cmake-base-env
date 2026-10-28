@@ -35,6 +35,8 @@ set(TARGET_SRCS
     dialogs/log_window.h
     dialogs/settings_dialog.cpp
     dialogs/settings_dialog.h
+    dialogs/markdown_viewer_dialog.cpp
+    dialogs/markdown_viewer_dialog.h
     dialogs/add_edit_user_dialog.cpp
     dialogs/add_edit_user_dialog.h
     dialogs/change_password_dialog.cpp
@@ -125,11 +127,25 @@ target_link_libraries(${TARGET_NAME} PRIVATE
     ${APP_TARGET_PREFIX}_tour
     ${APP_TARGET_PREFIX}_core
     ${APP_TARGET_PREFIX}_controls
+    qlitemd::markdown_view
     qcustomplot
     Qt5::Widgets
     Qt5::Core
     Qt5::Gui
 )
+
+# qlitemd stages its selected native backends in its own build tree; the host
+# app also needs them next to its executable at runtime. The imported targets
+# are directory-scoped, so copy the staged directory instead of querying them
+# from this sibling directory.
+if(TARGET qlitemd_runtime_dlls)
+    add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_BINARY_DIR}/3rdparty/qlitemd/bin"
+            "$<TARGET_FILE_DIR:${TARGET_NAME}>"
+        COMMENT "Copying qlitemd native backends next to ${TARGET_NAME}")
+    add_dependencies(${TARGET_NAME} qlitemd_runtime_dlls)
+endif()
 
 # 编译期开关：main.cpp 据此决定是否接线 UI 测试（菜单与 --play）
 if(BUILD_QT_TESTING)
