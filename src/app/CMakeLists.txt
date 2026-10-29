@@ -35,8 +35,6 @@ set(TARGET_SRCS
     dialogs/log_window.h
     dialogs/settings_dialog.cpp
     dialogs/settings_dialog.h
-    dialogs/markdown_viewer_dialog.cpp
-    dialogs/markdown_viewer_dialog.h
     dialogs/add_edit_user_dialog.cpp
     dialogs/add_edit_user_dialog.h
     dialogs/change_password_dialog.cpp
@@ -127,6 +125,7 @@ target_link_libraries(${TARGET_NAME} PRIVATE
     ${APP_TARGET_PREFIX}_tour
     ${APP_TARGET_PREFIX}_core
     ${APP_TARGET_PREFIX}_controls
+    ${APP_TARGET_PREFIX}_docs
     qlitemd::markdown_view
     qcustomplot
     Qt5::Widgets
@@ -230,11 +229,22 @@ set(CONFIG_FILES_SOURCE_DIR "${CMAKE_SOURCE_DIR}/config/calibration/calibration_
 set(CONFIG_FILES_OUTPUT_DIR "$<TARGET_FILE_DIR:${TARGET_NAME}>/calibration/calibration.ini")
 if(EXISTS "${CONFIG_FILES_SOURCE_DIR}")
     add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different  
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${CONFIG_FILES_SOURCE_DIR}" # file
             "${CONFIG_FILES_OUTPUT_DIR}" # destination.either file or directory
         COMMENT "Copying calibration file to output directory..."
     )
+endif()
+
+# 应用内文档：构建目录直接运行和安装后运行都读取 exe 旁的 docs/。
+set(DOCS_SOURCE_DIR "${CMAKE_SOURCE_DIR}/docs/user")
+if(EXISTS "${DOCS_SOURCE_DIR}")
+    add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${DOCS_SOURCE_DIR}"
+            "$<TARGET_FILE_DIR:${TARGET_NAME}>/docs"
+        COMMENT "Copying application docs to output directory...")
+    install(DIRECTORY "${DOCS_SOURCE_DIR}/" DESTINATION docs)
 endif()
 
 # Qt 自带控件的中文翻译。main.cpp 从 QLibraryInfo::TranslationsPath（= 可执行

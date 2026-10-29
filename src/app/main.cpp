@@ -277,8 +277,8 @@ int main(int argc, char* argv[]) {
   // ========================= 主窗口 =========================
   MainWindow w;
   w.show();
-  if (opts.open_markdown) {
-    QMetaObject::invokeMethod(&w, "onShowMarkdownViewer", Qt::QueuedConnection);
+  if (opts.open_docs) {
+    QMetaObject::invokeMethod(&w, "onShowDocs", Qt::QueuedConnection);
   }
 
   // ========================= 窗口之后的接线 =========================

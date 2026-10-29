@@ -94,6 +94,8 @@ Source: "{#WhereAreFiles}\funq\*"; DestDir: "{app}\funq"; Flags: ignoreversion r
 ; 配置 + 数据（模板示例，项目未必有这些目录）
 Source: "{#WhereAreFiles}\config\*"; DestDir: "{app}\config"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 Source: "{#WhereAreFiles}\calibration\*"; DestDir: "{app}\calibration"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+; 应用内 Markdown 文档，DocsViewerWindow 从 exe 旁的 docs/ 读取
+Source: "{#WhereAreFiles}\docs\*"; DestDir: "{app}\docs"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\@TARGET_NAME@.exe"

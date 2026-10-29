@@ -1,0 +1,19 @@
+{
+  "documents": [
+    {
+      "title": "文档总览",
+      "file": "index.md",
+      "category": "开始"
+    },
+    {
+      "title": "快速开始",
+      "file": "getting-started.md",
+      "category": "开始"
+    },
+    {
+      "title": "常见问题",
+      "file": "faq.md",
+      "category": "参考"
+    }
+  ]
+}

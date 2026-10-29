@@ -26,9 +26,9 @@ struct LaunchOptions {
   // 做不到（这条由 tests/app/launch_options_test.cpp 钉住）
   bool export_report = false;
   QString export_report_dir;
-  // --markdown：启动后直接打开 Markdown 查看器（内置示例），供演示与
-  // 自动化截图使用；正常使用仍走 Ribbon 入口。
-  bool open_markdown = false;
+  // --docs：启动后直接打开应用文档中心，供演示与自动化截图使用；
+  // 正常使用仍走 Ribbon 入口。
+  bool open_docs = false;
   // 的原始条目（可重复）。留原始串的原因同
   // slow_text：解析
   // 与告警要等 Logger::init 之后才有日志可用，放到 main 里做。

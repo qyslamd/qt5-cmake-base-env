@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="180" viewBox="0 0 640 180">
+  <rect width="640" height="180" rx="12" fill="#F5F7FA"/>
+  <g font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="18" text-anchor="middle">
+    <rect x="40" y="60" width="140" height="60" rx="8" fill="#E3F2FD" stroke="#42A5F5"/>
+    <text x="110" y="96" fill="#1565C0">Markdown</text>
+    <rect x="250" y="60" width="140" height="60" rx="8" fill="#E8F5E9" stroke="#66BB6A"/>
+    <text x="320" y="96" fill="#2E7D32">DocsViewer</text>
+    <rect x="460" y="60" width="140" height="60" rx="8" fill="#FFF3E0" stroke="#FFA726"/>
+    <text x="530" y="96" fill="#E65100">安装包 docs/</text>
+    <path d="M180 90h60" stroke="#90A4AE" stroke-width="3" marker-end="url(#a)"/>
+    <path d="M390 90h60" stroke="#90A4AE" stroke-width="3" marker-end="url(#a)"/>
+  </g>
+  <defs>
+    <marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0 0l8 3-8 3z" fill="#90A4AE"/>
+    </marker>
+  </defs>
+</svg>
