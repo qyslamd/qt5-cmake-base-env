@@ -63,6 +63,11 @@ Source: "{#WhereAreFiles}\crashpad_handler.exe"; DestDir: "{app}"; Flags: ignore
 ; 子系统程序，命令行读不到退出码，这个 .bat 用 start /wait 兜住
 Source: "{#WhereAreFiles}\export_crash_report.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#WhereAreFiles}\Qt5*.dll"; DestDir: "{app}"; Flags: ignoreversion
+; qlitemd 的公式/Mermaid 原生后端由 qlitemd_runtime_dlls 同步到构建输出目录，
+; 必须随安装包一起部署；关闭对应后端的构建没有这些文件
+Source: "{#WhereAreFiles}\resvg.dll"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "{#WhereAreFiles}\ratex_ffi.dll"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "{#WhereAreFiles}\merman_ffi.dll"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 ; FluentUI3Style：fluent 界面路线（目标的 APP_UI_ROUTE）的 QProxyStyle。qss 路线
 ; 下它没被进程链接、装着也不加载，但随包带上省得做路线分支；BUILD_FLUENT_UI=OFF
 ; 的构建根本没有这个文件，故 skipifsourcedoesntexist

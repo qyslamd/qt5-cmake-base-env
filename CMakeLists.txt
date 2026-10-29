@@ -226,7 +226,7 @@ endif()
 set(QT_VERSION_MAJOR 5)
 
 #-------------------------------------------------------------------------------
-# qlitemd MarkdownView（源码包，见 3rdparty/qlitemd-0.1.0-qt-src.zip）
+# qlitemd MarkdownView（源码包，见 3rdparty/qlitemd-0.2.1-qt-src.zip）
 #-------------------------------------------------------------------------------
 # 这里只取 Qt 控件层：不构建 qlitemd 的示例应用和测试，也不生成安装规则。
 # Qt 版本由宿主决定；base env 固定 Qt5。
@@ -235,7 +235,7 @@ set(QLITEMD_BUILD_QT_WIDGET ON CACHE BOOL "" FORCE)
 set(QLITEMD_BUILD_MD_VIEWER OFF CACHE BOOL "" FORCE)
 set(QLITEMD_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(QLITEMD_INSTALL OFF CACHE BOOL "" FORCE)
-add_subdirectory("${3RDPARTY_DIR}/qlitemd-0.1.0-qt-src"
+add_subdirectory("${3RDPARTY_DIR}/qlitemd-0.2.1-qt-src"
                  "${CMAKE_BINARY_DIR}/3rdparty/qlitemd")
 
 # Qt 的目录推导集中在这里，不要在各子目录另起一套，否则改动假设时容易漏改。

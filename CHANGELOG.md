@@ -85,6 +85,13 @@
   （`BUILD_SHARED_LIBS` 那个"全局污染"的担心不成立：它是子目录作用域的普通
   变量，实测不外泄。`KISSFFT_DATATYPE` 默认 float，与用法一致。）
 
+### 变更
+
+- **qlitemd 源码包升级到 0.2.1**：公式和 Mermaid 都改为运行时选择
+  RaTeX/MathJax、merman/mermaid.js，默认 auto（原生优先，失败回退
+  QuickJS）。文档查看器无需改代码；安装包补带 resvg、ratex_ffi、
+  merman_ffi 三个原生 DLL。
+
 ### 移除
 
 - **FFTW 下线，`examples/fft_demo` 移植到 kissfft**。选 kissfft 的理由是**许可**

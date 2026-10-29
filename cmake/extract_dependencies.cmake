@@ -21,7 +21,7 @@ set(DEPENDENCY_ARCHIVES
     "mini_chromium-9cdc2a7.tar.gz"
     "crashpad-7b9686b.tar.gz"
     "linux-syscall-support-e1e7b0a.tar.gz"
-    "qlitemd-0.1.0-qt-src.zip"
+    "qlitemd-0.2.1-qt-src.zip"
 )
 
 # 检测tar解压命令是否可用
