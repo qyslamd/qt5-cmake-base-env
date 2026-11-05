@@ -16,6 +16,8 @@ set "TARGET="
 set "ACTION="
 set "CONFIGURE_ONLY="
 set "ARCH=x64"
+set "BUILD_JOBS="
+set "PARALLEL_ARG="
 
 set "FIRST_ARG=%~1"
 if not defined FIRST_ARG goto :old_mode
@@ -67,6 +69,21 @@ if /i "%~1"=="--configure" (
     goto :parse_new
 )
 
+if /i "%~1"=="-j" (
+    if "%~2"=="" goto :missing_jobs
+    set "BUILD_JOBS=%~2"
+    shift
+    shift
+    goto :parse_new
+)
+if /i "%~1"=="--jobs" (
+    if "%~2"=="" goto :missing_jobs
+    set "BUILD_JOBS=%~2"
+    shift
+    shift
+    goto :parse_new
+)
+
 if /i "%~1"=="-a" (
     set "ARCH=%~2"
     shift
@@ -82,6 +99,12 @@ if /i "%~1"=="--arch" (
 
 set "ARG=%~1"
 set "PREFIX=!ARG:~0,7!"
+if /i "!PREFIX!"=="--jobs=" (
+    set "BUILD_JOBS=!ARG:~7!"
+    if not defined BUILD_JOBS goto :missing_jobs
+    shift
+    goto :parse_new
+)
 if /i "!PREFIX!"=="--type=" (
     set "BUILD_TYPE=!ARG:~7!"
     shift
@@ -127,12 +150,13 @@ goto :show_help
 :show_help
 echo Usage:
 echo   Legacy:  build_ninja.bat [debug^|relwithdebinfo^|release] [deploy^|package]
-echo   Modern:  build_ninja.bat -t ^<type^> [-a ^<arch^>] [-m ^<target^>] [-d^|-p]
+echo   Modern:  build_ninja.bat -t ^<type^> [-a ^<arch^>] [-m ^<target^>] [-j ^<N^>] [-d^|-p]
 echo.
 echo Options:
 echo   -t, --type ^<type^>       Build type: debug / relwithdebinfo / release
 echo   -a, --arch ^<arch^>       Target architecture: x64 (default) / x86
 echo   -m, --target ^<target^>   Build target (e.g. demo_app), omit for all
+echo   -j, --jobs ^<N^>          Build parallelism (default: CMake/Ninja default)
 echo   -d, --deploy              Run windeployqt after build
 echo   -p, --package             Run windeployqt + ISCC after build
 echo   -c, --configure           Only run CMake configure, skip build
@@ -154,6 +178,7 @@ echo   build_ninja.bat debug deploy
 echo   build_ninja.bat -t debug -m demo_app
 echo   build_ninja.bat -t relwithdebinfo -m demo_app -p
 echo   build_ninja.bat -t debug -a x86 -c
+echo   build_ninja.bat -t relwithdebinfo -a x86 -j 2
 exit /b 1
 
 :: =======================================
@@ -161,6 +186,14 @@ exit /b 1
 :: =======================================
 :setup_new
 :setup_build
+
+:: Validate build jobs. Only digits are accepted; 0 and leading-zero values
+:: are rejected because CMake/Ninja expect a positive integer.
+if defined BUILD_JOBS (
+    for /f "delims=0123456789" %%A in ("%BUILD_JOBS%") do goto :invalid_build_jobs
+    if "%BUILD_JOBS:~0,1%"=="0" goto :invalid_build_jobs
+    set "PARALLEL_ARG=--parallel %BUILD_JOBS%"
+)
 
 :: Validate arch
 if /i not "%ARCH%"=="x64" if /i not "%ARCH%"=="x86" (
@@ -228,13 +261,14 @@ if /i "%BUILD_TYPE%"=="release" (
 
 if not defined PRESET (
     echo Unknown build type: %BUILD_TYPE%
-    echo Usage: build_ninja.bat -t ^<debug^|relwithdebinfo^|release^> [-a ^<x64^|x86^>] [-m ^<target^>] [-d^|-p]
+    echo Usage: build_ninja.bat -t ^<debug^|relwithdebinfo^|release^> [-a ^<x64^|x86^>] [-m ^<target^>] [-j ^<N^>] [-d^|-p]
     exit /b 1
 )
 
 echo Build type: %BUILD_TYPE% (%PRESET%)
 echo Target arch: %ARCH%
 echo Toolchain : %CMAKE_CMD% + %BUNDLED_NINJA%
+if defined BUILD_JOBS echo Build jobs: %BUILD_JOBS%
 if defined TARGET echo Build target: %TARGET%
 
 "%CMAKE_CMD%" -S . --preset %PRESET%
@@ -252,9 +286,9 @@ if defined CONFIGURE_ONLY (
 )
 
 if defined TARGET (
-    "%CMAKE_CMD%" --build %BUILD_DIR% --target %TARGET%
+    "%CMAKE_CMD%" --build %BUILD_DIR% %PARALLEL_ARG% --target %TARGET%
 ) else (
-    "%CMAKE_CMD%" --build %BUILD_DIR%
+    "%CMAKE_CMD%" --build %BUILD_DIR% %PARALLEL_ARG%
 )
 if errorlevel 1 (
     echo Build failed
@@ -266,7 +300,7 @@ echo Build OK!
 if /i "%ACTION%"=="deploy" (
     echo.
     echo Running windeployqt ...
-    cmake --build %BUILD_DIR% --target make_deploy
+    cmake --build %BUILD_DIR% %PARALLEL_ARG% --target make_deploy
     if errorlevel 1 (
         echo windeployqt failed
         exit /b 1
@@ -277,7 +311,7 @@ if /i "%ACTION%"=="deploy" (
 if /i "%ACTION%"=="package" (
     echo.
     echo Packaging ...
-    cmake --build %BUILD_DIR% --target make_package
+    cmake --build %BUILD_DIR% %PARALLEL_ARG% --target make_package
     if errorlevel 1 (
         echo Package failed
         exit /b 1
@@ -286,6 +320,14 @@ if /i "%ACTION%"=="package" (
 )
 
 exit /b 0
+
+:invalid_build_jobs
+echo Invalid build jobs: %BUILD_JOBS% ^(expected a positive integer^)
+exit /b 1
+
+:missing_jobs
+echo Missing value for -j/--jobs
+exit /b 1
 
 :: =======================================
 :: Locate VS2019 via vswhere.

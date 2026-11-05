@@ -1,0 +1,103 @@
+name: build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Windows Qt${{ matrix.qt_version }} (${{ matrix.qt_arch }})
+    runs-on: windows-2022
+    timeout-minutes: 90
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - qt_version: '5.15.2'
+            qt_arch: win64_msvc2019_64
+            msvc_arch: x64
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ matrix.qt_version }}
+          arch: ${{ matrix.qt_arch }}
+          modules: qtserialport
+          cache: true
+          cache-key-prefix: qt-cmake-base-env-qt
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.msvc_arch }}
+
+      - name: Write local.cmake
+        shell: pwsh
+        run: |
+          if (-not $env:QT_ROOT_DIR) {
+            throw "QT_ROOT_DIR is not set"
+          }
+          $qt = $env:QT_ROOT_DIR -replace '\\', '/'
+          $content = @"
+          set(Qt5_Install_Path_x64 "$qt")
+          set(Qt5_Install_Path_x86 "$qt")
+          "@
+          Set-Content -Path local.cmake -Value $content -Encoding utf8
+          Get-Content local.cmake
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          $cmake = Join-Path $env:GITHUB_WORKSPACE '3rdparty\cmake\bin\cmake.exe'
+          & $cmake -S . -B build -G Ninja `
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL `
+            -DCMAKE_MAKE_PROGRAM="$env:GITHUB_WORKSPACE\3rdparty\ninja.exe" `
+            "-DCMAKE_PREFIX_PATH=$env:QT_ROOT_DIR"
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+      - name: Build
+        shell: pwsh
+        run: |
+          $cmake = Join-Path $env:GITHUB_WORKSPACE '3rdparty\cmake\bin\cmake.exe'
+          & $cmake --build build --parallel 4
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+      - name: Test
+        shell: pwsh
+        run: |
+          $ctest = Join-Path $env:GITHUB_WORKSPACE '3rdparty\cmake\bin\ctest.exe'
+          & $ctest --test-dir build --output-on-failure
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-qt5-failure-logs
+          path: |
+            build/Testing/Temporary/LastTest.log
+            build/CMakeCache.txt
+          if-no-files-found: warn

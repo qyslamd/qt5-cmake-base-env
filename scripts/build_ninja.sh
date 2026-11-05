@@ -24,6 +24,7 @@ BUILD_TYPE=""
 TARGET=""
 ACTION=""
 CONFIGURE_ONLY=0
+JOBS=""
 
 die() {
     echo "错误：$*" >&2
@@ -34,11 +35,12 @@ usage() {
     cat <<'EOF'
 用法：
   旧式：  build_ninja.sh [debug|relwithdebinfo|release] [package]
-  新式：  build_ninja.sh -t <类型> [-m <目标>] [-p] [-c]
+  新式：  build_ninja.sh -t <类型> [-m <目标>] [-j <N>] [-p] [-c]
 
 选项：
   -t, --type <类型>      构建类型：debug / relwithdebinfo / release（默认 debug）
   -m, --target <目标>    只构建指定目标（如 demo_app），省略则全量
+  -j, --jobs <N>         构建并行度（不传则用 CMake/Ninja 默认值）
   -p, --package          构建后打 AppImage（make_appimage 目标）
   -c, --configure        只跑 CMake configure，不构建
   -h, --help             显示本帮助
@@ -58,6 +60,7 @@ CMakeCache。
   ./scripts/build_ninja.sh relwithdebinfo package
   ./scripts/build_ninja.sh -t debug -m demo_app
   ./scripts/build_ninja.sh -t relwithdebinfo -p
+  ./scripts/build_ninja.sh -t relwithdebinfo -j 2
 EOF
 }
 
@@ -110,6 +113,16 @@ else
                 TARGET="${1#--target=}"
                 shift
                 ;;
+            -j|--jobs)
+                [ $# -ge 2 ] || die "-j/--jobs 后面要跟一个并行度"
+                JOBS="$2"
+                shift 2
+                ;;
+            --jobs=*)
+                JOBS="${1#--jobs=}"
+                [ -n "$JOBS" ] || die "-j/--jobs 后面要跟一个并行度"
+                shift
+                ;;
             -p|--package)
                 ACTION=package
                 shift
@@ -131,6 +144,12 @@ else
                 ;;
         esac
     done
+fi
+
+if [ -n "$JOBS" ]; then
+    if ! [[ "$JOBS" =~ ^[1-9][0-9]*$ ]]; then
+        die "无效的并行度：$JOBS（要求正整数）"
+    fi
 fi
 
 # 构建类型 → CMake 配置名。类型名沿用 .bat 的小写写法，
@@ -155,8 +174,16 @@ esac
 
 BUILD_DIR="build/linux-ninja-${BUILD_TYPE}"
 
+PARALLEL_ARGS=()
+if [ -n "$JOBS" ]; then
+    PARALLEL_ARGS=(--parallel "$JOBS")
+fi
+
 echo "构建类型：${BUILD_TYPE}（${CMAKE_BUILD_TYPE}）"
 echo "构建目录：${BUILD_DIR}"
+if [ -n "$JOBS" ]; then
+    echo "并行度：${JOBS}"
+fi
 if [ -n "$TARGET" ]; then
     echo "构建目标：${TARGET}"
 fi
@@ -178,11 +205,11 @@ fi
 # 构建
 # ---------------------------------------------------------------------------
 if [ -n "$TARGET" ]; then
-    if ! cmake --build "$BUILD_DIR" --target "$TARGET"; then
+    if ! cmake --build "$BUILD_DIR" "${PARALLEL_ARGS[@]}" --target "$TARGET"; then
         die "构建失败"
     fi
 else
-    if ! cmake --build "$BUILD_DIR"; then
+    if ! cmake --build "$BUILD_DIR" "${PARALLEL_ARGS[@]}"; then
         die "构建失败"
     fi
 fi
@@ -195,7 +222,7 @@ echo "构建完成！"
 if [ "$ACTION" = "package" ]; then
     echo
     echo "打包 AppImage ..."
-    if ! cmake --build "$BUILD_DIR" --target make_appimage; then
+    if ! cmake --build "$BUILD_DIR" "${PARALLEL_ARGS[@]}" --target make_appimage; then
         die "AppImage 打包失败"
     fi
     echo "打包完成！"
