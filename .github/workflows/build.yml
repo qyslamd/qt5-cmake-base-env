@@ -36,9 +36,10 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
+          # Qt 5.15.2's default archives already include qtserialport.
+          # Passing it through `modules` fails because it is not an add-on.
           version: ${{ matrix.qt_version }}
           arch: ${{ matrix.qt_arch }}
-          modules: qtserialport
           cache: true
           cache-key-prefix: qt-cmake-base-env-qt
 
