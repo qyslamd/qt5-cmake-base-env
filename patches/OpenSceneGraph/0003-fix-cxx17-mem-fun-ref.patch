@@ -1,0 +1,10 @@
+diff --git a/src/osgUtil/tristripper/include/detail/graph_array.h b/src/osgUtil/tristripper/include/detail/graph_array.h
+--- a/src/osgUtil/tristripper/include/detail/graph_array.h
++++ b/src/osgUtil/tristripper/include/detail/graph_array.h
+@@ -446,5 +446,5 @@
+ template <class N>
+ inline void unmark_nodes(graph_array<N> & G)
+ {
+-    std::for_each(G.begin(), G.end(), std::mem_fun_ref(&graph_array<N>::node::unmark));
++    std::for_each(G.begin(), G.end(), std::mem_fn(&graph_array<N>::node::unmark));
+ }

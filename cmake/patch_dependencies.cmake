@@ -128,6 +128,34 @@ apply_patch_to_dir("${3RDPARTY_DIR}/zlib-v1.2.11"
 apply_patch_to_dir("${3RDPARTY_DIR}/zlib-v1.2.11"
     "${PATCHES_DIR}/zlib/0002-drop-example-binaries.patch")
 
+# OSG 及其依赖只在 BUILD_OSG=ON 时解压；补丁也必须跟着开关走，
+# 否则默认 OFF 会对不存在的目录调用 apply_patch_to_dir 并 FATAL。
+if(BUILD_OSG)
+    apply_patch_to_dir("${3RDPARTY_DIR}/OpenSceneGraph-OpenSceneGraph-3.6.5"
+        "${PATCHES_DIR}/OpenSceneGraph/0001-bump-cmake-minimum-version.patch")
+    apply_patch_to_dir("${3RDPARTY_DIR}/OpenSceneGraph-OpenSceneGraph-3.6.5"
+        "${PATCHES_DIR}/OpenSceneGraph/0002-guard-uninstall-target.patch")
+    # tristripper 的 std::mem_fun_ref 在 C++17 已被移除；OSG 3.6.5 自身
+    # 仍按 C++11 编写，本仓统一 C++17 编译时这里必须换掉
+    apply_patch_to_dir("${3RDPARTY_DIR}/OpenSceneGraph-OpenSceneGraph-3.6.5"
+        "${PATCHES_DIR}/OpenSceneGraph/0003-fix-cxx17-mem-fun-ref.patch")
+    # OBJ 插件的 std::not1/std::ptr_fun 同样在 C++17 被移除
+    apply_patch_to_dir("${3RDPARTY_DIR}/OpenSceneGraph-OpenSceneGraph-3.6.5"
+        "${PATCHES_DIR}/OpenSceneGraph/0004-fix-cxx17-ptr-fun.patch")
+    apply_patch_to_dir("${3RDPARTY_DIR}/libpng-1.6.43"
+        "${PATCHES_DIR}/libpng/0001-remove-unused-asm-language.patch")
+    apply_patch_to_dir("${3RDPARTY_DIR}/libjpeg-turbo-2.1.4"
+        "${PATCHES_DIR}/libjpeg-turbo/0001-bump-cmake-minimum-version.patch")
+    apply_patch_to_dir("${3RDPARTY_DIR}/libjpeg-turbo-2.1.4"
+        "${PATCHES_DIR}/libjpeg-turbo/0002-guard-uninstall-target.patch")
+    # libjpeg 的测试段没有开关，且测试目标被 EXCLUDE_FROM_ALL 排除，
+    # 留着只会让宿主 ctest 多出上百条 Not Run
+    apply_patch_to_dir("${3RDPARTY_DIR}/libjpeg-turbo-2.1.4"
+        "${PATCHES_DIR}/libjpeg-turbo/0003-skip-tests.patch")
+    apply_patch_to_dir("${3RDPARTY_DIR}/freetype-2.12.1"
+        "${PATCHES_DIR}/freetype/0001-bump-cmake-minimum-version.patch")
+endif()
+
 # FluentUIStyle 同样做「版本无关查找」（find_package(QT NAMES Qt6 Qt5)，包名是
 # QT、认的是 QT_DIR），与本仓 local.cmake 只提供 Qt5_DIR 的写法对不上——实测
 # 配置阶段直接失败。不是 option，改不了，只能补丁钉到 Qt5（同 QXlsx / SARibbon /

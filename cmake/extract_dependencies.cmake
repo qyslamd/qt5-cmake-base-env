@@ -24,6 +24,17 @@ set(DEPENDENCY_ARCHIVES
     "qlitemd-0.2.1-qt-src.zip"
 )
 
+# OSG 是可选的大依赖：默认 BUILD_OSG=OFF 时不解压，避免每个新构建目录
+# 都背数 MB 源码与后续 configure 成本。
+if(BUILD_OSG)
+    list(APPEND DEPENDENCY_ARCHIVES
+        "libpng-1.6.43.tar.gz"
+        "libjpeg-turbo-2.1.4.tar.gz"
+        "freetype-2.12.1.tar.gz"
+        "OpenSceneGraph-OpenSceneGraph-3.6.5.tar.gz"
+    )
+endif()
+
 # 检测tar解压命令是否可用
 function(check_tar_command)
     execute_process(COMMAND tar --version

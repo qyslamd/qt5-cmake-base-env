@@ -1,0 +1,57 @@
+{
+  "name": "Desktop PC Set",
+  "parts": [
+    {
+      "file": "../../output/parts/table.obj",
+      "position": [0.0, 0.0, 0.0]
+    },
+    {
+      "file": "../../output/parts/pc_tower.obj",
+      "position": [-0.10, 0.75, -0.05]
+    },
+    {
+      "file": "../../output/parts/pc_monitor.obj",
+      "position": [-0.62, 0.75, -0.20]
+    },
+    {
+      "file": "../../output/parts/pc_keyboard.obj",
+      "position": [-0.70, 0.75, 0.16]
+    },
+    {
+      "file": "../../output/parts/pc_mouse.obj",
+      "position": [-0.40, 0.75, 0.14]
+    },
+    {
+      "file": "../../output/parts/pc_cable_keyboard.obj",
+      "position": [0.0, 0.0, 0.0]
+    },
+    {
+      "file": "../../output/parts/pc_cable_mouse.obj",
+      "position": [0.0, 0.0, 0.0]
+    },
+    {
+      "file": "../../output/parts/pc_cable_tester.obj",
+      "position": [0.0, 0.0, 0.0]
+    },
+    {
+      "file": "../../output/parts/tester_board.obj",
+      "position": [0.20, 0.75, 0.0]
+    },
+    {
+      "file": "../../output/parts/multiplexer_board.obj",
+      "position": [0.40, 0.75, 0.0]
+    },
+    {
+      "file": "../../output/parts/multiplexer_board.obj",
+      "position": [0.62, 0.75, 0.0]
+    },
+    {
+      "file": "../../output/parts/multiplexer_board.obj",
+      "position": [0.84, 0.75, 0.0]
+    },
+    {
+      "file": "../../output/parts/multiplexer_board.obj",
+      "position": [1.06, 0.75, 0.0]
+    }
+  ]
+}

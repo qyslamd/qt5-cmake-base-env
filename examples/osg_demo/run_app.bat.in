@@ -1,0 +1,11 @@
+@echo off
+setlocal
+
+set "PATH=@OSG_DEMO_OSG_NATIVE@;@OSG_DEMO_QT_BIN_NATIVE@;%PATH%"
+set "QT_PLUGIN_PATH=@OSG_DEMO_QT_PLUGINS_NATIVE@"
+set "OSG_LIBRARY_PATH=@OSG_DEMO_OSG_NATIVE@"
+
+chcp 65001 >nul
+cd /d "@OSG_DEMO_RUN_DIR_NATIVE@"
+
+.\osg_demo.exe %*

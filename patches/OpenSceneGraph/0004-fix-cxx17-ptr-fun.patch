@@ -1,0 +1,23 @@
+diff --git a/src/osgPlugins/obj/obj.cpp b/src/osgPlugins/obj/obj.cpp
+--- a/src/osgPlugins/obj/obj.cpp
++++ b/src/osgPlugins/obj/obj.cpp
+@@ -16,6 +16,7 @@
+ #include <string>
+ #include <stdio.h>
+ #include <functional>
++#include <cctype>
+
+ #include "obj.h"
+
+@@ -38,8 +39,9 @@
+ static std::string strip( const std::string& ss )
+ {
+     std::string result;
+-    result.assign( std::find_if( ss.begin(), ss.end(), std::not1( std::ptr_fun< int, int >( isspace ) ) ),
+-                   std::find_if( ss.rbegin(), ss.rend(), std::not1( std::ptr_fun< int, int >( isspace ) ) ).base() );
++    const auto not_space = []( int ch ) { return std::isspace( ch ) == 0; };
++    result.assign( std::find_if( ss.begin(), ss.end(), not_space ),
++                   std::find_if( ss.rbegin(), ss.rend(), not_space ).base() );
+     return( result );
+ }
+

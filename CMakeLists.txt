@@ -79,6 +79,7 @@ option(BUILD_QT_TESTING "启用 QtTesting UI 录制/回放" ON)
 option(BUILD_FUNQ "构建 funq GUI 测试库（注入式，产物供测试运行时使用）" ON)
 option(BUILD_RIBBON "启用 SARibbon Ribbon 界面（主窗口的功能区菜单）" ON)
 option(BUILD_FLUENT_UI "构建 FluentUI3Style 界面库（第二条界面路线）" ON)
+option(BUILD_OSG "构建 OpenSceneGraph GLCORE 支持" OFF)
 # 主界面二选一，同进程互斥：qss（样式表 + SARibbon）/ fluent（FluentUI3Style）。
 # 普通变量（非缓存）：子目录可覆盖（如 src/app 自己走 fluent），local.cmake
 # 可覆盖（不入库的本地切换）。缓存里若还留着下沉前的 -DAPP_UI_ROUTE=fluent，
@@ -278,6 +279,11 @@ add_subdirectory(3rdparty/QXlsx-1.5.0/QXlsx)
 # src/core 要编它的客户端实现，src/app 要能链接 crashpad_client 等目标。
 # 后端是运行时配置（crash/backend），这里不再有编译期分发
 include(${CMAKE_SOURCE_DIR}/cmake/crashpad/crashpad.cmake)
+
+# OpenSceneGraph GLCORE（源码内构建，默认关闭）
+if(BUILD_OSG)
+    include(${CMAKE_SOURCE_DIR}/cmake/osg/osg.cmake)
+endif()
 
 # QtTesting —— UI 录制/回放的引擎
 if(BUILD_QT_TESTING)

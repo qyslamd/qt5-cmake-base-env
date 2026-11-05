@@ -251,6 +251,9 @@ data/cache/
 data/temp/
 output/
 temp/
+# OSG demo ships its generated OBJ assets as test fixtures.
+!examples/osg_demo/output/
+!examples/osg_demo/output/**
 *.dat
 *.bin
 !docs/**/*.png
@@ -280,6 +283,8 @@ dist/
 !3rdparty/7z.exe
 !3rdparty/*.zip
 !3rdparty/QCustomPlot/
+# GLCORE headers are source, not an extraction product.
+!3rdparty/glcore/
 # AppImage 打包工具（linuxdeploy / appimagetool）。入库而非按需下载，因为
 # GitHub 的 release 资源 CDN 在国内网络下常常不可达，按需下载会直接失败。
 !3rdparty/appimage-tools/
